@@ -63,16 +63,33 @@ class FileOutputHandler(OutputHandler):
         Returns:
             Resolved Path
         """
+        import os
+        import re
         from datetime import datetime
         
         path = self.path_template
         
-        # Substitute variables
+        # Substitute LOGFORGE_HOME and other environment variables
+        def replace_var(match: re.Match) -> str:
+            var_name = match.group(1)
+            if var_name == 'LOGFORGE_HOME':
+                from logforge.core.paths import get_logforge_home
+                return str(get_logforge_home())
+            return os.getenv(var_name, match.group(0))
+        
+        # Replace ${VAR} patterns
+        pattern = r'\$\{([^}]+)\}'
+        path = re.sub(pattern, replace_var, path)
+        
+        # Substitute template variables
         if generator_name:
             path = path.replace('{generator}', generator_name)
         
         path = path.replace('{date}', datetime.now().strftime('%Y-%m-%d'))
         path = path.replace('{timestamp}', str(int(datetime.now().timestamp())))
+        
+        # Expand user home directory (~)
+        path = os.path.expanduser(path)
         
         return Path(path)
     
