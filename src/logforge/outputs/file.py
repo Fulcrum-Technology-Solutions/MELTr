@@ -69,6 +69,9 @@ class FileOutputHandler(OutputHandler):
         
         path = self.path_template
         
+        # Log original template for debugging
+        logger.debug(f"Resolving path template: {path}")
+        
         # Substitute LOGFORGE_HOME and other environment variables
         # LOGFORGE_HOME uses self-discovery if not set as env var
         def replace_var(match: re.Match) -> str:
@@ -80,12 +83,18 @@ class FileOutputHandler(OutputHandler):
                 # 3. Detects installation directory from binary location
                 # 4. Falls back to ~/.logforge or /var/lib/logforge
                 from logforge.core.paths import get_logforge_home
-                return str(get_logforge_home())
-            return os.getenv(var_name, match.group(0))
+                home_path = str(get_logforge_home())
+                logger.debug(f"Substituted ${var_name} with: {home_path}")
+                return home_path
+            env_value = os.getenv(var_name, match.group(0))
+            if env_value != match.group(0):
+                logger.debug(f"Substituted ${var_name} with: {env_value}")
+            return env_value
         
         # Replace ${VAR} patterns
         pattern = r'\$\{([^}]+)\}'
         path = re.sub(pattern, replace_var, path)
+        logger.debug(f"Path after substitution: {path}")
         
         # Substitute template variables
         if generator_name:
@@ -97,7 +106,41 @@ class FileOutputHandler(OutputHandler):
         # Expand user home directory (~)
         path = os.path.expanduser(path)
         
-        return Path(path)
+        # Normalize path separators (handle Windows-style backslashes)
+        # Replace backslashes with forward slashes for cross-platform compatibility
+        path = path.replace('\\', '/')
+        
+        # Create Path object
+        path_obj = Path(path)
+        
+        # If path is relative, try to resolve it
+        # Check if it starts with a known pattern that suggests it should be absolute
+        if not path_obj.is_absolute():
+            # If path still contains ${LOGFORGE_HOME} or looks like a template variable, log warning
+            if '${' in str(path_obj) or path_obj.parts[0] == 'logforge':
+                # This suggests substitution didn't happen - try to resolve relative to LOGFORGE_HOME
+                from logforge.core.paths import get_logforge_home
+                home = get_logforge_home()
+                # If path starts with 'logforge', remove it and use home directly
+                if path_obj.parts[0] == 'logforge':
+                    path_obj = home / Path(*path_obj.parts[1:])
+                else:
+                    path_obj = home / path_obj
+                logger.warning(f"Path was relative, resolved relative to LOGFORGE_HOME: {path_obj}")
+            else:
+                # Resolve relative to current working directory
+                path_obj = Path.cwd() / path_obj
+        
+        # Resolve to absolute path (follows symlinks, normalizes)
+        try:
+            path_obj = path_obj.resolve()
+        except (OSError, RuntimeError):
+            # If resolve fails (e.g., path doesn't exist yet), just make it absolute
+            if not path_obj.is_absolute():
+                path_obj = Path.cwd() / path_obj
+        
+        logger.debug(f"Final resolved path: {path_obj}")
+        return path_obj
     
     def initialize(self) -> None:
         """Initialize file handler."""

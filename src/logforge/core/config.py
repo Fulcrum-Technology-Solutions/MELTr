@@ -191,7 +191,14 @@ def substitute_env_vars(value: Any, home: Path) -> Any:
             return os.getenv(var_name, match.group(0))
         
         pattern = r'\$\{([^}]+)\}'
-        return re.sub(pattern, replace_var, value)
+        result = re.sub(pattern, replace_var, value)
+        
+        # Normalize path separators (handle Windows-style backslashes in paths)
+        # Only normalize if this looks like a file path
+        if '/' in result or '\\' in result:
+            result = result.replace('\\', '/')
+        
+        return result
     else:
         return value
 
