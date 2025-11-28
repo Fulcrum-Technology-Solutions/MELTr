@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from logforge.cli import api, api_client, config, entities, generators, templates
+from logforge.cli import api, api_client, config, entities, generators, service, templates
 from logforge.cli.init import init
 
 console = Console()
@@ -33,6 +33,7 @@ app.add_typer(entities.app, name="entities")
 app.add_typer(templates.app, name="templates")
 app.add_typer(generators.app, name="generators")
 app.add_typer(api.app, name="api")
+app.add_typer(service.app, name="service")
 
 # Add start command (shortcut for api start)
 @app.command("start")
