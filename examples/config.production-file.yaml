@@ -59,13 +59,24 @@ outputs:
   # Output definitions
   definitions:
     # File output with size-based rotation
+    # Path template supports variables: {generator}, {vendor}, {product}, {data_source}, {date}, {timestamp}, etc.
     - name: file-output
       type: file
-      path: ${LOGFORGE_HOME}/outputs/events.log
+      path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
       rotation:
         type: size
         max_size: 104857600  # 100MB per file
+        max_files: 10  # Keep last 10 rotated files
         compress: true
+    
+    # Alternative: Simple path without templating (backward compatible)
+    # - name: file-output-simple
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/events.log
+    #   rotation:
+    #     type: size
+    #     max_size: 104857600
+    #     compress: true
     
     # Optional: Also output to console for monitoring
     # - name: stdout

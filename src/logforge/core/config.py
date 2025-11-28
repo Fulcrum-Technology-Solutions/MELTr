@@ -93,6 +93,7 @@ class OutputRotationConfig(BaseModel):
     type: str = Field(description="Rotation type: size or time")
     max_size: Optional[Union[int, str]] = Field(default=None, description="Max file size")
     max_age: Optional[str] = Field(default=None, description="Max age (e.g., '7d', '24h')")
+    max_files: Optional[int] = Field(default=None, description="Maximum number of rotated files to keep")
     compress: bool = Field(default=True, description="Compress rotated files")
 
 
@@ -203,6 +204,39 @@ def substitute_env_vars(value: Any, home: Path) -> Any:
         return value
 
 
+def _validate_output_path_templates(config: Config) -> None:
+    """Validate file output path templates in configuration.
+    
+    Args:
+        config: Config object to validate
+        
+    Raises:
+        ValueError: If any path template is invalid
+    """
+    if not config.outputs or not config.outputs.definitions:
+        return
+    
+    # Import here to avoid circular dependency
+    from logforge.outputs.path_resolver import validate_path_template
+    from logforge.utils.logging import get_logger
+    
+    logger = get_logger(__name__)
+    
+    for output_def in config.outputs.definitions:
+        if output_def.type == 'file' and output_def.path:
+            is_valid, template_warnings = validate_path_template(output_def.path)
+            if not is_valid:
+                raise ValueError(
+                    f"Invalid path template for output '{output_def.name}': "
+                    f"{', '.join(template_warnings)}"
+                )
+            if template_warnings:
+                for warning in template_warnings:
+                    logger.warning(
+                        f"Output '{output_def.name}' path template: {warning}"
+                    )
+
+
 def load_config(config_path: Optional[Path] = None, create_if_missing: bool = True) -> Config:
     """Load configuration from YAML file.
     
@@ -259,9 +293,14 @@ def load_config(config_path: Optional[Path] = None, create_if_missing: bool = Tr
     
     # Validate with Pydantic
     try:
-        return Config(**raw_config)
+        config = Config(**raw_config)
     except Exception as e:
         raise ValueError(f"Invalid configuration: {e}") from e
+    
+    # Validate file output path templates
+    _validate_output_path_templates(config)
+    
+    return config
 
 
 def save_config(config: Config, config_path: Optional[Path] = None) -> None:

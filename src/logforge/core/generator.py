@@ -83,6 +83,7 @@ class Generator:
         # Template renderer
         self._renderer: Optional[TemplateRenderer] = None
         self._template_content: Optional[str] = None
+        self._template_info: Optional[Any] = None  # TemplateInfo object
     
     @property
     def state(self) -> GeneratorState:
@@ -127,6 +128,8 @@ class Generator:
             if not template_info:
                 raise ValueError(f"Template not found: {self.config.template}")
             
+            self._template_info = template_info
+            
             # Load template content
             with template_info.template_path.open('r', encoding='utf-8') as f:
                 self._template_content = f.read()
@@ -134,9 +137,35 @@ class Generator:
             # Create renderer
             self._renderer = TemplateRenderer(self.registry)
             
-            # Initialize output handlers
+            # Initialize output handlers with template context
             for handler in self.output_handlers:
                 try:
+                    # Pass template context to file output handlers
+                    if hasattr(handler, 'set_template_context'):
+                        template_metadata = {
+                            "vendor": template_info.vendor,
+                            "product": template_info.product,
+                            "data_source": template_info.data_source,
+                        }
+                        # Note: collection is not part of the template ID structure
+                        # Template ID format: vendor/product/data_source/template_name
+                        # If collection is needed, it would need to be added to metadata
+                        
+                        organization_name = None
+                        try:
+                            org = self.registry.get_organization()
+                            if org and 'name' in org:
+                                organization_name = org['name']
+                        except Exception:
+                            pass  # Organization not available
+                        
+                        handler.set_template_context(
+                            generator_name=self.name,
+                            output_name=handler.name,
+                            template_metadata=template_metadata,
+                            organization_name=organization_name,
+                        )
+                    
                     # Output handlers should have an initialize method if needed
                     if hasattr(handler, 'initialize'):
                         handler.initialize()
