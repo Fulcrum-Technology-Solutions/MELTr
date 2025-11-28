@@ -1,1611 +1,1342 @@
-# LogForge Open-Source Version - Task Decomposition
+# LogForge Open-Source Version
 
-**Version**: 1.0  
-**Date**: 2025-01-15  
-**Based On**: LogForge-OSS-Requirements.md v1.0, LogForge-UserStory.md v1.0
+## Project Overview
+
+LogForge is a synthetic event log generator that produces realistic log data from various systems using a template-based architecture. The open-source version provides a complete, production-ready system with API-first design, file-based persistence, and thread-based concurrent generation. Key features include template-based event generation with Jinja2, entity registry management, multiple output handlers (file, console, HTTP, TCP, syslog), community template integration, and comprehensive observability via Prometheus metrics.
+
+**Success Criteria**: Users can install via pip, initialize configuration, install templates from community, run multiple concurrent generators, and deploy via Docker—all within 5 minutes of installation. The system must achieve 1000+ events/second per generator, maintain <500MB memory for 10 generators, and provide 80%+ test coverage.
+
+## Key Architectural Decisions
+
+1. **Decision 001**: API Architecture - FastAPI embedded server in background thread
+2. **Decision 002**: CLI Framework Selection - Click vs Typer
+3. **Decision 003**: Template Precedence System - custom_first vs default_first vs explicit
+4. **Decision 004**: Threading Model - ThreadPoolExecutor with dynamic sizing
+5. **Decision 005**: Entity Storage - File-based YAML vs database
+6. **Decision 006**: Output Handler Retry Strategy - Exponential backoff with unlimited retries
+7. **Decision 007**: Template Safety - Sandboxed Jinja2 environment
+8. **Decision 008**: Configuration Location - LOGFORGE_HOME enforcement
 
 ---
 
-## 1. Project Overview
+# Epic 1: Foundation & Project Setup
 
-LogForge is a synthetic event log generator that produces realistic log data from various systems using a template-based architecture. The open-source version provides a complete, production-ready system with an API-first design (embedded FastAPI server), zero-code template configuration, file-based persistence, thread-based concurrent generation, and comprehensive observability. The system supports multiple output handlers (file, console, HTTP, TCP, syslog), entity registry management for realistic data generation, and community template integration. The CLI serves as a thin wrapper around the management API, ensuring all operations are API-driven and enabling remote control capabilities.
+## Project Structure & Packaging {Priority: High}
 
-**Key Technical Decisions Needed**:
-- CLI framework selection (Click vs Typer)
-- Threading model implementation details (ThreadPoolExecutor configuration)
-- Template precedence system implementation (custom vs default)
-- Output handler retry strategy and buffering mechanism
-- Entity registry schema validation approach
-- Community API client error handling and caching strategy
-
----
-
-## 2. Task Hierarchy
-
-# Epic 1: Project Foundation & Infrastructure
-
-## Project Structure & Packaging {Priority: High} [4/4 complete]
-
-- [x] Create Python project structure following module layout from requirements {Priority: High}
-  - Implemented: Scaffolded `src/logforge` package tree (cli/core/templates/entities/api/outputs/community/utils) with placeholder modules plus root `__main__`, and added `tests/` hierarchy with placeholder test.
-  - Tested: Verified directory creation and placeholder test via filesystem inspection (`find`, `ls`), ensuring pytest will discover scaffolding.
-  - Files: `src/logforge/**`, `tests/**`
-  - Notes: All modules currently stubs; to be replaced while implementing respective epics.
-  - Date: 2025-11-23
-  - Acceptance: All directories exist (`src/logforge/`, `tests/`, `examples/`)
+- [ ] Create Python package structure following src/ layout
+  - Acceptance: `src/logforge/` contains all modules, `pyproject.toml` defines package metadata
   - Dependencies: None
-  - Notes: Follow structure in section 15.1 of requirements
-  - (User Story Phase 1)
+  - Notes: Follow PEP 518/621 standards, use setuptools build backend
 
-- [x] Configure `pyproject.toml` with dependencies and build system {Priority: High}
-  - Implemented: Added `pyproject.toml` with setuptools build backend, project metadata, runtime deps (FastAPI, Typer, Faker, etc.), dev extras (pytest stack, ruff, mypy), and CLI entry point wiring per requirements.
-  - Tested: Manual review ensuring spec-aligned dependency list and script entry; ready for `pip install -e .` once code implemented.
-  - Files: `pyproject.toml`
-  - Notes: Includes `[tool.setuptools]` src-layout config plus pytest defaults for future testing; Click kept since Typer builds atop it.
-  - Date: 2025-11-23
-  - Acceptance: Package installs via `pip install -e .`, all dependencies resolve
+- [ ] Configure pyproject.toml with dependencies and metadata
+  - Acceptance: Package installs via `pip install -e .`, all required dependencies listed
   - Dependencies: Project structure
-  - Notes: Include all dependencies from requirements section 10.1
+  - Notes: Include jinja2, pyyaml, click/typer, fastapi, uvicorn, faker, prometheus-client, pydantic
 
-- [x] Set up development dependencies and tooling {Priority: High}
-  - Implemented: Added `Makefile`, `ruff.toml`, `mypy.ini`, and Black config in `pyproject.toml`; installed project with `pip install -e ".[dev]"` to ensure runtime/dev deps available.
-  - Tested: Ran `ruff check src tests`, `black --check src tests`, `pytest`, and `mypy src` to confirm tooling executes successfully.
-  - Files: `Makefile`, `ruff.toml`, `mypy.ini`, `pyproject.toml`
-  - Notes: Make targets wrap install/lint/format/test/typecheck workflows for future CI integration.
-  - Date: 2025-11-23
-  - Acceptance: `pytest`, `black`, `ruff`, `mypy` install and run
+- [ ] Set up development dependencies and tooling
+  - Acceptance: `pip install -e ".[dev]"` installs pytest, black, ruff, mypy
   - Dependencies: pyproject.toml
-  - Notes: Configure in `[project.optional-dependencies]`
+  - Notes: Configure pytest.ini, .ruff.toml, mypy.ini
 
-- [x] Create package entry points and CLI command registration {Priority: High}
-  - Implemented: Built Typer-based CLI with global context, `--version` flag, subcommand groups (config/templates/entities/generators/outputs), helper messaging, and metadata-driven version lookup. Updated `__main__` entry to run the Typer app.
-  - Tested: Added CLI unit tests using `typer.testing.CliRunner` for `--version` and `--help`; ran `ruff`, `black --check`, `pytest`, and `mypy` to verify lint/format/tests/type-checking.
-  - Files: `src/logforge/__init__.py`, `src/logforge/__main__.py`, `src/logforge/cli/{__init__,main,helpers,config,templates,entities,generators,outputs}.py`, `tests/unit/test_cli_main.py`
-  - Notes: Subcommands still stubs but wired for future API-backed implementations per roadmap.
-  - Date: 2025-11-23
-  - Acceptance: `logforge --version` and `logforge --help` work
-  - Dependencies: Project structure, CLI framework
-  - Notes: Use `[project.scripts]` in pyproject.toml
+- [ ] Create package entry points and __main__ module
+  - Acceptance: `logforge --help` and `python -m logforge --help` both work
+  - Dependencies: Package structure
+  - Notes: Define console_scripts entry point in pyproject.toml
 
-## Configuration Management {Priority: High} [6/6 complete]
+## Logging Infrastructure {Priority: High}
 
-- [x] Implement YAML configuration loader with environment variable substitution {Priority: High}
-  - Implemented: Added recursive loader in `core/config.py` that reads `config.yaml`, enforces location under `LOGFORGE_HOME`, substitutes `${LOGFORGE_HOME}` and other `${VAR}` tokens, expands `~`, and returns a processed dictionary for later Pydantic validation.
-  - Tested: Created `tests/unit/test_config_loader.py` covering env substitution, user path expansion, path safety, and missing-variable errors; ran `ruff`, `black --check`, `pytest`, and `mypy`.
-  - Files: `src/logforge/core/config.py`, `tests/unit/test_config_loader.py`, `pyproject.toml`
-  - Notes: Added `types-PyYAML` dev dependency for typing support; loader currently uses simple home resolution pending dedicated task.
-  - Date: 2025-11-23
-  - Acceptance: Loads config.yaml, resolves `${LOGFORGE_HOME}`, validates schema
-  - Dependencies: Project structure
-  - Notes: Support `${VAR}` and `~/.logforge` expansion
+- [ ] Implement logging configuration module
+  - Acceptance: Logging works with configurable levels, file rotation, formatted output
+  - Dependencies: None
+  - Notes: Use Python logging module, support rotation via RotatingFileHandler, respect config.yaml settings
 
-- [x] Create configuration schema validator (Pydantic models) {Priority: High}
-  - Implemented: Added Pydantic models for all config sections (`core/config_schema.py`) plus helpers to validate dictionaries and integrated `load_validated_config` in `core/config.py`.
-  - Tested: Added unit tests covering valid configs, invalid API port, missing outputs, missing generators, and invalid frequency days; ran `ruff`, `black --check`, `pytest`, and `mypy`.
-  - Files: `src/logforge/core/config_schema.py`, `src/logforge/core/config.py`, `tests/unit/test_config_schema.py`
-  - Notes: Validation errors now surface as `ConfigError` with precise field context; supports optional future extension.
-  - Date: 2025-11-23
-  - Acceptance: Invalid configs rejected with clear error messages
+- [ ] Create log file rotation handler
+  - Acceptance: Logs rotate at configured size/age, old logs compressed, backup count respected
+  - Dependencies: Logging configuration
+  - Notes: Use logging.handlers.RotatingFileHandler or TimedRotatingFileHandler
+
+## Configuration Management {Priority: High}
+
+- [ ] Implement LOGFORGE_HOME resolution logic
+  - Acceptance: Defaults to `~/.logforge` for interactive users, `/var/lib/logforge` for service account
+  - Dependencies: None
+  - Notes: Check environment variable, detect service account (uid < 1000 or specific user), validate path is within LOGFORGE_HOME
+
+- [ ] Create configuration YAML loader with validation
+  - Acceptance: Loads config.yaml, validates schema, handles missing fields with defaults
+  - Dependencies: LOGFORGE_HOME
+  - Notes: Use Pydantic models for validation, support environment variable substitution (${VAR})
+
+- [ ] Implement configuration schema validation
+  - Acceptance: Invalid config files rejected with clear error messages, all required fields validated
   - Dependencies: Configuration loader
-  - Notes: Validate all sections (api, engine, entity_registry, templates, outputs, generators)
+  - Notes: Define Pydantic models for each config section (engine, api, entity_registry, templates, outputs, generators)
 
- - [x] Implement `LOGFORGE_HOME` resolution logic {Priority: High}
-  - Implemented: Added `core/home.py` with `resolve_logforge_home` that honors explicit overrides, `LOGFORGE_HOME` env var, service mode flag/user detection, and defaults to `~/.logforge` or `/var/lib/logforge` per requirements; integrated loader to use it.
-  - Tested: Added `tests/unit/test_home_resolution.py` covering env overrides, service flag, username detection, and interactive default, plus full suite (`ruff`, `black --check`, `pytest`, `mypy`).
-  - Files: `src/logforge/core/home.py`, `src/logforge/core/config.py`, `tests/unit/test_home_resolution.py`
-  - Notes: Recognizes `LOGFORGE_SERVICE_MODE` env or user `logforge` as service context; resolves paths to absolute.
-  - Date: 2025-11-23
-  - Acceptance: Defaults to `~/.logforge` for interactive, `/var/lib/logforge` for service user
-  - Dependencies: Configuration loader
-  - Notes: Check user context (interactive vs service account)
-
-- [x] Create default configuration generator for `logforge init` {Priority: High}
-  - Implemented: Added `core/default_config.py` to assemble default config dictionaries, ensure directory scaffolding, and persist YAML safely (no overwrite unless requested); defaults aligned with spec (templates, outputs, generators).
-  - Tested: `tests/unit/test_default_config_generator.py` verifies dict validity, file writing/validation, overwrite protection, and directory creation; ran `ruff`, `black --check`, `pytest`, `mypy`.
-  - Files: `src/logforge/core/default_config.py`, `tests/unit/test_default_config_generator.py`
-  - Notes: Uses schema validator to guarantee generated config remains compliant as models evolve.
-  - Date: 2025-11-23
-  - Acceptance: `logforge init` creates valid config.yaml with sensible defaults
-  - Dependencies: Configuration schema, LOGFORGE_HOME resolution
-  - Notes: Include all required sections with defaults from requirements
-
-- [x] Implement interactive wizard for `logforge init --interactive` {Priority: High}
-  - Implemented: Added Typer-based `logforge init` command with `--interactive` wizard prompting for org info, log dir, API port, base rate, and starter templates plus configurable overrides feeding into the default config generator; config/entities files written safely under the resolved LOGFORGE_HOME.
-  - Tested: New CLI test covers `logforge init` execution with custom LOGFORGE_HOME; default config generator tests updated for option overrides, file writes, overwrite protection, and entity scaffolding; ran `ruff`, `black --check`, `pytest`, and `mypy`.
-  - Files: `src/logforge/cli/main.py`, `src/logforge/core/default_config.py`, `tests/unit/test_cli_main.py`, `tests/unit/test_default_config_generator.py`
-  - Notes: Template install prompt currently informational pending future download support.
-  - Date: 2025-11-23
-  - Acceptance: Wizard prompts for org name, domain, output dir, API port, template install
-  - Dependencies: Default config generator
-  - Notes: Optional enhancement, can be deferred
-
-  - [x] Create CLI commands: `config show`, `config set`, `config validate` {Priority: High}
-    - Implemented: Added Typer subcommands that load/validate config via schema, support JSON/YAML output, mutate dot-path keys, and re-write config safely under LOGFORGE_HOME until API endpoints exist.
-    - Tested: New CLI + unit tests (`tests/unit/test_cli_config.py`) covering show/validate/set flows against temp LOGFORGE_HOME; suite (`ruff`, `black --check`, `pytest`, `mypy`) run.
-    - Files: `src/logforge/cli/config.py`, `tests/unit/test_cli_config.py`
-    - Notes: Currently operates on local files; will switch to API once configuration endpoints land.
-    - Date: 2025-11-23
-  - Acceptance: Commands work via API calls, display/update config correctly
-  - Dependencies: Configuration loader, API endpoints
-  - Notes: CLI is thin wrapper around API
-
-## Logging Infrastructure {Priority: High} [3/3 complete]
-
-- [x] Set up Python logging with file rotation {Priority: High}
-  - Implemented: Added `utils/logging.py` to configure root logging based on schema, including size/time rotation handlers that honor `${LOGFORGE_HOME}` paths and ensure log files live under the resolved home.
-  - Tested: `tests/unit/test_logging_setup.py` verifies log writing and rotation-ready handler creation via real file output; full lint/format/test/type checks executed.
-  - Files: `src/logforge/utils/logging.py`, `tests/unit/test_logging_setup.py`
-  - Notes: Uses RotatingFileHandler/TimedRotatingFileHandler with size/time parsing helpers.
-  - Date: 2025-11-23
-  - Acceptance: Logs written to `${LOGFORGE_HOME}/logforge.log` with rotation
-  - Dependencies: LOGFORGE_HOME resolution
-  - Notes: Use RotatingFileHandler, configurable max_size and backup_count
-
-- [x] Implement structured logging with configurable levels {Priority: High}
-  - Implemented: Logging setup honors config-defined level/format; helper `get_logger` centralizes logger creation to enforce consistent formatting.
-  - Tested: Logging tests inspect produced log files to confirm messages recorded; `pytest` suite covers context manager behavior.
-  - Files: `src/logforge/utils/logging.py`, `tests/unit/test_logging_setup.py`
-  - Notes: Format string fully configurable via config schema.
-  - Date: 2025-11-23
-  - Dependencies: Logging setup
-  - Notes: Support format string from config
-
-- [x] Create logging utility module with context managers {Priority: High}
-  - Implemented: Introduced `log_context` context manager logging start/complete/failure events and exported `configure_logging`, `get_logger` for reuse.
-  - Tested: Logging tests assert context manager emits start/complete markers to log file.
-  - Files: `src/logforge/utils/logging.py`, `tests/unit/test_logging_setup.py`
-  - Notes: Centralized in `utils/logging.py`
-  - Date: 2025-11-23
-  - Dependencies: Logging infrastructure
-  - Notes: Centralized in `utils/logging.py`
+- [ ] Create default configuration generator
+  - Acceptance: Generates valid config.yaml with sensible defaults for all sections
+  - Dependencies: Configuration schema
+  - Notes: Include all sections from requirements, use LOGFORGE_HOME variables
 
 ---
 
-# Epic 2: API Server Core
+# Epic 2: CLI Framework & Initialization
 
-## FastAPI Application Setup {Priority: High} [5/5 complete]
+## CLI Framework Setup {Priority: High}
 
-- [x] Create FastAPI application skeleton with basic routing {Priority: High}
-  - Implemented: `create_app` in `api/server.py` builds FastAPI instance with `/api` routers and healthz probe; routers defined in `api/endpoints`.
-  - Tested: `tests/unit/test_api_server.py` via TestClient ensures `/api/health` responds.
-  - Files: `src/logforge/api/server.py`, `src/logforge/api/endpoints/*`
-  - Notes: App exposes OpenAPI/Swagger as specified.
-  - Date: 2025-11-23
-  - Acceptance: Server starts, responds to basic requests
-  - Dependencies: Project structure
-  - Notes: Base app in `api/server.py`
+- [ ] Choose and integrate CLI framework (Click or Typer)
+  - Acceptance: CLI framework installed, basic command structure works
+  - Dependencies: Package setup
+  - Notes: See Decision 002
 
-- [x] Implement embedded server lifecycle (background thread) {Priority: High}
-  - Implemented: `APIServer` wraps uvicorn Server with start/stop thread logic; used for future daemonized runs.
-  - Tested: `test_api_server_start_stop` mocks `uvicorn.Server.run` ensuring background thread launches.
-  - Date: 2025-11-23
+- [ ] Implement CLI base with API connection logic
+  - Acceptance: CLI connects to API, handles connection errors, supports --api-url and --api-key flags
+  - Dependencies: CLI framework, API server (later)
+  - Notes: All commands must check API health before execution, exit with SERVICE_NOT_RUNNING if unavailable
 
-- [x] Create API configuration model (host, port, auth settings) {Priority: High}
-  - Implemented: `APISettings` dataclass controls host/port/auth and feeds uvicorn config + app creation.
-  - Tested: Unit tests instantiate apps with custom settings (e.g., port 9100, auth enabled).
+- [ ] Create CLI output formatters (table, JSON)
+  - Acceptance: `--output json` produces JSON, default produces formatted tables
+  - Dependencies: CLI base
+  - Notes: Use rich library for tables, json module for JSON output
 
-- [x] Implement API key authentication (optional) {Priority: High}
-  - Implemented: `api/auth.py` builds dependency using FastAPI `HTTPBearer`; enforced when `auth_enabled` true.
-  - Tested: `tests/unit/test_api_server.py::test_status_endpoint_requires_auth_when_enabled` verifies 401/200 flows.
+## Initialization Command {Priority: High}
 
-- [x] Create API startup/shutdown hooks {Priority: High}
-  - Implemented: `create_app` registers lifecycle handlers invoking dependency callbacks (no-ops by default); ensures future resource init/cleanup.
-  - Tested: Hooks exercised implicitly in tests (no exceptions raised).
+- [ ] Implement `logforge init` command
+  - Acceptance: Creates ~/.logforge/ directory structure, generates default config.yaml and entities.yaml
+  - Dependencies: Configuration management, LOGFORGE_HOME
+  - Notes: Create templates/ directory, set proper file permissions (600 for config files)
 
-## Health & Status Endpoints {Priority: High} [4/4 complete]
+- [ ] Add interactive wizard mode (`--interactive`)
+  - Acceptance: Prompts for organization name/domain, output directory, API port, template installation
+  - Dependencies: Init command
+  - Notes: Use inquirer or similar for interactive prompts, validate inputs
 
-- [x] Implement `GET /api/health` endpoint {Priority: High}
-  - Implemented: `/api/health` returns `HealthResponse` via dependency injection; summary counts provided.
-  - Tested: `tests/unit/test_api_server.py::test_health_endpoint_returns_data`.
-
-- [x] Implement `GET /api/status` endpoint {Priority: High}
-  - Implemented: `/api/status` surfaces generator details + system metrics using `StatusResponse`.
-  - Tested: Same suite ensures 200 response with version info.
-
-- [x] Implement `GET /api/metrics` endpoint (Prometheus format) {Priority: High}
-  - Implemented: `/api/metrics` returns Prometheus text using `prometheus_client.generate_latest`.
-  - Tested: `test_metrics_endpoint_returns_plain_text` verifies response.
-
-- [x] Create health check dependency injection {Priority: High}
-  - Implemented: Routers rely on shared auth dependency; healthz endpoint for readiness.
-
-## API Error Handling {Priority: Medium}
-
-- [x] Implement global exception handlers
-  - Implemented: Centralized FastAPI handlers now transform `HTTPException`, request validation errors, and unhandled exceptions into `{success: false, error, details}` payloads.
-  - Tested: `tests/unit/test_api_server.py` covers HTTP errors, validation failures, and unexpected exceptions.
-
-- [x] Create API response models (Pydantic)
-  - Implemented: Added `ErrorResponse` model ensuring consistent error envelope and wiring handlers to emit it.
+- [ ] Implement config show command
+  - Acceptance: `logforge config show` displays current configuration with formatting
+  - Dependencies: Configuration loader, CLI base
+  - Notes: Support --path flag to show specific section
 
 ---
 
-# Epic 3: Entity Registry System
+# Epic 3: API Server Foundation
 
-## Entity Storage Layer {Priority: High} [5/5 complete]
+## FastAPI Application Setup {Priority: High}
 
-- [x] Implement YAML file reader/writer for entities {Priority: High}
-  - Implemented: `EntityStorage` handles atomic YAML writes to `${LOGFORGE_HOME}/entities.yaml` plus `.tmp` swap + backup rotation.
-  - Tested: New unit tests (`tests/unit/test_entities_registry.py`) exercise load/save; e2e coverage via registry/API tests.
-  - Files: `src/logforge/entities/storage.py`
-  - Date: 2025-11-23
+- [ ] Create FastAPI application structure
+  - Acceptance: FastAPI app initializes, basic routing works
+  - Dependencies: FastAPI dependency
+  - Notes: Use dependency injection for shared state (config, engine, registry)
 
-- [x] Create entity schema models (organization, users, devices, services) {Priority: High}
-  - Implemented: Pydantic models (`entities/models.py`) define org/users/devices/services with validation for emails, MACs, ports.
-  - Tested: Validator + registry tests invoke models; CLI/API tests rely on them.
+- [ ] Implement API server lifecycle management
+  - Acceptance: Server starts in background thread, can be stopped gracefully, tracks uptime
+  - Dependencies: FastAPI app
+  - Notes: Use threading.Thread for background server, uvicorn.run in thread, implement shutdown hooks
 
-- [x] Implement in-memory entity cache {Priority: High}
-  - Implemented: `EntityRegistry` loads validated document into memory and exposes summary/list/random helpers.
-  - Tested: `tests/unit/test_entities_registry.py` plus API entity endpoint tests.
+- [ ] Create API server startup/shutdown logic
+  - Acceptance: Server binds to configured host/port, handles startup errors, graceful shutdown
+  - Dependencies: API lifecycle
+  - Notes: Validate port availability, handle address already in use errors
 
-- [x] Create auto-save mechanism with configurable interval {Priority: High}
-  - Implemented: `EntityStorage.start_autosave()` runs background thread using registry getter to persist data every `save_interval`.
-  - Notes: Autosave used by default registry instantiation.
+## Health & Status Endpoints {Priority: High}
 
-- [x] Implement backup system (N backups on save) {Priority: High}
-  - Implemented: Storage rotates `.bak1..N` files prior to rewrites honoring `backup_count`.
+- [ ] Implement GET /api/health endpoint
+  - Acceptance: Returns health status (healthy/degraded/unhealthy), generator counts, component status
+  - Dependencies: FastAPI app, generator engine (later)
+  - Notes: Check entity registry, template cache, generator states
 
+- [ ] Implement GET /api/status endpoint
+  - Acceptance: Returns detailed status with uptime, version, generator details, system metrics
+  - Dependencies: Health endpoint
+  - Notes: Include CPU, memory, thread counts via psutil
 
-## Entity Validation {Priority: High} [3/3 complete]
+- [ ] Implement GET /api/metrics endpoint (Prometheus)
+  - Acceptance: Returns Prometheus-compatible metrics format
+  - Dependencies: Metrics collection (later)
+  - Notes: Use prometheus-client library, expose counters, gauges, histograms
 
-- [x] Implement entity schema validation {Priority: High}
-  - Implemented: `validate_entities` wraps Pydantic models and raises descriptive `EntityValidationError`s for duplicates/invalid formats.
-  - Tested: `tests/unit/test_entities_registry.py` duplicate cases; CLI import/validate commands leverage this.
+## API Authentication {Priority: Medium}
 
-- [x] Create validation rules for all entity types {Priority: High}
-  - Implemented: Email/IP/MAC/port constraints enforced via Pydantic + helper checks.
+- [ ] Implement optional API key authentication
+  - Acceptance: When enabled, requires Authorization: Bearer <key> header, generates key on first run
+  - Dependencies: FastAPI app
+  - Notes: Use FastAPI dependencies for auth, store key in config, generate secure random key
 
-- [x] Implement validation error reporting with line numbers {Priority: High}
-  - Partially addressed: errors include field names and messages; line-level support marked for future enhancement.
-
-## Entity Registry Functions {Priority: High} [3/3 complete]
-
-- [x] Implement registry functions for template access {Priority: High}
-  - Implemented: `entities/functions.py` exposes `get_random_user/service` and organization helpers backed by `EntityRegistry`.
-- [x] Implement specific entity lookup functions {Priority: High}
-  - Implemented within `EntityRegistry` + helper functions; API endpoints reuse same registry for list/add.
-- [x] Implement organization access functions {Priority: High}
-  - Implemented via registry/document dump used by CLI/template helpers.
-
-## Entity API Endpoints {Priority: High} [3/3 complete]
-
-- [x] Implement `GET /api/entities` endpoint {Priority: High}
-  - Implemented: `entities_router` summary route returns organization + counts via registry dependency.
-- [x] Implement `GET /api/entities/{type}` endpoint {Priority: High}
-  - Implemented: Router fetches typed list from registry; supports users/devices/services.
-- [x] Implement `POST /api/entities` endpoint (create entity) {Priority: High}
-  - Implemented: Validates payload through registry before persisting; returns created entity or 400 on invalid type.
-
-## Entity CLI Commands {Priority: Medium} [5/5 complete]
-
-- [x] Implement `logforge entities list` command {Priority: Medium}
-  - Implemented: Typer command invokes API client for `/api/entities` summary or typed lists.
-- [x] Implement `logforge entities show` command {Priority: Medium}
-  - Covered via `list --type users` functionality returning detailed payload; filtering handled client-side.
-- [x] Implement `logforge entities add` command (interactive) {Priority: Medium}
-  - Implemented: `entities add` posts JSON payload to API; payload validation performed server-side.
-- [x] Implement `logforge entities import` and `export` commands {Priority: Medium}
-  - Implemented: Local commands read/write YAML via `EntityStorage` + validator for air-gapped workflows.
-- [x] Implement `logforge entities validate` command {Priority: Medium}
-  - Implemented: CLI reads specified file, runs validator, and prints success/errors.
+- [ ] Add API key generation and storage
+  - Acceptance: Key generated if auth.enabled=true and key is null, stored in config.yaml
+  - Dependencies: API authentication
+  - Notes: Use secrets.token_urlsafe(32) for key generation
 
 ---
 
-# Epic 4: Template System
+# Epic 4: Entity Registry System
 
-## Template Loader & Discovery {Priority: High} [4/4 complete]
+## Entity Storage Layer {Priority: High}
 
-- [x] Implement filesystem template scanner
-  - Implemented: `TemplateLoader` recursively scans `${LOGFORGE_HOME}/templates/{default,custom}` directories, building `TemplateRecord` objects with metadata file + template paths.
-  - Tested: `tests/unit/test_template_loader.py` covers discovery, precedence override, and cache refresh behavior.
+- [ ] Implement entity YAML file loader
+  - Acceptance: Loads entities.yaml, parses YAML, handles missing file gracefully
+  - Dependencies: LOGFORGE_HOME, YAML parser
+  - Notes: Use PyYAML, validate file location is within LOGFORGE_HOME
 
-- [x] Implement template precedence resolution
-  - Implemented: Loader supports `custom_first`, `default_first`, and `explicit` precedence modes, ensuring custom overrides default definitions.
+- [ ] Create entity schema validation
+  - Acceptance: Validates organization, users, devices, services meet schema requirements
+  - Dependencies: Entity loader
+  - Notes: Check required fields, unique constraints (username, hostname, email), validate formats (email, IP, MAC)
 
-- [x] Create template metadata parser
-  - Implemented: Metadata parsed via Pydantic `TemplateMetadata` model (schema-aligned) with ID fallback from relative path; validation errors propagate clearly.
+- [ ] Implement entity in-memory cache
+  - Acceptance: Entities loaded into memory, fast lookups by ID, supports random selection
+  - Dependencies: Entity loader
+  - Notes: Use dictionaries for O(1) lookups, maintain indexes by type
 
-- [x] Implement template cache with TTL
-  - Implemented: Loader caches scan results with configurable `cache_ttl` (default 3600s) and auto-refresh once expired.
+- [ ] Create entity auto-save mechanism
+  - Acceptance: Entities saved to disk at configured interval, handles concurrent access
+  - Dependencies: Entity cache
+  - Notes: Use threading.Lock for thread safety, background thread for periodic saves
 
-## Template Rendering Engine {Priority: High} [5/5 complete]
+- [ ] Implement entity backup system
+  - Acceptance: Creates backups before writes, maintains configured backup count, rotates old backups
+  - Dependencies: Entity storage
+  - Notes: Backup naming: entities.yaml.1, entities.yaml.2, etc., compress old backups
 
-- [x] Integrate Jinja2 template engine
-  - Implemented: `TemplateRenderer` wires a trimmed Jinja2 environment (FileSystemLoader rooted at templates dir) for rendering `template.j2` files.
+## Entity Registry Functions {Priority: High}
 
-- [x] Create custom Jinja2 filters (now, format_datetime, random_int, random_choice)
-  - Implemented: `templates/filters.py` exposes helpers + globals (now/random_*), registered during renderer/validator init; exercised by `tests/unit/test_template_renderer.py`.
+- [ ] Implement registry.get_random_user() function
+  - Acceptance: Returns random user dict with all fields, handles empty registry
+  - Dependencies: Entity cache
+  - Notes: Use random.choice, return full user object
 
-- [x] Integrate Faker library for synthetic data
-  - Implemented: Renderer injects a shared `Faker` instance as `fake` plus entity registry helper accessors, matching requirements.
+- [ ] Implement registry.get_random_device() function
+  - Acceptance: Returns random device dict, handles empty registry
+  - Dependencies: Entity cache
+  - Notes: Similar to get_random_user
 
-- [x] Create template rendering context builder
-  - Implemented: Renderer merges metadata context with caller-provided overrides, ensuring registry/Faker helpers always available.
+- [ ] Implement registry.get_random_service() function
+  - Acceptance: Returns random service dict, handles empty registry
+  - Dependencies: Entity cache
+  - Notes: Similar to above
 
-- [x] Implement template variable substitution
-  - Implemented: `TemplateRenderer.render(..., context)` applies caller overrides atop metadata context, supporting generator-level substitutions.
+- [ ] Implement registry.get_user(username) function
+  - Acceptance: Returns specific user by username (case-insensitive), raises if not found
+  - Dependencies: Entity cache
+  - Notes: Maintain username index for fast lookup
+
+- [ ] Implement registry.get_device(hostname) function
+  - Acceptance: Returns specific device by hostname, raises if not found
+  - Dependencies: Entity cache
+  - Notes: Maintain hostname index
+
+- [ ] Implement registry.get_service(name) function
+  - Acceptance: Returns specific service by name, raises if not found
+  - Dependencies: Entity cache
+  - Notes: Maintain name index
+
+- [ ] Implement registry.get_organization() function
+  - Acceptance: Returns organization dict with all fields
+  - Dependencies: Entity cache
+  - Notes: Return full organization object
+
+- [ ] Implement registry.get_organization_field(field) function
+  - Acceptance: Returns specific organization field value, handles nested fields
+  - Dependencies: Organization data
+  - Notes: Support dot notation for nested fields (e.g., "contacts.admin")
+
+- [ ] Implement registry.get_organization_contact(role) function
+  - Acceptance: Returns contact info for specified role (admin, security, etc.)
+  - Dependencies: Organization data
+  - Notes: Access organization.contacts[role]
+
+## Entity API Endpoints {Priority: High}
+
+- [ ] Implement GET /api/entities endpoint
+  - Acceptance: Returns organization summary and entity counts
+  - Dependencies: Entity registry, FastAPI
+  - Notes: Return JSON matching spec from requirements
+
+- [ ] Implement GET /api/entities/{type} endpoint
+  - Acceptance: Returns entities of specified type (users/devices/services) with pagination
+  - Dependencies: Entity registry
+  - Notes: Support pagination query params, validate type enum
+
+## Entity CLI Commands {Priority: Medium}
+
+- [ ] Implement `logforge entities list` command
+  - Acceptance: Lists all entities or filtered by type, formatted output
+  - Dependencies: Entity API, CLI base
+  - Notes: Call GET /api/entities or GET /api/entities/{type}
+
+- [ ] Implement `logforge entities show` command
+  - Acceptance: Shows specific entity details by ID
+  - Dependencies: Entity API
+  - Notes: Format output nicely, handle not found errors
+
+- [ ] Implement `logforge entities add` command (interactive)
+  - Acceptance: Interactive prompts for adding user/device/service, validates input
+  - Dependencies: Entity API
+  - Notes: Use inquirer for prompts, validate all fields before submission
+
+- [ ] Implement `logforge entities import` command
+  - Acceptance: Imports entities from YAML file, validates schema, merges with existing
+  - Dependencies: Entity API
+  - Notes: Validate file, handle duplicates, show summary
+
+- [ ] Implement `logforge entities export` command
+  - Acceptance: Exports entities to YAML file, preserves all data
+  - Dependencies: Entity API
+  - Notes: Pretty-print YAML, include all fields
+
+- [ ] Implement `logforge entities validate` command
+  - Acceptance: Validates entities.yaml, reports all errors with line numbers
+  - Dependencies: Entity validation
+  - Notes: Check schema, uniqueness, format validation, return exit code 1 on errors
+
+---
+
+# Epic 5: Template System
+
+## Template Loader & Discovery {Priority: High}
+
+- [ ] Implement template filesystem scanner
+  - Acceptance: Discovers templates in default/ and custom/ directories, respects precedence
+  - Dependencies: LOGFORGE_HOME, template structure
+  - Notes: Walk directory tree, identify template.j2 and metadata.yaml pairs
+
+- [ ] Implement template precedence resolution
+  - Acceptance: Resolves template path based on precedence setting (custom_first, default_first, explicit)
+  - Dependencies: Template scanner
+  - Notes: Check custom/ first if custom_first, fall back to default/, error if neither exists
+
+- [ ] Create template metadata parser
+  - Acceptance: Parses metadata.yaml, validates required fields, handles version info
+  - Dependencies: Template loader
+  - Notes: Validate schema, check id matches directory structure
+
+- [ ] Implement template cache with TTL
+  - Acceptance: Caches loaded templates, invalidates after TTL, handles file changes
+  - Dependencies: Template loader
+  - Notes: Use dict with timestamps, check file mtime on access
+
+## Template Rendering Engine {Priority: High}
+
+- [ ] Set up Jinja2 environment with custom filters
+  - Acceptance: Jinja2 environment configured, custom filters available in templates
+  - Dependencies: Jinja2 dependency
+  - Notes: Create isolated environment, register custom filters (now, format_datetime, random_int, random_choice)
+
+- [ ] Implement custom Jinja2 filters
+  - Acceptance: now(), format_datetime(), random_int(), random_choice() work in templates
+  - Dependencies: Jinja2 environment
+  - Notes: now() returns current datetime, format_datetime formats with strftime, random functions use random module
+
+- [ ] Integrate Faker library into template context
+  - Acceptance: `fake` object available in templates, all Faker methods work
+  - Dependencies: Jinja2 environment, Faker
+  - Notes: Create Faker instance, add to template globals
+
+- [ ] Create template rendering context builder
+  - Acceptance: Builds context with registry functions, fake object, filters for each render
+  - Dependencies: Registry functions, Faker integration
+  - Notes: Create context dict with registry and fake objects, pass to Jinja2 render
+
+- [ ] Implement template renderer with error handling
+  - Acceptance: Renders template to string, catches Jinja2 errors, provides detailed error messages
+  - Dependencies: Template context, Jinja2 environment
+  - Notes: Wrap render in try/except, extract line numbers from errors
 
 ## Template Validation {Priority: High}
 
-- [x] Implement Jinja2 syntax validation
-  - Implemented: `TemplateValidator` parses template sources via Jinja2 parser to surface syntax errors before rendering; covered by `tests/unit/test_template_validator.py`.
+- [ ] Implement Jinja2 syntax validation
+  - Acceptance: Detects syntax errors, reports line numbers, validates template.j2
+  - Dependencies: Jinja2
+  - Notes: Use jinja2.Template.parse() to check syntax
 
-- [x] Implement template safety checks (no eval, exec, file access)
-  - Implemented: Template validator scans parsed sources for dangerous tokens (`__import__`, `open`, `eval`, etc.) and rejects double-underscore variables before runtime execution.
-  - Tested: `tests/unit/test_template_validator.py::test_validator_blocks_unsafe_constructs`.
+- [ ] Implement template safety checks
+  - Acceptance: Detects unsafe operations (eval, exec, file access), rejects dangerous templates
+  - Dependencies: Template validation
+  - Notes: Parse AST, check for forbidden function calls, use Jinja2 sandbox mode
 
-- [x] Implement metadata validation against schema
-  - Implemented: Metadata parsed/validated via `TemplateMetadata` Pydantic model enforcing required fields/types, ensuring schema compliance until JSON-schema hook is wired.
+- [ ] Implement metadata validation
+  - Acceptance: Validates metadata.yaml schema, checks id matches directory, validates format enum
+  - Dependencies: Metadata parser
+  - Notes: Use Pydantic model for metadata, cross-validate with filesystem
 
-- [x] Create `logforge templates validate` command
-  - Implemented: Typer command validates by template ID or metadata path using TemplateValidator; tested in `tests/unit/test_cli_templates.py`.
+- [ ] Implement registry function validation
+  - Acceptance: Checks all registry.* calls in template reference valid functions
+  - Dependencies: Template parser
+  - Notes: Parse template AST, extract registry calls, validate against available functions
+
+- [ ] Create template validation command
+  - Acceptance: `logforge templates validate <path>` validates template and reports all issues
+  - Dependencies: All validation checks
+  - Notes: Run all checks, aggregate errors, return exit code
 
 ## Template Customization Workflow {Priority: Medium}
 
-- [x] Implement `logforge templates customize` command
-  - Implemented: CLI command copies default template trees into `custom/` with optional `--force` overwrite, as seen in `logforge.cli.templates`.
+- [ ] Implement `logforge templates customize` command
+  - Acceptance: Copies default template to custom/, preserves metadata, sets base_template reference
+  - Dependencies: Template loader, CLI
+  - Notes: Copy entire directory, update metadata.yaml with base_template field
 
-- [x] Implement `logforge templates diff` command
-  - Implemented: CLI generates unified diffs for metadata and template files using `difflib`, highlighting divergence between default/custom copies.
+- [ ] Implement `logforge templates diff` command
+  - Acceptance: Shows differences between custom and default versions, uses configured diff tool
+  - Dependencies: Template loader
+  - Notes: Use difflib or external tool (vimdiff, meld), show side-by-side or unified diff
 
-- [x] Implement `logforge templates merge` command
-  - Implemented: CLI command syncs default changes into custom templates with configurable strategies (`default` vs `custom`) and optional backups; covered by `tests/unit/test_cli_templates.py`.
+- [ ] Implement `logforge templates merge` command
+  - Acceptance: Attempts to merge default changes into custom, handles conflicts interactively
+  - Dependencies: Template diff
+  - Notes: Use three-way merge algorithm, prompt for conflicts, preserve custom changes
 
-- [x] Implement `logforge templates revert` command
-  - Implemented: CLI removes custom template directories and reports status; verified via CLI tests.
+- [ ] Implement `logforge templates revert` command
+  - Acceptance: Removes custom version, confirms before deletion
+  - Dependencies: Template loader
+  - Notes: Delete custom directory, prompt for confirmation
 
 - [ ] Implement `logforge templates create` command (interactive wizard)
-  - Acceptance: Interactive template creator for custom templates
-  - Dependencies: Template validation
-  - Notes: Creates in custom/ directory
+  - Acceptance: Interactive wizard creates new custom template with metadata
+  - Dependencies: Template loader, CLI
+  - Notes: Prompt for vendor/product/data_source, create directory structure, generate template.j2 skeleton
 
-## Template API Endpoints {Priority: High} [2/2 complete]
+## Template API Endpoints {Priority: High}
 
-- [x] Implement `GET /api/templates` endpoint
-  - Implemented: FastAPI router aggregates TemplateLoader summaries and exposes location/vendor/product/version metadata; response modeled via `TemplateListResponse`.
+- [ ] Implement GET /api/templates endpoint
+  - Acceptance: Returns list of all templates with location, version, status info
+  - Dependencies: Template loader, FastAPI
+  - Notes: Include both default and custom, show precedence indicators
 
-- [x] Implement `GET /api/templates/{template_id}` endpoint
-  - Implemented: Detailed endpoint returns metadata + summary for IDs containing slashes via `{template_id:path}` route; covered by `tests/unit/test_api_server.py::test_templates_endpoints`.
+- [ ] Implement GET /api/templates/{template_id} endpoint
+  - Acceptance: Returns detailed template information including metadata
+  - Dependencies: Template loader
+  - Notes: Resolve precedence, return full metadata, include both versions if custom exists
 
-## Community Integration {Priority: Medium}
+---
 
-- [x] Create community API client (HTTP client)
-  - Implemented: `community/client.py` now provides `CommunityClient` with search/detail/download support, API key handling, and error wrapping.
+# Epic 6: Community Integration
 
-- [x] Implement template search functionality
-  - Implemented: `community/client.py` provides `search_templates`, and CLI/API layers now expose search capability.
+## Community API Client {Priority: Medium}
 
-- [x] Implement template package downloader
-  - Implemented via `CommunityClient.download_template`, handling auth + timeout.
+- [ ] Create HTTP client for community API
+  - Acceptance: Makes requests to community API, handles errors, supports pagination
+  - Dependencies: requests library
+  - Notes: Use requests or httpx, implement retry logic, handle timeouts
 
-- [x] Implement template package installer
-  - Implemented: `community/install.py` validates ZIP contents and installs into `templates/custom`.
+- [ ] Implement vendor listing endpoint client
+  - Acceptance: GET /api/v1/vendors returns list of vendors
+  - Dependencies: Community client
+  - Notes: Parse JSON response, handle errors
 
-- [x] Expose community template search/install API endpoints
-  - Implemented: `/api/community/templates/search` and `/api/community/templates/install` proxy the community client and reuse the shared installer.
+- [ ] Implement template search endpoint client
+  - Acceptance: GET /api/v1/community-templates with query params returns filtered results
+  - Dependencies: Community client
+  - Notes: Support pagination, filtering by vendor/product, search query
 
-- [x] Implement shared template install workflow
-  - Implemented: `community/install.install_template_archive` centralizes package validation/copying for CLI and API flows.
+- [ ] Implement template download endpoint client
+  - Acceptance: Downloads ZIP file from vendor download endpoint
+  - Dependencies: Community client
+  - Notes: Stream download, verify checksum, handle network errors
 
-- [ ] Implement template update checker
-  - Acceptance: Checks for remote updates, compares versions
-  - Dependencies: Community API client, template loader
-  - Notes: Configurable auto_update_check
+- [ ] Implement package extraction and validation
+  - Acceptance: Extracts ZIP to default/ directory, validates manifest.json and checksum
+  - Dependencies: Download client
+  - Notes: Use zipfile module, verify SHA-256 checksum, validate package_format_version
 
-- [x] Implement `logforge templates list` command
-  - Implemented: CLI uses management API `/api/templates` to display ID/location/vendor/version data with optional JSON output; precedence indicated via `[location]`.
+## Template Installation & Management {Priority: Medium}
 
-- [x] Implement `logforge templates search` command
-  - Implemented: CLI now uses the community client to query catalog results with JSON/table output.
+- [ ] Implement `logforge templates search` command
+  - Acceptance: Searches community templates, displays results with formatting
+  - Dependencies: Community client, CLI
+  - Notes: Support --vendor and --product filters, paginate results
 
-- [x] Implement `logforge templates install` command
-  - Implemented: CLI downloads, validates, and installs community packages with destination/force options.
+- [ ] Implement `logforge templates list` command
+  - Acceptance: Lists local and remote templates, shows version info and status
+  - Dependencies: Template loader, Community client
+  - Notes: Merge local and remote results, show update availability, indicate precedence
+
+- [ ] Implement `logforge templates info` command
+  - Acceptance: Shows detailed template info including both default and custom versions
+  - Dependencies: Template loader, Community client
+  - Notes: Fetch remote version if available, show comparison
+
+- [ ] Implement `logforge templates install` command
+  - Acceptance: Downloads and installs template to default/, warns if custom exists
+  - Dependencies: Community client, Package extraction
+  - Notes: Check for custom version, prompt user for action (update custom, keep custom, cancel)
 
 - [ ] Implement `logforge templates update` command
-  - Acceptance: Updates outdated default/ templates
-  - Dependencies: Update checker, package installer
-  - Notes: Never touches custom/ templates
-
-- [ ] Implement `logforge templates download` command (for air-gapped)
-  - Acceptance: Downloads .forge packages to local path
-  - Dependencies: Package downloader
-  - Notes: For offline installation
+  - Acceptance: Updates outdated default templates, never touches custom/
+  - Dependencies: Template install, Version comparison
+  - Notes: Compare local vs remote versions, update only default/, show diff notification
 
 ---
 
-# Epic 5: Event Generation Engine
+# Epic 7: Generator Engine Core
 
-## Generator Core Class {Priority: High} [5/5 complete]
+## Generator State Machine {Priority: High}
 
-- [x] Create Generator class with state machine
-  - Implemented: `Generator` class in `core/generator.py` with `GeneratorState` enum (STOPPED, STARTING, RUNNING, DEGRADED, ERROR) and state transitions.
-  - Tested: Unit tests in `tests/unit/test_generator_core.py` verify state machine behavior.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: States (STOPPED, STARTING, RUNNING, DEGRADED, ERROR) work correctly
-  - Dependencies: Project structure
-  - Notes: State machine in `core/generator.py`
+- [ ] Define GeneratorState enum (STOPPED, STARTING, RUNNING, DEGRADED, ERROR, STOPPING)
+  - Acceptance: Enum defined with all states, used throughout codebase
+  - Dependencies: None
+  - Notes: Use Python enum.Enum, add state transition validation
 
-- [x] Implement generator lifecycle methods (start, stop, restart)
-  - Implemented: `Generator.start()`, `stop()`, and `restart()` methods with thread management and state transitions.
-  - Tested: Unit tests verify lifecycle methods work correctly.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Generators transition states correctly, cleanup on stop
+- [ ] Implement Generator class with state management
+  - Acceptance: Generator tracks state, validates transitions, prevents invalid state changes
+  - Dependencies: State enum
+  - Notes: Use threading.Lock for state changes, implement transition methods
+
+- [ ] Implement state transition logic
+  - Acceptance: Transitions follow state machine diagram, errors handled appropriately
   - Dependencies: Generator class
-  - Notes: Uses threading.Thread for background execution
+  - Notes: Validate transitions, log state changes, handle concurrent access
 
-- [x] Implement generator event generation loop
-  - Implemented: `_run_loop()` method generates events at configured frequency with rate-based pausing.
-  - Tested: Unit tests verify event generation loop behavior.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Generates events at configured frequency
-  - Dependencies: Generator class, template renderer
-  - Notes: Main generation loop in separate thread
+## Generator Lifecycle {Priority: High}
 
-- [x] Implement frequency calculation with time-based variation
-  - Implemented: `FrequencyController` in `core/frequency.py` calculates rates with time-of-day and day-of-week multipliers.
-  - Tested: Unit tests verify frequency calculations with various time patterns.
-  - Files: `src/logforge/core/frequency.py`
-  - Date: 2025-01-15
-  - Acceptance: Adjusts rate based on time of day, day of week multipliers
+- [ ] Implement generator.start() method
+  - Acceptance: Transitions to STARTING, loads template, initializes outputs, transitions to RUNNING
+  - Dependencies: Generator class, Template loader, Output handlers
+  - Notes: Validate template exists, check entity registry, initialize all outputs
+
+- [ ] Implement generator.stop() method
+  - Acceptance: Transitions to STOPPING, stops generation loop, closes outputs, transitions to STOPPED
   - Dependencies: Generator class
-  - Notes: Frequency logic in `core/frequency.py`
+  - Notes: Graceful shutdown, wait for current events, flush outputs
 
-- [x] Implement generator statistics tracking
-  - Implemented: `GeneratorStatisticsSnapshot` tracks events_generated, errors, uptime, last_event with thread-safe operations.
-  - Tested: Unit tests verify statistics tracking.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Tracks events_generated, errors, uptime, last_event
+- [ ] Implement generator._generate_loop() method
+  - Acceptance: Main loop generates events at configured rate, handles errors
+  - Dependencies: Generator start
+  - Notes: Use time.sleep() for rate control, catch exceptions, update statistics
+
+- [ ] Implement frequency calculation logic
+  - Acceptance: Calculates current rate based on time/day, applies multipliers from config
+  - Dependencies: Generator config
+  - Notes: Check current day of week, time of day, apply matching variation rules
+
+## Thread Pool Management {Priority: High}
+
+- [ ] Implement ThreadPoolExecutor setup with dynamic sizing
+  - Acceptance: Thread pool size calculated from CPU cores (cores × 5), respects max_generators config
+  - Dependencies: Generator engine
+  - Notes: Use concurrent.futures.ThreadPoolExecutor, calculate size on startup
+
+- [ ] Implement generator execution in thread pool
+  - Acceptance: Each generator runs in separate thread, multiple generators run concurrently
+  - Dependencies: Thread pool, Generator class
+  - Notes: Submit generator._generate_loop() to executor, track futures
+
+- [ ] Implement thread pool lifecycle management
+  - Acceptance: Thread pool created on engine start, shutdown gracefully on stop
+  - Dependencies: Thread pool setup
+  - Notes: Wait for all futures on shutdown, handle timeout
+
+## Generator Engine Core {Priority: High}
+
+- [ ] Create Engine class to manage all generators
+  - Acceptance: Engine tracks all generators, provides start/stop/status methods
+  - Dependencies: Generator class, Thread pool
+  - Notes: Maintain dict of generators by name, coordinate lifecycle
+
+- [ ] Implement engine.load_generators_from_config()
+  - Acceptance: Loads generator configs, creates Generator instances, validates templates
+  - Dependencies: Engine class, Config loader
+  - Notes: Parse generators section, create Generator objects, validate templates exist
+
+- [ ] Implement engine.start_generator(name) method
+  - Acceptance: Starts specified generator, handles errors, updates state
+  - Dependencies: Engine, Generator
+  - Notes: Check generator exists, validate state, start in thread pool
+
+- [ ] Implement engine.stop_generator(name) method
+  - Acceptance: Stops specified generator gracefully
+  - Dependencies: Engine, Generator
+  - Notes: Signal stop, wait for completion, update state
+
+- [ ] Implement engine.get_generator_status(name) method
+  - Acceptance: Returns generator status with statistics, state, uptime
+  - Dependencies: Engine, Generator
+  - Notes: Collect stats from generator, calculate uptime, format response
+
+## Generator Statistics Tracking {Priority: Medium}
+
+- [ ] Implement event counter per generator
+  - Acceptance: Tracks events_generated, errors, last_event timestamp
   - Dependencies: Generator class
-  - Notes: Thread-safe counters
+  - Notes: Use threading-safe counters (collections.Counter or atomic operations)
 
-## Thread Pool Management {Priority: High} [3/3 complete]
-
-- [x] Implement ThreadPoolExecutor with dynamic sizing
-  - Implemented: `LogForgeService` creates `ThreadPoolExecutor` with configurable size (default: CPU cores × 5).
-  - Tested: Service initialization verified in integration tests.
-  - Files: `src/logforge/core/service.py`
-  - Date: 2025-01-15
-  - Acceptance: Auto-sizes based on CPU cores × 5 (configurable)
+- [ ] Implement uptime tracking
+  - Acceptance: Tracks generator uptime from start, resets on restart
   - Dependencies: Generator class
-  - Notes: Engine manages pool in `core/service.py`
+  - Notes: Store start_time, calculate delta on status request
 
-- [x] Implement generator thread assignment
-  - Implemented: Each generator runs in its own `threading.Thread` (daemon threads), managed by the generator lifecycle.
-  - Tested: Unit tests verify thread creation and management.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Each generator runs in separate thread from pool
-  - Dependencies: Thread pool
-  - Notes: Coordinate thread lifecycle
-
-- [x] Implement graceful shutdown for all generators
-  - Implemented: `GeneratorEngine.stop_all()` and `LogForgeService.stop()` gracefully stop all generators with timeout handling.
-  - Tested: Service shutdown verified in tests.
-  - Files: `src/logforge/core/engine.py`, `src/logforge/core/service.py`
-  - Date: 2025-01-15
-  - Acceptance: All generators stop cleanly, threads join within timeout
-  - Dependencies: Generator lifecycle, thread pool
-  - Notes: Handle stuck threads
-
-## Generator Configuration {Priority: High} [3/3 complete]
-
-- [x] Create generator configuration model
-  - Implemented: `GeneratorConfig` Pydantic model in `core/config_schema.py` parses generator config from config.yaml.
-  - Tested: Config validation tests verify generator config parsing.
-  - Files: `src/logforge/core/config_schema.py`
-  - Date: 2025-01-15
-  - Acceptance: Parses generator config from config.yaml
-  - Dependencies: Configuration management
-  - Notes: Support name, template, enabled, frequency, outputs
-
-- [x] Implement generator-to-output mapping
-  - Implemented: `OutputFactory` creates output instances for generators; `Generator` routes events to configured outputs.
-  - Tested: Integration tests verify output routing.
-  - Files: `src/logforge/core/engine.py`
-  - Date: 2025-01-15
-  - Acceptance: Generators route events to configured outputs
-  - Dependencies: Generator class, output handlers
-  - Notes: Multiple outputs per generator
-
-- [x] Implement generator-to-template binding
-  - Implemented: `Generator` uses `TemplateRenderer` to render events from specified templates; template validation occurs at render time.
-  - Tested: Unit tests verify template rendering in generators.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Generators load and use specified templates
-  - Dependencies: Generator class, template loader
-  - Notes: Validate template exists before starting
-
-## Error Recovery & Handling {Priority: High} [4/4 complete]
-
-- [x] Implement smart error recovery for template rendering failures
-  - Implemented: `_is_transient_error()` distinguishes transient vs configuration errors; transient errors retry, config errors enter ERROR state.
-  - Tested: Unit tests verify error handling behavior.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Transient errors retry, config errors stay in ERROR state
+- [ ] Implement error tracking
+  - Acceptance: Tracks error count, last error message, error types
   - Dependencies: Generator class
-  - Notes: Distinguish error types (EntityNotFound vs TemplateSyntaxError)
+  - Notes: Increment on exceptions, store last error details
 
-- [x] Implement output failure handling (DEGRADED state)
-  - Implemented: Output failures transition generator to DEGRADED state; events continue generating with buffering.
-  - Tested: Unit tests verify degraded state transitions.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Output failures transition generator to DEGRADED, retry with backoff
-  - Dependencies: Generator class, output handlers
-  - Notes: Continue generating, buffer events
+## Generator API Endpoints {Priority: High}
 
-- [x] Implement entity registry corruption handling
-  - Implemented: Entity validation errors are treated as configuration errors, transitioning generators to ERROR state.
-  - Tested: Error handling verified in generator tests.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Invalid entities.yaml transitions generators to ERROR, prevents new starts
-  - Dependencies: Generator class, entity validation
-  - Notes: Attempt backup restore if enabled
+- [ ] Implement GET /api/generators endpoint
+  - Acceptance: Returns list of all generators with basic info
+  - Dependencies: Engine, FastAPI
+  - Notes: Return name, state, template, enabled status
 
-- [x] Create error logging with context
-  - Implemented: Generator logger includes context (generator name, template, error details) in error messages.
-  - Tested: Logging verified in tests.
-  - Files: `src/logforge/core/generator.py`
-  - Date: 2025-01-15
-  - Acceptance: Errors logged with template location, line number, context
-  - Dependencies: Logging infrastructure
-  - Notes: Detailed error messages for debugging
+- [ ] Implement GET /api/generators/{name} endpoint
+  - Acceptance: Returns detailed generator info with statistics
+  - Dependencies: Engine
+  - Notes: Include state, template, frequency, outputs, statistics
 
-## Generator API Endpoints {Priority: High} [5/5 complete]
+- [ ] Implement POST /api/generators/{name}/start endpoint
+  - Acceptance: Starts generator, returns state change
+  - Dependencies: Engine
+  - Notes: Validate generator exists, start asynchronously, return immediately
 
-- [x] Implement `GET /api/generators` endpoint
-  - Implemented: `/api/generators` returns list of all generators with states via `GeneratorEngine.list_snapshots()`.
-  - Tested: API tests verify endpoint responses.
-  - Files: `src/logforge/api/endpoints/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Returns list of all generators with states
-  - Dependencies: Generator engine, API server
-  - Notes: Summary view
+- [ ] Implement POST /api/generators/{name}/stop endpoint
+  - Acceptance: Stops generator, returns state change
+  - Dependencies: Engine
+  - Notes: Graceful stop, wait for completion, return state
 
-- [x] Implement `GET /api/generators/{name}` endpoint
-  - Implemented: `/api/generators/{name}` returns detailed generator information including statistics and frequency.
-  - Tested: API tests verify endpoint responses.
-  - Files: `src/logforge/api/endpoints/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Returns detailed generator information
-  - Dependencies: Generator engine, API server
-  - Notes: Include statistics, frequency, outputs
-
-- [x] Implement `POST /api/generators/{name}/start` endpoint
-  - Implemented: `/api/generators/{name}/start` starts generator and returns new state.
-  - Tested: API tests verify start functionality.
-  - Files: `src/logforge/api/endpoints/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Starts generator, returns new state
-  - Dependencies: Generator engine, API server
-  - Notes: Validate template exists, outputs available
-
-- [x] Implement `POST /api/generators/{name}/stop` endpoint
-  - Implemented: `/api/generators/{name}/stop` stops generator gracefully.
-  - Tested: API tests verify stop functionality.
-  - Files: `src/logforge/api/endpoints/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Stops generator gracefully
-  - Dependencies: Generator engine, API server
-  - Notes: Wait for thread to finish
-
-- [x] Implement `POST /api/generators/{name}/restart` endpoint
-  - Implemented: `/api/generators/{name}/restart` restarts generator (stop then start).
-  - Tested: API tests verify restart functionality.
-  - Files: `src/logforge/api/endpoints/generators.py`
-  - Date: 2025-01-15
+- [ ] Implement POST /api/generators/{name}/restart endpoint
   - Acceptance: Restarts generator (stop then start)
   - Dependencies: Start/stop endpoints
-  - Notes: Atomic operation
+  - Notes: Call stop, wait, then start
 
-## Generator CLI Commands {Priority: Medium} [5/8 complete]
+## Generator CLI Commands {Priority: Medium}
 
-- [x] Implement `logforge generators start` command
-  - Implemented: CLI command starts generator via API.
-  - Tested: CLI tests verify start command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Starts generator
-  - Dependencies: Generator API endpoints
-  - Notes: Uses POST /api/generators/{name}/start
+- [ ] Implement `logforge generators list` command
+  - Acceptance: Lists all generators with status, formatted output
+  - Dependencies: Generator API, CLI
+  - Notes: Call GET /api/generators, format as table
 
-- [x] Implement `logforge generators stop` command
-  - Implemented: CLI command stops generator via API.
-  - Tested: CLI tests verify stop command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Stops generator
-  - Dependencies: Generator API endpoints
-  - Notes: Uses POST /api/generators/{name}/stop
+- [ ] Implement `logforge generators start <name>` command
+  - Acceptance: Starts specified generator, shows confirmation
+  - Dependencies: Generator API
+  - Notes: Call POST /api/generators/{name}/start
 
-- [x] Implement `logforge generators restart` command
-  - Implemented: CLI command restarts generator via API.
-  - Tested: CLI tests verify restart command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Restarts generator
-  - Dependencies: Generator API endpoints
-  - Notes: Uses POST /api/generators/{name}/restart
+- [ ] Implement `logforge generators stop <name>` command
+  - Acceptance: Stops specified generator
+  - Dependencies: Generator API
+  - Notes: Call POST /api/generators/{name}/stop
 
-- [x] Implement `logforge generators list` command
-  - Implemented: CLI command lists all generators with status via API.
-  - Tested: CLI tests verify list command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Lists all generators with status
-  - Dependencies: Generator API endpoints
-  - Notes: Format as table
+- [ ] Implement `logforge generators restart <name>` command
+  - Acceptance: Restarts specified generator
+  - Dependencies: Generator API
+  - Notes: Call POST /api/generators/{name}/restart
 
-- [x] Implement `logforge generators start` command
-  - Implemented: CLI command starts generator via API.
-  - Tested: CLI tests verify start command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Starts generator
-  - Dependencies: Generator API endpoints
-  - Notes: Uses POST /api/generators/{name}/start
-
-- [x] Implement `logforge generators stop` command
-  - Implemented: CLI command stops generator via API.
-  - Tested: CLI tests verify stop command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Stops generator
-  - Dependencies: Generator API endpoints
-  - Notes: Uses POST /api/generators/{name}/stop
-
-- [x] Implement `logforge generators restart` command
-  - Implemented: CLI command restarts generator via API.
-  - Tested: CLI tests verify restart command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Restarts generator
-  - Dependencies: Generator API endpoints
-  - Notes: Uses POST /api/generators/{name}/restart
-
-- [ ] Implement `logforge generators add` command (interactive)
-  - Status: Stub implemented, interactive creation not yet implemented
-  - Files: `src/logforge/cli/generators.py`
-  - Acceptance: Interactive prompts for creating generator from template
-  - Dependencies: Generator API endpoints, template loader
-  - Notes: Select outputs, configure frequency
-
-- [ ] Implement `logforge generators apply` command (bulk YAML)
-  - Status: Stub implemented, API endpoint for creating generators not yet implemented
-  - Files: `src/logforge/cli/generators.py`
-  - Acceptance: Creates multiple generators from YAML file
-  - Dependencies: Generator API endpoints
-  - Notes: Validate before applying
-
-- [x] Implement `logforge generators validate` command
-  - Implemented: CLI command validates generator YAML configuration files.
-  - Tested: CLI tests verify validate command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Validates generator YAML configuration
-  - Dependencies: Generator configuration model
-  - Notes: Check templates exist, outputs valid
-
-- [x] Implement `logforge generators status` command
-  - Implemented: CLI command shows runtime status of generators via API.
-  - Tested: CLI tests verify status command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Shows runtime status of generators
-  - Dependencies: Generator API endpoints
-  - Notes: Real-time metrics
-
-- [x] Implement `logforge generators metrics` command
-  - Implemented: CLI command shows detailed metrics for specific generator via API.
-  - Tested: CLI tests verify metrics command.
-  - Files: `src/logforge/cli/generators.py`
-  - Date: 2025-01-15
-  - Acceptance: Shows detailed metrics for specific generator
-  - Dependencies: Generator API endpoints
-  - Notes: Events, rates, entity usage
-
-- [ ] Implement `logforge generators enable/disable` commands
-  - Status: Stub implemented, API endpoint not yet implemented
-  - Files: `src/logforge/cli/generators.py`
-  - Acceptance: Enables/disables generators without deleting
-  - Dependencies: Generator API endpoints
-  - Notes: Non-destructive
-
-- [ ] Implement `logforge generators reload` command
-  - Status: Stub implemented, API endpoint not yet implemented
-  - Files: `src/logforge/cli/generators.py`
-  - Acceptance: Reloads generator configuration from config.yaml
-  - Dependencies: Generator API endpoints
-  - Notes: Apply config changes without restart
+- [ ] Implement `logforge status` command
+  - Acceptance: Shows status of all generators in table format
+  - Dependencies: Status API, CLI
+  - Notes: Call GET /api/status, format as table with columns: NAME, STATE, TEMPLATE, EVENTS, ERRORS, UPTIME
 
 ---
 
-# Epic 6: Output Handlers
+# Epic 8: Error Handling & Recovery
+
+## Smart Error Recovery {Priority: High}
+
+- [ ] Implement template rendering error detection
+  - Acceptance: Catches Jinja2 errors, categorizes as transient vs permanent
+  - Dependencies: Template renderer
+  - Notes: EntityNotFound = transient, TemplateSyntaxError = permanent
+
+- [ ] Implement smart retry logic for transient errors
+  - Acceptance: Retries transient errors with backoff, max retries, transitions to ERROR on permanent
+  - Dependencies: Error detection
+  - Notes: Use exponential backoff, track retry count, transition state appropriately
+
+- [ ] Implement output failure detection
+  - Acceptance: Catches output write failures, categorizes error type
+  - Dependencies: Output handlers
+  - Notes: Network errors = transient, permission errors = permanent
+
+- [ ] Implement generator state transitions on errors
+  - Acceptance: Transitions to DEGRADED on output failure, ERROR on template failure
+  - Dependencies: Error detection, State machine
+  - Notes: Follow state machine diagram, log transitions
+
+- [ ] Implement automatic recovery from DEGRADED state
+  - Acceptance: When output recovers, transitions back to RUNNING, flushes buffer
+  - Dependencies: Output handlers, State machine
+  - Notes: Monitor output health, test connection, transition on success
+
+## Entity Registry Error Handling {Priority: High}
+
+- [ ] Implement entity registry corruption detection
+  - Acceptance: Detects invalid YAML, schema violations, reports detailed errors
+  - Dependencies: Entity validation
+  - Notes: Catch YAML errors, validation errors, provide line numbers
+
+- [ ] Implement backup loading on corruption
+  - Acceptance: Attempts to load backup if main file corrupted, falls back through backup chain
+  - Dependencies: Entity storage, Backup system
+  - Notes: Try entities.yaml.1, entities.yaml.2, etc., log which backup loaded
+
+- [ ] Implement generator error propagation on entity failure
+  - Acceptance: All generators using entities transition to ERROR, prevents new generators
+  - Dependencies: Entity registry, Generator engine
+  - Notes: Signal all generators, update state, prevent new starts
+
+---
+
+# Epic 9: Output Handlers
 
 ## Base Output Handler {Priority: High}
 
-- [x] Create abstract OutputHandler base class
-  - Implemented: `outputs/base.py` now provides `BaseOutput` with buffered delivery, retry policy, and `RetryPolicy` dataclass used by all handlers.
+- [ ] Create OutputHandler abstract base class
+  - Acceptance: Defines write(), write_batch(), close() methods, enforces interface
+  - Dependencies: None
+  - Notes: Use ABC from abc module, define abstract methods
 
-- [x] Implement output handler factory
-  - Implemented: `outputs/__init__.py` builds file, console, HTTP, TCP, and syslog handlers based on `OutputDefinition`, wiring retry/buffer settings.
+- [ ] Implement retry logic with exponential backoff
+  - Acceptance: Retries failed writes with exponential backoff, respects max_attempts config
+  - Dependencies: Base handler
+  - Notes: Calculate backoff: interval × (multiplier ^ attempt), cap at max_backoff
 
-- [x] Implement output configuration model
-  - Implemented previously via `OutputConfig`/`OutputDefinition`; now fully consumed by the factory to instantiate outputs with the configured settings.
+- [ ] Implement event buffering during outages
+  - Acceptance: Buffers events in memory when output unavailable, flushes on recovery
+  - Dependencies: Base handler
+  - Notes: Use collections.deque with maxlen, drop oldest when full, log warnings
 
 ## File Output Handler {Priority: High}
 
-- [x] Implement file output with variable substitution
-  - Implemented: `FileOutput` resolves `{generator}`, `{date}`, and `{timestamp}` placeholders per event before writing.
+- [ ] Implement file output handler
+  - Acceptance: Writes events to file, handles path variable substitution
+  - Dependencies: Base handler
+  - Notes: Support {generator}, {date}, {timestamp} in path, use atomic writes
 
-- [x] Implement file rotation (size-based)
-  - Implemented: Integrated with the existing logging rotation helpers, honoring `rotation.max_size` + `backup_count`.
+- [ ] Implement file rotation (size-based)
+  - Acceptance: Rotates file when max_size reached, compresses old files
+  - Dependencies: File handler
+  - Notes: Check file size, rename current, create new, compress with gzip
 
-- [x] Implement file rotation (time-based)
-  - Implemented: `FileOutput` uses `TimedRotatingFileHandler` when `rotation.type == "time"`.
+- [ ] Implement file rotation (time-based)
+  - Acceptance: Rotates file at time intervals (daily, etc.), names with date
+  - Dependencies: File handler
+  - Notes: Check time since last rotation, create new file with date suffix
 
-- [x] Implement rotated file compression
-  - Implemented: Compression flag from config toggles `.gz` naming via the shared logging helper.
-
-- [x] Implement per-generator file separation
-  - Implemented: Path templating defaults to per-generator filenames (e.g., `{generator}.log`).
+- [ ] Implement rotation cleanup
+  - Acceptance: Maintains configured backup count, removes old rotated files
+  - Dependencies: File rotation
+  - Notes: List rotated files, sort by age, delete oldest beyond backup_count
 
 ## Console Output Handler {Priority: Medium}
 
-- [x] Implement console output with JSON format
-  - Implemented: `ConsoleOutput` emits JSONL when `format="json"` (default for `console_json`).
+- [ ] Implement console output handler (JSON format)
+  - Acceptance: Writes events as JSONL (one JSON object per line) to stdout
+  - Dependencies: Base handler
+  - Notes: Use json.dumps(), write to sys.stdout
 
-- [x] Implement console output with text format
-  - Implemented: Plain-text streaming remains the default when no format specified.
+- [ ] Implement console output handler (text format)
+  - Acceptance: Writes events as human-readable formatted text
+  - Dependencies: Base handler
+  - Notes: Format with timestamps, pretty-print, use rich library for colors
 
-- [x] Implement stdout/stderr selection
-  - Implemented: Output definitions can set `stream: stdout|stderr`; factory routes to the correct stream.
+- [ ] Add stream selection (stdout/stderr)
+  - Acceptance: Supports writing to stdout or stderr based on config
+  - Dependencies: Console handler
+  - Notes: Use sys.stdout or sys.stderr based on config
 
-## HTTP Output Handler {Priority: High}
+## HTTP Output Handler {Priority: Medium}
 
-- [x] Implement HTTP output with POST requests
-  - Implemented: `HttpOutput` posts events (with metadata) to configured URLs, honoring method/headers and retry policy.
+- [ ] Implement HTTP output handler with batching
+  - Acceptance: Batches events, sends POST requests, handles responses
+  - Dependencies: Base handler, requests library
+  - Notes: Collect events in batch, send when batch_size or batch_interval reached
 
-- [ ] Implement event batching
-  - Acceptance: Batches events (size-based or time-based triggers)
-  - Dependencies: HTTP output
-  - Notes: Configurable batch_size and batch_interval
+- [ ] Implement environment variable substitution in headers
+  - Acceptance: Replaces ${VAR_NAME} in headers with environment variable values
+  - Dependencies: HTTP handler
+  - Notes: Use os.environ.get(), replace in header values
 
-- [ ] Implement HTTP headers with environment variable substitution
-  - Acceptance: Supports `${VAR_NAME}` in headers
-  - Dependencies: HTTP output
-  - Notes: Resolve env vars at runtime
+- [ ] Implement batch timing logic
+  - Acceptance: Sends batch when size reached OR interval elapsed
+  - Dependencies: HTTP handler
+  - Notes: Use threading.Timer for interval, check size on each write
 
 - [ ] Implement JSON array wrapping for batches
-  - Acceptance: Wraps batched events in JSON array
-  - Dependencies: HTTP batching
-  - Notes: Single events as objects
+  - Acceptance: Wraps batch events in JSON array, sends as single request
+  - Dependencies: HTTP handler
+  - Notes: json.dumps([event1, event2, ...]), set Content-Type header
 
-- [ ] Implement request timeout handling
-  - Acceptance: Configurable timeout, handles timeouts gracefully
-  - Dependencies: HTTP output
-  - Notes: Default 30s
+## TCP Output Handler {Priority: Low}
 
-## TCP Output Handler {Priority: Medium}
-
-- [x] Implement TCP socket output
-  - Implemented: `TcpOutput` opens a connection per event and streams payloads with retry/backoff.
-
-- [x] Implement event delimiter configuration
-  - Implemented: Delimiter defaults to newline but honors `delimiter` in configuration.
+- [ ] Implement TCP output handler
+  - Acceptance: Connects to TCP server, sends events with delimiter, maintains connection
+  - Dependencies: Base handler, socket library
+  - Notes: Use socket.socket(), connect once, send with delimiter, handle reconnection
 
 - [ ] Implement TCP keepalive
-  - Acceptance: Maintains connection with keepalive
-  - Dependencies: TCP output
-  - Notes: Configurable
+  - Acceptance: Maintains TCP connection, reconnects on failure
+  - Dependencies: TCP handler
+  - Notes: Set SO_KEEPALIVE, detect connection loss, reconnect
 
-## Syslog Output Handler {Priority: Medium} [4/4 complete]
+## Syslog Output Handler {Priority: Low}
 
-- [x] Implement syslog protocol output (RFC 5424)
-  - Implemented: `SyslogOutput` formats events as RFC 5424 syslog messages with structured data support.
-  - Tested: Output handler tests verify RFC 5424 formatting.
-  - Files: `src/logforge/outputs/syslog.py`
-  - Date: 2025-01-15
-  - Acceptance: Formats events as RFC 5424 syslog messages
+- [ ] Implement syslog output handler (RFC 5424)
+  - Acceptance: Formats events as RFC 5424 syslog messages, sends via TCP/UDP
   - Dependencies: Base handler
-  - Notes: Handler in `outputs/syslog.py`
+  - Notes: Format: <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
 
-- [x] Implement syslog protocol output (RFC 3164)
-  - Implemented: `SyslogOutput` supports RFC 3164 (BSD syslog) format via `format` parameter.
-  - Tested: Output handler tests verify RFC 3164 formatting.
-  - Files: `src/logforge/outputs/syslog.py`
-  - Date: 2025-01-15
+- [ ] Implement syslog output handler (RFC 3164)
   - Acceptance: Formats events as RFC 3164 syslog messages
-  - Dependencies: Syslog output
-  - Notes: Legacy format support
+  - Dependencies: Base handler
+  - Notes: Format: <PRI>TIMESTAMP HOSTNAME TAG: MSG
 
-- [x] Implement syslog facility and severity configuration
-  - Implemented: `SyslogOutput` supports configurable facility and severity with defaults (local0, info).
-  - Tested: Output handler tests verify facility/severity configuration.
-  - Files: `src/logforge/outputs/syslog.py`
-  - Date: 2025-01-15
-  - Acceptance: Configurable facility and severity
-  - Dependencies: Syslog output
-  - Notes: Default local0, info
+- [ ] Implement syslog facility and severity mapping
+  - Acceptance: Maps config values to syslog facility/severity codes
+  - Dependencies: Syslog handler
+  - Notes: Use standard syslog codes, calculate PRI value
 
-- [x] Implement TCP/UDP protocol selection
-  - Implemented: `SyslogOutput` supports TCP and UDP protocols via `protocol` parameter.
-  - Tested: Output handler tests verify protocol selection.
-  - Files: `src/logforge/outputs/syslog.py`
-  - Date: 2025-01-15
-  - Acceptance: Supports TCP, UDP, TLS protocols
-  - Dependencies: Syslog output
-  - Notes: Configurable protocol (TLS not yet implemented)
+## Output Handler Factory {Priority: High}
 
-## Retry Logic & Buffering {Priority: High}
+- [ ] Implement output handler factory
+  - Acceptance: Creates appropriate handler based on type config, initializes from config
+  - Dependencies: All output handlers
+  - Notes: Use factory pattern, map type string to handler class
 
-- [x] Implement exponential backoff retry mechanism
-  - Implemented: `BaseOutput` retries with configurable backoff/max attempts derived from config.
+- [ ] Implement output handler registration
+  - Acceptance: Registers output definitions from config, creates handler instances
+  - Dependencies: Output factory, Config loader
+  - Notes: Parse outputs.definitions, create handlers, store by name
 
-- [x] Implement event buffering during outages
-  - Implemented: Outputs keep a configurable deque buffer to retain unsent events.
+---
 
-- [x] Implement buffer overflow handling
-  - Implemented: `deque(maxlen=buffer_size)` discards oldest entries when full, preventing unbounded growth.
+# Epic 10: Metrics & Observability
 
-- [x] Implement buffer flush on recovery
-  - Implemented: `_flush` drains the buffer in order once downstream destinations accept events again.
+## Prometheus Metrics Collection {Priority: Medium}
 
-## Output API Endpoints {Priority: Medium} [2/2 complete]
+- [ ] Implement events_generated_total counter
+  - Acceptance: Increments on each event generated, labeled by generator name
+  - Dependencies: Generator engine, prometheus-client
+  - Notes: Use Counter metric type, add labels
 
-- [x] Implement `GET /api/outputs` endpoint
-  - Implemented: `/api/outputs` returns list of all outputs with status and metrics.
-  - Tested: API tests verify endpoint responses.
-  - Files: `src/logforge/api/endpoints/outputs.py`
-  - Date: 2025-01-15
-  - Acceptance: Returns list of all outputs with status
-  - Dependencies: Output handlers, API server
-  - Notes: Include connection status, metrics
+- [ ] Implement errors_total counter
+  - Acceptance: Increments on errors, labeled by generator and error type
+  - Dependencies: Error handling
+  - Notes: Track by generator name and error category
 
-- [ ] Implement output test functionality
-  - Acceptance: Tests output connectivity and configuration
+- [ ] Implement generators_running gauge
+  - Acceptance: Tracks number of running generators
+  - Dependencies: Generator engine
+  - Notes: Update on state changes, use Gauge metric type
+
+- [ ] Implement memory_usage_bytes gauge
+  - Acceptance: Tracks process memory usage
+  - Dependencies: psutil
+  - Notes: Update periodically, use psutil.Process().memory_info()
+
+- [ ] Implement template_render_seconds histogram
+  - Acceptance: Tracks template rendering latency
+  - Dependencies: Template renderer
+  - Notes: Use Histogram, measure time.perf_counter() around render
+
+- [ ] Implement output_latency_seconds histogram
+  - Acceptance: Tracks output write latency
   - Dependencies: Output handlers
-  - Notes: Send test event, verify delivery
+  - Notes: Measure time around write operations
 
-## Output CLI Commands {Priority: Medium} [3/5 complete]
+## Metrics Endpoint Implementation {Priority: Medium}
 
-- [x] Implement `logforge outputs list` command
-  - Implemented: CLI command lists all outputs with status and metrics via API.
-  - Tested: CLI tests verify list command.
-  - Files: `src/logforge/cli/outputs.py`
-  - Date: 2025-01-15
-  - Acceptance: Lists all outputs with status and metrics
-  - Dependencies: Output API endpoints
-  - Notes: Format as table
-
-- [ ] Implement `logforge outputs add` command (interactive)
-  - Status: Stub implemented, interactive creation not yet implemented
-  - Files: `src/logforge/cli/outputs.py`
-  - Acceptance: Interactive prompts for adding output
-  - Dependencies: Output API endpoints
-  - Notes: Test connection before saving
-
-- [ ] Implement `logforge outputs test` command
-  - Status: Stub implemented, API endpoint not yet implemented
-  - Files: `src/logforge/cli/outputs.py`
-  - Acceptance: Tests output connectivity
-  - Dependencies: Output test functionality
-  - Notes: Detailed test results
-
-- [ ] Implement `logforge outputs enable/disable` commands
-  - Status: Stub implemented, API endpoint not yet implemented
-  - Files: `src/logforge/cli/outputs.py`
-  - Acceptance: Enables/disables outputs
-  - Dependencies: Output API endpoints
-  - Notes: Non-destructive
-
-- [x] Implement `logforge outputs metrics` command
-  - Implemented: CLI command shows detailed output metrics via API.
-  - Tested: CLI tests verify metrics command.
-  - Files: `src/logforge/cli/outputs.py`
-  - Date: 2025-01-15
-  - Acceptance: Shows detailed output metrics
-  - Dependencies: Output API endpoints
-  - Notes: Events sent, errors, retries
+- [ ] Implement GET /api/metrics endpoint formatting
+  - Acceptance: Returns Prometheus text format, all metrics included
+  - Dependencies: Metrics collection
+  - Notes: Use prometheus_client.generate_latest(), set Content-Type header
 
 ---
 
-# Epic 7: CLI Interface
-
-## CLI Framework Setup {Priority: High} [5/5 complete]
-
-- [x] Choose and integrate CLI framework (Click or Typer)
-  - Implemented: Typer framework integrated; CLI entry point in `cli/main.py`.
-  - Tested: CLI tests verify framework integration.
-  - Files: `src/logforge/cli/main.py`
-  - Date: 2025-01-15
-  - Acceptance: CLI framework installed and configured
-  - Dependencies: Project structure
-  - Notes: Decision: Typer (see Decision Log)
-
-- [x] Create CLI command structure and grouping
-  - Implemented: Commands organized into subcommand groups (config, templates, entities, generators, outputs).
-  - Tested: CLI structure verified in tests.
-  - Files: `src/logforge/cli/main.py`
-  - Date: 2025-01-15
-  - Acceptance: Commands organized (templates, generators, entities, outputs, etc.)
-  - Dependencies: CLI framework
-  - Notes: Follow structure from requirements section 9.2
-
-- [x] Implement API connection handling (local/remote)
-  - Implemented: CLI connects to API via `--api-url` option or `LOGFORGE_API_URL` env var (default: localhost:8080).
-  - Tested: CLI tests verify API connection handling.
-  - Files: `src/logforge/cli/main.py`, `src/logforge/cli/api_client.py`
-  - Date: 2025-01-15
-  - Acceptance: CLI connects to API via `--api-url` or env var
-  - Dependencies: CLI framework, API server
-  - Notes: Default localhost:8080
-
-- [x] Implement API key handling for CLI
-  - Implemented: CLI sends API key in Authorization header via `--api-key` option or `LOGFORGE_API_KEY` env var.
-  - Tested: CLI tests verify API key handling.
-  - Files: `src/logforge/cli/main.py`, `src/logforge/cli/api_client.py`
-  - Date: 2025-01-15
-  - Acceptance: CLI sends API key in Authorization header if configured
-  - Dependencies: API connection
-  - Notes: From `--api-key` or env var
-
-- [x] Implement service health check before commands
-  - Implemented: CLI can check API health before commands (optional, can be skipped).
-  - Tested: CLI tests verify health check behavior.
-  - Files: `src/logforge/cli/api_client.py`
-  - Date: 2025-01-15
-  - Acceptance: CLI checks API health, exits with error if unavailable
-  - Dependencies: API connection, health endpoint
-  - Notes: Error message suggests starting service
-
-## Service Management Commands {Priority: High} [3/6 complete]
-
-- [x] Implement `logforge start` command (foreground)
-  - Implemented: CLI command starts service in foreground with signal handling for graceful shutdown.
-  - Tested: CLI tests verify start command.
-  - Files: `src/logforge/cli/main.py`
-  - Date: 2025-01-15
-  - Acceptance: Starts service in foreground, shows logs
-  - Dependencies: API server, engine
-  - Notes: Ctrl+C stops gracefully
-
-- [ ] Implement `logforge stop` command
-  - Status: Stub implemented, foreground-only stop via Ctrl+C
-  - Files: `src/logforge/cli/main.py`
-  - Acceptance: Stops foreground service gracefully
-  - Dependencies: Service start
-  - Notes: Only works for foreground process
-
-- [ ] Implement `logforge service install` command
-  - Acceptance: Creates systemd service file, sets up user/directories
-  - Dependencies: Systemd available
-  - Notes: Creates /etc/systemd/system/logforge.service
-
-- [ ] Implement `logforge service start/stop/restart/status` commands
-  - Acceptance: Wrappers around systemctl commands
-  - Dependencies: Service install
-  - Notes: Use systemctl under the hood
-
-- [x] Implement `logforge status` command
-  - Implemented: CLI command shows overall service status, generators, outputs via API.
-  - Tested: CLI tests verify status command.
-  - Files: `src/logforge/cli/main.py`
-  - Date: 2025-01-15
-  - Acceptance: Shows overall service status, generators, outputs
-  - Dependencies: Status API endpoint
-  - Notes: Format as table, support --watch
-
-- [x] Implement `logforge health` command
-  - Implemented: CLI command performs comprehensive health check via API.
-  - Tested: CLI tests verify health command.
-  - Files: `src/logforge/cli/main.py`
-  - Date: 2025-01-15
-  - Acceptance: Comprehensive health check with suggestions
-  - Dependencies: Health API endpoint
-  - Notes: Check all subsystems
-
-## Monitoring Commands {Priority: Medium}
-
-- [ ] Implement `logforge metrics` command
-  - Acceptance: Shows aggregated metrics (last hour)
-  - Dependencies: Metrics API endpoint
-  - Notes: Format nicely, show by generator/output
-
-- [ ] Implement `logforge logs` command
-  - Acceptance: Views service logs with filtering
-  - Dependencies: Logging infrastructure
-  - Notes: Support --follow, --level, --generator, --since
-
-## One-Shot Generation Command {Priority: Medium}
-
-- [ ] Implement `logforge generate once` command
-  - Acceptance: Generates N events to file or output, exits
-  - Dependencies: Generator engine, template renderer
-  - Notes: For ad-hoc testing, doesn't require service running
-
-- [ ] Implement historical event generation (backdated)
-  - Acceptance: Generates events with timestamps in specified time range
-  - Dependencies: One-shot generation
-  - Notes: Distribute events across time range
-
-- [ ] Implement stdout output for one-shot
-  - Acceptance: Can output to stdout for piping
-  - Dependencies: One-shot generation
-  - Notes: Support --format json
-
-## CLI Output Formatting {Priority: Medium} [2/3 complete]
-
-- [x] Implement table formatting for list commands
-  - Implemented: CLI commands output formatted tables for list operations.
-  - Tested: CLI tests verify table formatting.
-  - Files: `src/logforge/cli/*.py`
-  - Date: 2025-01-15
-  - Acceptance: Commands output formatted tables
-  - Dependencies: CLI commands
-  - Notes: Use library like tabulate or rich
-
-- [x] Implement JSON output option (`--output json`)
-  - Implemented: CLI commands support `--output json` for machine-readable output.
-  - Tested: CLI tests verify JSON output.
-  - Files: `src/logforge/cli/main.py`, `src/logforge/cli/*.py`
-  - Date: 2025-01-15
-  - Acceptance: Commands support JSON output for scripting
-  - Dependencies: CLI commands
-  - Notes: Machine-readable format
-
-- [ ] Implement progress bars for long operations
-  - Acceptance: Shows progress for install, generate operations
-  - Dependencies: CLI commands
-  - Notes: Use library like tqdm or rich
-
----
-
-# Epic 8: Metrics & Observability
-
-## Metrics Collection {Priority: High} [5/5 complete]
-
-- [x] Implement Prometheus metrics collection
-  - Implemented: Prometheus metrics defined in `utils/metrics.py` using `prometheus_client`. All metrics (counters, gauges, histograms) are properly registered and accessible via `/api/metrics` endpoint.
-  - Tested: Comprehensive unit tests in `tests/unit/test_metrics.py` verify all metric types work correctly.
-  - Files: `src/logforge/utils/metrics.py`, `tests/unit/test_metrics.py`
-  - Date: 2025-01-15
-  - Acceptance: Collects counters, gauges, histograms
-  - Dependencies: prometheus-client library
-  - Notes: Metrics in `utils/metrics.py`, integrated throughout codebase
-
-- [x] Implement event generation metrics
-  - Implemented: `events_generated_total` and `generator_errors_total` counters track per-generator metrics. Integrated into `Generator.generate_once()` and error handling paths. `template_render_seconds` histogram tracks template rendering performance.
-  - Tested: Unit tests verify metrics increment correctly and template render time is recorded.
-  - Files: `src/logforge/core/generator.py`, `src/logforge/utils/metrics.py`, `tests/unit/test_metrics.py`
-  - Date: 2025-01-15
-  - Acceptance: Tracks events_generated_total, errors_total per generator, template_render_seconds
-  - Dependencies: Metrics collection
-  - Notes: Counter and histogram metrics, integrated in generator lifecycle
-
-- [x] Implement system metrics
-  - Implemented: `generators_running` gauge tracks generator states (updated by `GeneratorEngine._update_generator_metrics()`). `memory_usage_bytes` and `cpu_percent` gauges updated every 5 seconds by background thread in `LogForgeService._update_system_metrics_loop()`.
-  - Tested: Unit tests verify gauge updates work correctly.
-  - Files: `src/logforge/core/engine.py`, `src/logforge/core/service.py`, `src/logforge/utils/metrics.py`, `tests/unit/test_metrics.py`
-  - Date: 2025-01-15
-  - Acceptance: Tracks generators_running, memory_usage_bytes, CPU percent
-  - Dependencies: Metrics collection
-  - Notes: Gauge metrics, updated periodically via background thread
-
-- [x] Implement performance metrics
-  - Implemented: `template_render_seconds` histogram tracks template rendering time (integrated in `Generator.generate_once()`). `output_latency_seconds` histogram tracks output delivery time (integrated in `BaseOutput._deliver_with_retry()`). Additional output metrics: `output_events_sent_total`, `output_errors_total`, `output_buffered_events`.
-  - Tested: Unit tests verify histogram recording and output metrics tracking.
-  - Files: `src/logforge/core/generator.py`, `src/logforge/outputs/base.py`, `src/logforge/utils/metrics.py`, `tests/unit/test_metrics.py`
-  - Date: 2025-01-15
-  - Acceptance: Tracks template_render_seconds, output_latency_seconds, output events/errors/buffered
-  - Dependencies: Metrics collection
-  - Notes: Histogram and counter metrics, integrated in generator and output handlers
-
-- [x] Expose metrics via `/api/metrics` endpoint
-  - Implemented: `/api/metrics` endpoint uses `generate_latest()` from `prometheus_client` to return all registered metrics in Prometheus-compatible format. Metrics endpoint updates generator state metrics before generating output. All centralized metrics from `utils/metrics.py` are automatically included.
-  - Tested: API tests verify metrics endpoint returns Prometheus format. Unit tests verify metrics are properly collected.
-  - Files: `src/logforge/api/endpoints/metrics.py`, `src/logforge/api/server.py`, `tests/unit/test_api_server.py`, `tests/unit/test_metrics.py`
-  - Date: 2025-01-15
-  - Acceptance: Returns Prometheus-compatible format with all metrics
-  - Dependencies: Metrics collection, API server
-  - Notes: Text format, Prometheus can scrape, uses centralized metrics
-
----
-
-# Epic 9: Deployment & Packaging
+# Epic 11: Deployment & Packaging
 
 ## Docker Deployment {Priority: Medium}
 
 - [ ] Create Dockerfile with multi-stage build
-  - Acceptance: Docker image builds successfully
-  - Dependencies: Python package
-  - Notes: Follow requirements section 10.2
+  - Acceptance: Dockerfile builds image, installs package, creates logforge user
+  - Dependencies: Package setup
+  - Notes: Use Python 3.11-slim, multi-stage build, non-root user
 
-- [ ] Create docker-compose.yml with examples
-  - Acceptance: docker-compose up works, service starts
+- [ ] Configure Docker health check
+  - Acceptance: Health check pings /api/health endpoint
+  - Dependencies: Health endpoint
+  - Notes: Use curl in HEALTHCHECK, 30s interval
+
+- [ ] Create docker-compose.yml
+  - Acceptance: docker-compose up starts service, volumes mounted correctly
   - Dependencies: Dockerfile
-  - Notes: Include volumes, environment variables
+  - Notes: Mount config and logs volumes, expose port 8080, set environment variables
 
-- [ ] Implement health check in Dockerfile
-  - Acceptance: Docker health check uses API health endpoint
-  - Dependencies: Dockerfile, health endpoint
-  - Notes: HEALTHCHECK instruction
-
-- [ ] Create logforge user in container
-  - Acceptance: Container runs as non-root user
-  - Dependencies: Dockerfile
-  - Notes: User ID 1000, proper permissions
+- [ ] Test Docker deployment
+  - Acceptance: Container starts, API accessible, generators work
+  - Dependencies: Docker setup
+  - Notes: Test init, start generators, verify output
 
 ## Systemd Integration {Priority: Low}
 
 - [ ] Create systemd service unit file
-  - Acceptance: Service file follows requirements section 10.3
-  - Dependencies: Python package
-  - Notes: Template for installation
+  - Acceptance: Service file defines service, user, working directory, restart policy
+  - Dependencies: None
+  - Notes: Follow systemd best practices, set LOGFORGE_HOME environment
 
-- [ ] Implement service installation logic
-  - Acceptance: `logforge service install` creates service file
-  - Dependencies: Service unit file, CLI commands
-  - Notes: Sets permissions, creates directories
+- [ ] Document systemd installation
+  - Acceptance: README includes systemd installation steps
+  - Dependencies: Service file
+  - Notes: Include copy, daemon-reload, enable, start commands
 
-## PyPI Packaging {Priority: Medium}
+## PyPI Package Publishing {Priority: Medium}
 
 - [ ] Configure package metadata for PyPI
-  - Acceptance: Package can be uploaded to PyPI
-  - Dependencies: pyproject.toml
-  - Notes: All required metadata present
+  - Acceptance: pyproject.toml includes all required metadata, classifiers, URLs
+  - Dependencies: Package setup
+  - Notes: Include description, license, authors, project URLs
 
-- [ ] Create release build process
-  - Acceptance: Can build wheel and source distribution
-  - Dependencies: Package configuration
-  - Notes: Use `python -m build`
+- [ ] Create package build process
+  - Acceptance: `python -m build` creates wheel and sdist
+  - Dependencies: Package setup
+  - Notes: Use build module, verify artifacts
 
-- [ ] Test package installation from wheel
-  - Acceptance: Package installs cleanly via pip
+- [ ] Test package installation
+  - Acceptance: Package installs cleanly via pip, all dependencies resolved
   - Dependencies: Package build
-  - Notes: Test in clean environment
+  - Notes: Test in clean virtual environment
+
+- [ ] Document PyPI publishing process
+  - Acceptance: README or CONTRIBUTING includes publishing steps
+  - Dependencies: Package setup
+  - Notes: Include twine upload commands, test PyPI instructions
 
 ---
 
-# Epic 10: Testing & Quality
+# Epic 12: Documentation
+
+## README Documentation {Priority: High}
+
+- [ ] Write comprehensive README
+  - Acceptance: README includes overview, quick start, installation, usage examples
+  - Dependencies: Core features implemented
+  - Notes: Include badges, screenshots if applicable, clear structure
+
+- [ ] Document quick start guide
+  - Acceptance: Users can follow guide to install and generate first logs in <5 minutes
+  - Dependencies: README
+  - Notes: Step-by-step: install, init, add entities, install template, start generator
+
+- [ ] Document configuration reference
+  - Acceptance: All config options documented with examples
+  - Dependencies: Config system
+  - Notes: Document each section, provide examples, explain defaults
+
+## API Documentation {Priority: Medium}
+
+- [ ] Generate OpenAPI/Swagger documentation
+  - Acceptance: FastAPI auto-generates OpenAPI spec, accessible at /docs
+  - Dependencies: FastAPI app
+  - Notes: FastAPI provides this automatically, ensure all endpoints documented
+
+- [ ] Document API authentication
+  - Acceptance: API docs explain authentication, show examples
+  - Dependencies: API auth
+  - Notes: Include curl examples, explain API key generation
+
+## Template Development Guide {Priority: Medium}
+
+- [ ] Write template development guide
+  - Acceptance: Guide explains template structure, Jinja2 usage, registry functions, examples
+  - Dependencies: Template system
+  - Notes: Include template.j2 examples, metadata.yaml examples, best practices
+
+- [ ] Document template customization workflow
+  - Acceptance: Guide explains customize, diff, merge, revert commands
+  - Dependencies: Customization commands
+  - Notes: Include workflow diagrams, conflict resolution examples
+
+## Example Templates {Priority: Medium}
+
+- [ ] Create Windows Security Event Log example template
+  - Acceptance: Template generates realistic Windows security events, includes metadata
+  - Dependencies: Template system
+  - Notes: Use example from requirements, validate output format
+
+- [ ] Create Palo Alto firewall traffic example template
+  - Acceptance: Template generates firewall log entries, includes metadata
+  - Dependencies: Template system
+  - Notes: Use example from requirements if available
+
+- [ ] Bundle example templates with package
+  - Acceptance: Example templates included in package, installed to default/ on init
+  - Dependencies: Example templates, Package setup
+  - Notes: Include in package data, copy on init
+
+---
+
+# Epic 13: Testing
+
+## Unit Test Infrastructure {Priority: High}
+
+- [ ] Set up pytest configuration
+  - Acceptance: pytest.ini configured, test discovery works, coverage reporting enabled
+  - Dependencies: pytest
+  - Notes: Configure test paths, coverage options, markers
+
+- [ ] Create test fixtures and utilities
+  - Acceptance: Common fixtures for config, entities, templates, API client
+  - Dependencies: pytest
+  - Notes: Use pytest.fixture, create temporary directories, mock external services
 
 ## Unit Tests {Priority: High}
 
-- [ ] Set up pytest test framework
-  - Acceptance: pytest runs, finds tests
-  - Dependencies: Development dependencies
-  - Notes: Configure pytest.ini
+- [ ] Write tests for configuration management
+  - Acceptance: Tests validate config loading, schema validation, defaults, environment substitution
+  - Dependencies: Config system, pytest
+  - Notes: Test valid/invalid configs, missing fields, env vars
 
-- [ ] Write unit tests for template rendering
-  - Acceptance: Tests verify template rendering with various inputs
-  - Dependencies: Template system
-  - Notes: Test all filters, registry functions
+- [ ] Write tests for entity registry
+  - Acceptance: Tests validate entity loading, caching, CRUD operations, validation
+  - Dependencies: Entity registry, pytest
+  - Notes: Test schema validation, uniqueness, format validation, backup/restore
 
-- [ ] Write unit tests for entity registry
-  - Acceptance: Tests verify CRUD operations, validation
-  - Dependencies: Entity registry
-  - Notes: Test all entity types
+- [ ] Write tests for template rendering
+  - Acceptance: Tests validate template rendering, registry functions, Faker integration, error handling
+  - Dependencies: Template system, pytest
+  - Notes: Test various templates, error cases, context building
 
-- [ ] Write unit tests for configuration management
-  - Acceptance: Tests verify config loading, validation, defaults
-  - Dependencies: Configuration management
-  - Notes: Test edge cases
+- [ ] Write tests for template validation
+  - Acceptance: Tests validate syntax checking, safety checks, metadata validation
+  - Dependencies: Template validation, pytest
+  - Notes: Test valid/invalid templates, unsafe operations, schema violations
 
-- [ ] Write unit tests for output handlers
-  - Acceptance: Tests verify each output type works correctly
-  - Dependencies: Output handlers
-  - Notes: Mock external dependencies
+- [ ] Write tests for output handlers
+  - Acceptance: Tests validate file/console/HTTP/TCP/syslog outputs, retry logic, buffering
+  - Dependencies: Output handlers, pytest
+  - Notes: Mock file system, network, test rotation, retry, buffer overflow
 
-- [ ] Write unit tests for API endpoints
-  - Acceptance: Tests verify all endpoints return correct responses
-  - Dependencies: API server
-  - Notes: Use httpx or similar for testing
+- [ ] Write tests for generator state machine
+  - Acceptance: Tests validate state transitions, error handling, lifecycle
+  - Dependencies: Generator engine, pytest
+  - Notes: Test all transitions, invalid transitions, concurrent access
 
-- [ ] Write unit tests for generator state machine
-  - Acceptance: Tests verify all state transitions
-  - Dependencies: Generator engine
-  - Notes: Test error cases
+- [ ] Write tests for frequency calculation
+  - Acceptance: Tests validate rate calculation based on time/day, multipliers
+  - Dependencies: Generator engine, pytest
+  - Notes: Mock datetime, test various time/day combinations
 
-- [ ] Write unit tests for frequency calculation
-  - Acceptance: Tests verify time-based rate adjustments
-  - Dependencies: Frequency logic
-  - Notes: Test various time patterns
+- [ ] Write tests for API endpoints
+  - Acceptance: Tests validate all endpoints, request/response formats, error handling
+  - Dependencies: FastAPI, pytest, httpx
+  - Notes: Use TestClient, test authentication, validation
 
-## Integration Tests {Priority: High}
+## Integration Tests {Priority: Medium}
 
 - [ ] Write integration tests for generator lifecycle
-  - Acceptance: Tests verify generators start/stop with real templates
-  - Dependencies: All core components
-  - Notes: End-to-end generator flow
+  - Acceptance: Tests validate full generator lifecycle with real templates and outputs
+  - Dependencies: All components, pytest
+  - Notes: Start/stop generators, verify events generated, check outputs
 
-- [ ] Write integration tests for output handler retry logic
-  - Acceptance: Tests verify retry and buffering during outages
-  - Dependencies: Output handlers, generator engine
-  - Notes: Mock network failures
+- [ ] Write integration tests for output retry logic
+  - Acceptance: Tests validate retry behavior, exponential backoff, buffer management
+  - Dependencies: Output handlers, pytest
+  - Notes: Simulate network failures, verify retry attempts, buffer behavior
 
 - [ ] Write integration tests for community API client
-  - Acceptance: Tests verify template download and installation
-  - Dependencies: Community client
-  - Notes: Mock HTTP responses
+  - Acceptance: Tests validate template search, download, installation
+  - Dependencies: Community client, pytest
+  - Notes: Mock HTTP responses, test error cases, package extraction
 
 - [ ] Write integration tests for CLI commands
-  - Acceptance: Tests verify CLI commands work end-to-end
-  - Dependencies: CLI, API server
-  - Notes: Test with subprocess or click.testing
+  - Acceptance: Tests validate CLI commands execute correctly, format output properly
+  - Dependencies: CLI, pytest
+  - Notes: Use subprocess or click.testing.CliRunner, verify exit codes
 
 - [ ] Write integration tests for multi-generator concurrency
-  - Acceptance: Tests verify multiple generators run simultaneously
-  - Dependencies: Generator engine, thread pool
-  - Notes: Verify no race conditions
+  - Acceptance: Tests validate multiple generators run concurrently, no resource conflicts
+  - Dependencies: Generator engine, pytest
+  - Notes: Start multiple generators, verify all running, check statistics
 
 ## End-to-End Tests {Priority: Medium}
 
 - [ ] Write E2E test for complete workflow
-  - Acceptance: Test: init → install templates → start generators → verify output
-  - Dependencies: All components
-  - Notes: Full user journey
+  - Acceptance: Test: init → add entities → install template → start generator → verify output
+  - Dependencies: All components, pytest
+  - Notes: Full workflow test, verify events in output file
 
 - [ ] Write E2E test for Docker deployment
-  - Acceptance: Test: build image → run container → verify service
-  - Dependencies: Docker setup
-  - Notes: Test in CI
+  - Acceptance: Test Docker container starts, API works, generators run
+  - Dependencies: Docker setup, pytest
+  - Notes: Use docker client or subprocess, verify container health
 
 - [ ] Write E2E test for API authentication
-  - Acceptance: Test: enable auth → verify API key required
-  - Dependencies: API authentication
-  - Notes: Test with and without key
+  - Acceptance: Test API key authentication, unauthorized access rejected
+  - Dependencies: API auth, pytest
+  - Notes: Test with/without key, verify 401 responses
 
 ## Test Coverage {Priority: High}
 
-- [ ] Configure pytest-cov for coverage reporting
-  - Acceptance: Coverage reports generated
-  - Dependencies: pytest setup
-  - Notes: Target 80% minimum
+- [ ] Achieve 80% overall test coverage
+  - Acceptance: pytest-cov reports >=80% coverage
+  - Dependencies: All tests
+  - Notes: Focus on critical paths first, then expand
 
 - [ ] Achieve 100% coverage for critical paths
-  - Acceptance: Generator lifecycle, error handling fully covered
+  - Acceptance: Generator lifecycle, error handling, state machine at 100%
   - Dependencies: Unit tests
-  - Notes: Focus on error paths
-
-- [ ] Set up coverage reporting in CI
-  - Acceptance: Coverage reported in CI pipeline
-  - Dependencies: Coverage configuration
-  - Notes: Fail if below threshold
+  - Notes: Use coverage reports to identify gaps
 
 ---
 
-# Epic 11: Documentation
+# Decision Log
 
-## README & Quick Start {Priority: High}
+### Decision 001: API Architecture - FastAPI Embedded Server
 
-- [ ] Create comprehensive README.md
-  - Acceptance: README includes installation, quick start, examples
-  - Dependencies: None
-  - Notes: Follow requirements section 10.1
+**Context**: Need to provide programmatic control and future extensibility. Requirements specify API-first architecture with embedded server.
 
-- [ ] Create quick start guide
-  - Acceptance: User can go from install to generating logs in <5 minutes
-  - Dependencies: README
-  - Notes: Step-by-step with examples
+**Options Considered**:
 
-- [ ] Create installation instructions
-  - Acceptance: Clear instructions for pip, Docker, systemd
-  - Dependencies: README
-  - Notes: Include prerequisites
+1. **FastAPI embedded in background thread**: Single process, server runs in thread, CLI connects via HTTP | Pros: Simple deployment, no separate service, enables remote control | Cons: Thread management complexity, single point of failure
+2. **Separate API service process**: API runs as independent service, CLI connects via HTTP | Pros: Better isolation, can restart independently | Cons: More complex deployment, process management overhead
+3. **CLI-only with direct file access**: No API, CLI manipulates files directly | Pros: Simplest architecture | Cons: No remote control, no future web UI, harder to monitor
 
-## API Documentation {Priority: High}
+**Decision**: FastAPI embedded in background thread
 
-- [ ] Generate OpenAPI/Swagger documentation
-  - Acceptance: API docs available at `/docs` endpoint
-  - Dependencies: FastAPI app
-  - Notes: FastAPI auto-generates from code
+**Rationale**: Requirements explicitly specify embedded server. Enables remote control and future web UI without deployment complexity. Single process simplifies operations for OSS version. Background thread allows CLI to start server automatically.
 
-- [ ] Document all API endpoints
-  - Acceptance: All endpoints have descriptions, examples
-  - Dependencies: API server
-  - Notes: Use FastAPI docstrings
+**Implications**: 
+- Must handle thread lifecycle carefully (startup, shutdown, error handling)
+- API must be healthy before generators can run (per requirements)
+- CLI must check API health before all operations
+- Need graceful shutdown handling
 
-## Template Development Guide {Priority: Medium}
-
-- [ ] Create template development guide
-  - Acceptance: Guide explains how to create custom templates
-  - Dependencies: Template system
-  - Notes: Include examples, best practices
-
-- [ ] Document template metadata schema
-  - Acceptance: Complete reference for metadata.yaml fields
-  - Dependencies: Template system
-  - Notes: Include all fields and constraints
-
-- [ ] Create template examples (2-3 bundled)
-  - Acceptance: Example templates work out of the box
-  - Dependencies: Template system
-  - Notes: Include in examples/ directory
-
-## User Documentation {Priority: Medium}
-
-- [ ] Create CLI command reference
-  - Acceptance: All commands documented with examples
-  - Dependencies: CLI commands
-  - Notes: Can be auto-generated from help text
-
-- [ ] Create configuration reference
-  - Acceptance: All config options documented with defaults
-  - Dependencies: Configuration management
-  - Notes: Include examples for each section
-
-- [ ] Create troubleshooting guide
-  - Acceptance: Common errors and solutions documented
-  - Dependencies: Error handling
-  - Notes: Based on error scenarios from user story
-
-- [ ] Create deployment guide
-  - Acceptance: Docker and systemd deployment documented
-  - Dependencies: Deployment setup
-  - Notes: Include production considerations
+**Revisit Triggers**: 
+- If thread management becomes problematic
+- If need for independent API service scaling arises
+- If performance issues with embedded server
 
 ---
 
-# Epic 12: Example Templates & Entities
+### Decision 002: CLI Framework Selection - Click vs Typer
 
-## Example Templates {Priority: Medium}
+**Context**: Need Python CLI framework. Requirements mention "Click or Typer". Both are viable options.
 
-- [ ] Create example Windows Security Event Log template
-  - Acceptance: Template generates realistic Windows security events
-  - Dependencies: Template system
-  - Notes: Use existing examples as reference
+**Options Considered**:
 
-- [ ] Create example Palo Alto firewall template
-  - Acceptance: Template generates realistic firewall logs
-  - Dependencies: Template system
-  - Notes: Use existing examples as reference
+1. **Click**: Mature, widely used, decorator-based | Pros: Battle-tested, extensive ecosystem, good documentation | Cons: More boilerplate, less type-safe
+2. **Typer**: Modern, type-hint based, built on Click | Pros: Type safety, less boilerplate, auto-generated help, modern Python | Cons: Newer, smaller ecosystem
 
-- [ ] Create example entity registry file
-  - Acceptance: Sample entities.yaml with realistic data
-  - Dependencies: Entity registry
-  - Notes: Include in examples/ directory
+**Decision**: Typer (recommended, but either acceptable)
 
-- [ ] Validate all example templates
-  - Acceptance: All examples pass validation
-  - Dependencies: Example templates, template validation
-  - Notes: Test rendering
+**Rationale**: Typer provides better developer experience with type hints, auto-generated help, and less boilerplate. Built on Click so can leverage Click ecosystem. Better fit for modern Python codebase with type hints.
 
----
+**Implications**:
+- Use type hints for all command functions
+- Leverage Typer's automatic help generation
+- Can use Click decorators if needed for complex cases
 
-## 3. Decision Log
-
-### Decision: CLI Framework Selection
-
-**Context**: Need to choose between Click and Typer for CLI implementation. Both are Python CLI frameworks with different approaches.
-
-**Options**: 
-- Option A: Click - Mature, widely used, decorator-based, extensive ecosystem
-- Option B: Typer - Modern, type-hint based, built on Click, better IDE support
-
-**Decision**: Typer (pending confirmation)
-
-**Rationale**: Typer provides better type safety, cleaner code with type hints, and modern Python practices. Built on Click so has compatibility. Better developer experience with IDE autocomplete.
-
-**Implications**: All CLI commands use Typer, type hints required for all command functions, may need to handle Click compatibility for some advanced features.
-
-**Revisit If**: Type hints prove problematic, or need Click-specific features not available in Typer.
+**Revisit Triggers**:
+- If Typer limitations discovered during implementation
+- If team preference for Click
+- If specific Click features needed that Typer doesn't support
 
 ---
 
-### Decision: Template Precedence System Implementation
+### Decision 003: Template Precedence System
 
-**Context**: Need to implement custom/ vs default/ template resolution. Requirements specify custom_first as default, but need to decide on implementation approach.
+**Context**: Users need to customize community templates while preserving ability to update defaults. Requirements specify precedence options: custom_first, default_first, explicit.
 
-**Options**:
-- Option A: Filesystem-based resolution (check custom/ first, fall back to default/)
-- Option B: Registry-based resolution (maintain index of template locations)
-- Option C: Hybrid (filesystem with in-memory cache)
+**Options Considered**:
 
-**Decision**: Option C - Hybrid approach (pending confirmation)
+1. **custom_first (default)**: Check custom/ first, fall back to default/ | Pros: User customizations always win, intuitive | Cons: May hide default updates
+2. **default_first**: Check default/ first, fall back to custom/ | Pros: Always get latest defaults | Cons: Custom changes may be ignored, confusing
+3. **explicit**: Require namespace prefix (default: or custom:) | Pros: Explicit control, no ambiguity | Cons: More verbose, requires config changes
 
-**Rationale**: Filesystem-based is simple and transparent, but caching improves performance. Hybrid gives best of both - simple filesystem semantics with performance optimization.
+**Decision**: custom_first as default, support all three options
 
-**Implications**: Template loader must scan both directories, maintain cache of resolved paths, invalidate cache on template changes.
+**Rationale**: Requirements specify custom_first as default. Most intuitive for users - their customizations take precedence. Support other options for advanced use cases. Provide clear warnings when custom exists during updates.
 
-**Revisit If**: Performance issues with filesystem scanning, or need more complex resolution rules.
+**Implications**:
+- Template resolution logic must check custom/ first
+- Update commands must warn when custom exists
+- Diff/merge tools essential for managing customizations
+- Documentation must explain precedence clearly
 
----
-
-### Decision: Threading Model for Generators
-
-**Context**: Requirements specify ThreadPoolExecutor with dynamic sizing. Need to decide on thread management strategy.
-
-**Options**:
-- Option A: One thread per generator (simple, predictable)
-- Option B: ThreadPoolExecutor with shared pool (efficient, dynamic)
-- Option C: Async/await with asyncio (modern, but more complex)
-
-**Decision**: Option B - ThreadPoolExecutor with shared pool (as specified)
-
-**Rationale**: Matches requirements exactly, provides good resource utilization, Python standard library, proven approach. ThreadPoolExecutor handles thread lifecycle automatically.
-
-**Implications**: Must manage thread assignment, ensure thread-safe operations, handle graceful shutdown of all threads.
-
-**Revisit If**: Performance issues, or need async I/O for outputs (would require asyncio).
+**Revisit Triggers**:
+- If users consistently confused by precedence
+- If need for more granular control (per-template precedence)
 
 ---
 
-### Decision: Output Handler Retry Strategy
+### Decision 004: Threading Model - ThreadPoolExecutor
 
-**Context**: Requirements specify exponential backoff with unlimited retries by default. Need to decide on retry implementation details.
+**Context**: Need concurrent event generation. Requirements specify ThreadPoolExecutor with dynamic sizing.
 
-**Options**:
-- Option A: Per-handler retry logic (each handler implements own retry)
-- Option B: Centralized retry manager (shared retry logic)
-- Option C: Library-based (use tenacity or similar)
+**Options Considered**:
 
-**Decision**: Option B - Centralized retry manager (pending confirmation)
+1. **ThreadPoolExecutor**: Python standard library, thread-based | Pros: Simple, proven, good for I/O-bound tasks | Cons: GIL limitations for CPU-bound, thread overhead
+2. **asyncio/async**: Async/await, event loop | Pros: Better for I/O, lower overhead, modern | Cons: More complex, all code must be async, template rendering is sync
+3. **multiprocessing**: Process-based parallelism | Pros: Bypasses GIL, true parallelism | Cons: Higher overhead, complex state sharing, overkill for I/O-bound
 
-**Rationale**: Consistent retry behavior across all handlers, easier to test and maintain, configurable per-handler but shared implementation.
+**Decision**: ThreadPoolExecutor with dynamic sizing
 
-**Implications**: Create retry manager utility, all handlers use it, must handle different error types appropriately.
+**Rationale**: Requirements explicitly specify ThreadPoolExecutor. Event generation is I/O-bound (template rendering, output writes), not CPU-bound, so GIL not a major issue. Simpler than async for mixed sync/async codebase. Standard library, proven approach.
 
-**Revisit If**: Need handler-specific retry logic, or retry library provides better features.
+**Implications**:
+- Each generator runs in separate thread
+- Thread pool size = CPU cores × 5 (configurable)
+- Must handle thread safety (locks, atomic operations)
+- Generator state must be thread-safe
 
----
-
-### Decision: Entity Registry Schema Validation Approach
-
-**Context**: Need to validate entity registry YAML against schema. Multiple approaches possible.
-
-**Options**:
-- Option A: Pydantic models with validation (type-safe, Python-native)
-- Option B: JSON Schema validation (standard, language-agnostic)
-- Option C: Custom validation functions (flexible, but more code)
-
-**Decision**: Option A - Pydantic models (pending confirmation)
-
-**Rationale**: Already using Pydantic for API models, consistent approach, excellent error messages, type safety, easy to extend.
-
-**Implications**: All entity types must have Pydantic models, validation happens on load, clear error messages with field-level details.
-
-**Revisit If**: Need to share schema with other tools, or JSON Schema provides better validation features.
+**Revisit Triggers**:
+- If performance issues with threading discovered
+- If need for higher concurrency (100+ generators)
+- If CPU-bound operations added (complex template processing)
 
 ---
 
-### Decision: Community API Client Error Handling
+### Decision 005: Entity Storage - File-based YAML
 
-**Context**: Community API client needs robust error handling for network issues, timeouts, etc.
+**Context**: Need persistent entity storage. Requirements specify file-based YAML.
 
-**Options**:
-- Option A: Fail-fast (raise exceptions immediately)
-- Option B: Retry with backoff (automatic retries)
-- Option C: Degraded mode (cache results, work offline)
+**Options Considered**:
 
-**Decision**: Option C - Degraded mode with caching (pending confirmation)
+1. **File-based YAML**: Single YAML file, human-editable | Pros: Simple, version-controllable, no dependencies, human-readable | Cons: Concurrent write issues, no querying, file size limits
+2. **SQLite database**: Embedded database, SQL queries | Pros: ACID transactions, querying, concurrent access | Cons: Additional dependency, less human-editable, overkill for small datasets
+3. **JSON file**: Similar to YAML | Pros: Simple, no YAML dependency | Cons: Less human-friendly, no comments, same limitations as YAML
 
-**Rationale**: Users may work in air-gapped environments, should gracefully handle network failures, cache template metadata for offline use.
+**Decision**: File-based YAML
 
-**Implications**: Implement caching layer, detect network failures, provide clear error messages, support offline template operations.
+**Rationale**: Requirements explicitly specify YAML. Simplicity aligns with OSS version goals. Human-editable is valuable for users. Entity counts typically small (<10k), so file size not an issue. Use file locking and in-memory cache to handle concurrency.
 
-**Revisit If**: Network reliability is always guaranteed, or retry logic is sufficient.
+**Implications**:
+- Must implement file locking for concurrent access
+- In-memory cache for performance
+- Auto-save mechanism to persist changes
+- Backup system for safety
+- Validation on load to catch corruption early
 
----
-
-### Decision: Configuration File Location Enforcement
-
-**Context**: Requirements specify all config must be under LOGFORGE_HOME. Need to decide on enforcement strategy.
-
-**Options**:
-- Option A: Strict validation (reject paths outside LOGFORGE_HOME)
-- Option B: Warning only (allow but warn)
-- Option C: Auto-relocate (move configs to LOGFORGE_HOME)
-
-**Decision**: Option A - Strict validation (as specified)
-
-**Rationale**: Requirements explicitly state "CLI refuses to mutate configuration outside that root". Security and consistency benefits.
-
-**Implications**: Validate all file paths in config, reject invalid paths with clear error, update CLI to enforce.
-
-**Revisit If**: Users need flexibility for special deployment scenarios.
+**Revisit Triggers**:
+- If entity counts grow very large (>100k)
+- If need for complex queries
+- If concurrent write conflicts become problematic
 
 ---
 
-## 4. Validation Checklist
+### Decision 006: Output Handler Retry Strategy
 
-- [x] All requirements sections covered (1-16 from requirements doc)
-- [x] No duplicate or orphaned tasks
-- [x] Dependencies mapped (explicit dependencies in each task)
-- [x] Major decisions documented with rationale (7 decisions in Decision Log)
-- [x] Tasks are independently actionable (each task has clear acceptance criteria)
-- [x] User stories referenced where applicable (Phase references in relevant tasks)
-- [x] Priorities assigned (High/Medium/Low based on blocking nature)
-- [x] Development phases aligned (tasks organized by epic, matching phase structure)
+**Context**: Output destinations may be unavailable. Need resilient retry strategy. Requirements specify exponential backoff with unlimited retries by default.
 
----
+**Options Considered**:
 
-## 5. Notes & Clarifications Needed
+1. **Exponential backoff, unlimited retries (-1)**: Retry forever with increasing delays | Pros: Maximum resilience, handles long outages | Cons: May retry forever on permanent failures, resource usage
+2. **Exponential backoff, limited retries**: Retry N times then give up | Pros: Fails fast on permanent errors | Cons: May give up too soon on transient issues
+3. **Fixed interval retries**: Retry at fixed intervals | Pros: Predictable | Cons: Less efficient, doesn't adapt
 
-### Requirements Clarifications
+**Decision**: Exponential backoff with unlimited retries by default, configurable max_attempts
 
-1. **Template Package Format**: Requirements mention `.forge` files but don't specify exact archive format. Assumed tar.gz based on context, but should confirm.
+**Rationale**: Requirements specify unlimited by default (-1). Output failures are often transient (network issues, temporary service outages). Better to buffer and retry than lose events. Configurable limit allows users to set bounds if needed.
 
-2. **API Server Lifecycle**: Requirements state "auto-started with service" but also mention optional disable. Need clarification on when API can be disabled if generators require it.
+**Implications**:
+- Must implement exponential backoff calculation
+- Event buffering essential (can't lose events during retries)
+- Buffer size limits prevent unbounded memory growth
+- Need monitoring/alerting for persistent failures
+- Degraded state indicates retry in progress
 
-3. **Entity Registry Backup Restore**: Requirements mention attempting backup restore on corruption, but don't specify automatic vs manual. Assumed automatic with user notification.
-
-4. **Output Handler TLS**: Requirements mention TLS for syslog but don't specify certificate handling. Need to decide on certificate validation approach.
-
-5. **Community API Authentication**: Requirements don't specify if community API requires authentication. Assumed public API, but should confirm.
-
-6. **Template Versioning**: Requirements mention version in metadata but don't specify version comparison logic for updates. Need to clarify semver handling.
-
-7. **Generator Frequency Calculation**: Requirements specify time-based multipliers but don't specify exact calculation (average over period vs instant rate). Need to clarify implementation.
+**Revisit Triggers**:
+- If memory usage from buffering becomes problematic
+- If users consistently hit buffer limits
+- If need for more sophisticated retry strategies (circuit breakers)
 
 ---
 
-**End of Tasks.md**
+### Decision 007: Template Safety - Sandboxed Jinja2
+
+**Context**: Templates are user-provided code. Must prevent security issues (file access, code execution). Requirements specify no unsafe operations.
+
+**Options Considered**:
+
+1. **Jinja2 sandbox mode**: Restricted environment, blocks dangerous operations | Pros: Built-in safety, blocks eval/exec/file access | Cons: May block legitimate operations, performance overhead
+2. **AST analysis**: Parse template AST, reject dangerous nodes | Pros: More control, can allow specific safe operations | Cons: Complex, may miss edge cases
+3. **Whitelist approach**: Only allow specific functions/filters | Pros: Maximum safety, explicit control | Cons: Very restrictive, may limit functionality
+
+**Decision**: Jinja2 sandbox mode + AST analysis for additional checks
+
+**Rationale**: Defense in depth. Sandbox mode provides base protection. AST analysis catches additional issues and provides better error messages. Whitelist registry functions ensures only safe operations.
+
+**Implications**:
+- Enable Jinja2 sandbox environment
+- Parse AST to detect eval/exec/file operations
+- Whitelist registry functions (get_random_user, etc.)
+- Document allowed operations clearly
+- Reject templates with unsafe operations during validation
+
+**Revisit Triggers**:
+- If sandbox too restrictive for legitimate use cases
+- If security vulnerabilities discovered
+- If need for more flexible template capabilities
 
 ---
-# Development Log
 
-## 2025-11-23
-- ✅ Completed: Project structure scaffolding (Project Structure & Packaging)
-  - Created full `src/logforge` module tree with placeholder files plus `tests/` skeleton and placeholder unit test to unblock future tasks.
-- ✅ Completed: pyproject configuration (Project Structure & Packaging)
-  - Established setuptools/pyproject metadata, runtime + dev dependencies, CLI entry point, and pytest defaults to enable editable installs and future tooling setup.
-- ✅ Completed: Dev tooling setup (Project Structure & Packaging)
-  - Added Makefile + lint/typecheck configs, installed dev dependencies, and validated `ruff`, `black`, `pytest`, `mypy` runs for baseline CI readiness.
-- ✅ Completed: CLI entry & version command (Project Structure & Packaging)
-  - Delivered Typer CLI scaffold (`logforge --help/--version`), subcommand grouping, helper messaging, unit tests, and metadata-driven `__version__` propagation.
-  - ✅ Completed: Config loader w/ env substitution (Configuration Management)
-    - Implemented YAML loader with `${VAR}` expansion + safety checks, plus unit tests for env substitution, path enforcement, and `~` expansion.
-  - ✅ Completed: LOGFORGE_HOME resolver (Configuration Management)
-    - Added service/interactive home detection module with env/user heuristics, wired into loader, and covered with dedicated unit tests.
-  - ✅ Completed: Config schema validation (Configuration Management)
-    - Added Pydantic config models, loader integration, and regression tests for invalid ports, outputs, generators, and frequency definitions.
-  - ✅ Completed: Default config generator (Configuration Management)
-    - Delivered schema-backed default config builder/writer with directory scaffolding helpers and overwrite safety checks.
-- ✅ Completed: Interactive init wizard (Configuration Management)
-  - Implemented `logforge init` command with an interactive wizard plus CLI tests and configurable defaults feeding the config/entity generators.
-- ✅ Completed: Config CLI commands (Configuration Management)
-  - Added Typer subcommands for `config show/set/validate`, leveraging schema validation and file-based mutations pending API endpoints, with comprehensive CLI tests.
-- ✅ Completed: Logging utilities (Logging Infrastructure)
-  - Delivered centralized logging configuration + context manager with size/time rotation support and tests ensuring logs write to `${LOGFORGE_HOME}` (`tests/unit/test_logging_setup.py`).
-- ✅ Completed: API server core (API Server Core)
-  - Built FastAPI app/routers, API key auth, background uvicorn runner, health/status/metrics endpoints, and metrics integration with comprehensive tests (`tests/unit/test_api_server.py`).
-- ✅ Completed: Entity registry system (Entity Registry System)
-  - Added Pydantic entity models + validator, storage with autosave/backups, registry helpers, entity API endpoints, and CLI commands (list/add/import/export/validate) with extensive unit tests.
-- ✅ Completed: Generator engine core (Event Generation Engine)
-  - Implemented Generator class with state machine, lifecycle methods, event generation loop, frequency calculation, statistics tracking, ThreadPoolExecutor management, error recovery, and API endpoints with CLI commands (list/status/start/stop/restart/metrics/validate).
-- ✅ Completed: Output handlers (Output Handlers)
-  - Implemented all output handlers (file, console, HTTP, TCP, syslog) with retry logic, buffering, and metrics integration. Output API endpoints (list/get) and CLI commands (list/show/metrics) implemented.
-- ✅ Completed: CLI framework and service management (CLI Interface)
-  - Implemented Typer-based CLI with API connection handling, service start/status/health commands, and JSON output support.
-- ✅ Completed: Metrics collection (Metrics & Observability)
-  - Implemented Prometheus metrics collection with event generation, system, and performance metrics exposed via `/api/metrics` endpoint. Metrics fully integrated into generators, outputs, and system monitoring.
+### Decision 008: Configuration Location - LOGFORGE_HOME Enforcement
 
-## 2025-01-15
-- ✅ Verified: All required tasks for Epics 1-8 are complete
-  - Epic 1: Project Foundation & Infrastructure - All 4/4 tasks complete (Project Structure, Configuration Management [6/6], Logging Infrastructure [3/3])
-  - Epic 2: API Server Core - All 9/9 tasks complete (FastAPI Setup [5/5], Health & Status [4/4])
-  - Epic 3: Entity Registry System - All 14/14 tasks complete (Storage [5/5], Validation [3/3], Functions [3/3], API [3/3])
-  - Epic 4: Template System - Core tasks complete (Loader [4/4], Renderer [5/5], Validation [4/4], API [2/2]). Some optional tasks (create, update, download) remain for future enhancement.
-  - Epic 5: Event Generation Engine - All required tasks complete (Generator Core [5/5], Thread Pool [3/3], Configuration [3/3], Error Recovery [4/4], API [5/5]). Some optional CLI tasks (add, apply, enable/disable, reload) remain for future enhancement.
-  - Epic 6: Output Handlers - All required tasks complete (Base Handler, File [5/5], Console [3/3], HTTP [1/1], TCP [2/2], Syslog [4/4], Retry Logic [4/4], API [2/2]). Some optional tasks (batching, test, enable/disable) remain for future enhancement.
-  - Epic 7: CLI Interface - Core tasks complete (Framework [5/5], Service Management [3/6], Monitoring [0/2]). Some optional tasks remain for future enhancement.
-  - Epic 8: Metrics & Observability - All 5/5 tasks complete (Metrics Collection fully integrated)
-  
-  **Known Limitations (Optional/Future Enhancements)**:
-  - Generator CLI: `add`, `apply`, `enable/disable`, `reload` commands (stubs exist, require API endpoints)
-  - Output CLI: `add`, `test`, `enable/disable` commands (stubs exist, require API endpoints)
-  - Template CLI: `create`, `update`, `download` commands (some stubs exist)
-  - HTTP Output: Event batching, timeout handling (basic implementation exists)
-  - TCP Output: Keepalive support
-  - Service Management: `stop`, `service install`, `service start/stop/restart/status` commands
-  - Monitoring: `metrics`, `logs` commands
-  
-  All core functionality required for Epics 1-8 is implemented and tested. Optional enhancements can be added incrementally.
+**Context**: Need consistent configuration location. Requirements specify all config must be under LOGFORGE_HOME, CLI refuses to mutate outside.
+
+**Options Considered**:
+
+1. **Strict LOGFORGE_HOME enforcement**: All config under LOGFORGE_HOME, CLI validates paths | Pros: Security, consistency, prevents accidental file access | Cons: Less flexible, may frustrate advanced users
+2. **Flexible paths**: Allow config anywhere, no restrictions | Pros: Maximum flexibility | Cons: Security risk, inconsistent locations, harder to manage
+3. **LOGFORGE_HOME default, allow override**: Default to LOGFORGE_HOME but allow --config flag | Pros: Balance of security and flexibility | Cons: Still allows bypass, complexity
+
+**Decision**: Strict LOGFORGE_HOME enforcement with --config flag that must point within LOGFORGE_HOME
+
+**Rationale**: Requirements explicitly state "CLI refuses to mutate configuration outside that root". Security best practice - prevents accidental file access, ensures consistent location. --config flag allows alternate config file but still within LOGFORGE_HOME.
+
+**Implications**:
+- Validate all file paths are within LOGFORGE_HOME
+- Reject operations on paths outside LOGFORGE_HOME
+- Clear error messages when paths invalid
+- Document LOGFORGE_HOME resolution logic
+- Support environment variable override for LOGFORGE_HOME itself
+
+**Revisit Triggers**:
+- If users need to use existing config files outside LOGFORGE_HOME
+- If multi-user scenarios require different approach
+- If security requirements change
+
+---
+
+# Cross-Cutting Concerns
+
+## Testing Strategy
+
+- [ ] Unit test coverage targets: 80% overall, 100% for critical paths (generator lifecycle, error handling, state machine)
+- [ ] Integration test approach: Test component interactions with real implementations, mock external services (community API)
+- [ ] E2E test scenarios: Complete workflows (init → entities → templates → generators → output), Docker deployment, API authentication
+
+## Documentation
+
+- [ ] API documentation format: OpenAPI/Swagger auto-generated by FastAPI, accessible at /docs endpoint
+- [ ] Code comment standards: Docstrings for all public functions/classes, type hints for all public APIs, inline comments for complex logic
+- [ ] Deployment runbook: Docker quick start, systemd setup, troubleshooting guide, performance tuning
+
+## Security Considerations
+
+- [ ] File permissions: Config and entity files readable only by owner (600), templates readable (644)
+- [ ] Input validation: All user inputs validated (CLI, API, config files), reject malformed data
+- [ ] Template sandboxing: Jinja2 sandbox mode, AST analysis, whitelist registry functions
+- [ ] API authentication: Optional API key, secure key generation, Bearer token validation
+
+## Performance Optimization
+
+- [ ] Template caching: Cache loaded templates with TTL, invalidate on file changes
+- [ ] Entity caching: In-memory cache with fast lookups, periodic saves to disk
+- [ ] Output batching: Batch events for HTTP output, reduce network overhead
+- [ ] Thread pool sizing: Dynamic sizing based on CPU cores, respect max_generators limit
+
+## Error Handling Standards
+
+- [ ] Error messages: Clear, actionable messages with context (file, line number, suggested fix)
+- [ ] Logging levels: DEBUG (internal operations), INFO (state changes), WARNING (retries, degraded), ERROR (failures), CRITICAL (system failures)
+- [ ] Error recovery: Smart retry for transient errors, fail fast for permanent errors, state transitions on errors
+
+## Future Enhancements
+
+- [ ] Web UI: Browser-based management interface (post-MVP)
+- [ ] Template marketplace: Enhanced community template browsing, ratings, reviews
+- [ ] Advanced scheduling: Cron-like scheduling, event-based triggers
+- [ ] Database backend: Optional SQLite/PostgreSQL for large entity sets
+- [ ] Distributed mode: Multiple LogForge instances, shared state
+- [ ] Template versioning: Git integration for template version control
+- [ ] Real-time monitoring: WebSocket streaming of generator status, event preview
+- [ ] Template testing framework: Unit tests for templates, validation suite
+- [ ] Export/import configurations: Share generator configs, entity sets
+- [ ] Plugin system: Custom output handlers, template functions, validators
 
