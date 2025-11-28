@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 import requests
 
-from logforge.core.config import OutputDefinition
+from logforge.core.config import OutputDefinition, RetryConfig
 from logforge.outputs.base import OutputHandler
 from logforge.utils.logging import get_logger
 
@@ -29,6 +29,8 @@ class HTTPOutputHandler(OutputHandler):
         batch_size: int = 100,
         batch_interval: int = 5,
         timeout: int = 30,
+        retry_config: Optional[RetryConfig] = None,
+        buffer_size: int = 10000,
     ) -> None:
         """Initialize HTTP output handler.
         
@@ -40,8 +42,10 @@ class HTTPOutputHandler(OutputHandler):
             batch_size: Events per batch
             batch_interval: Seconds between batch sends
             timeout: Request timeout in seconds
+            retry_config: Retry configuration from global config
+            buffer_size: Buffer size from global config
         """
-        super().__init__(name)
+        super().__init__(name, retry_config=retry_config, buffer_size=buffer_size)
         self.url = url
         self.method = method.upper()
         self.headers = headers or {}
@@ -98,11 +102,18 @@ class HTTPOutputHandler(OutputHandler):
         return substituted
     
     @classmethod
-    def from_config(cls, definition: OutputDefinition) -> 'HTTPOutputHandler':
+    def from_config(
+        cls,
+        definition: OutputDefinition,
+        retry_config: Optional[RetryConfig] = None,
+        buffer_size: int = 10000,
+    ) -> 'HTTPOutputHandler':
         """Create handler from output definition.
         
         Args:
             definition: Output definition
+            retry_config: Retry configuration from global config
+            buffer_size: Buffer size from global config
             
         Returns:
             HTTPOutputHandler instance
@@ -118,6 +129,8 @@ class HTTPOutputHandler(OutputHandler):
             batch_size=definition.batch_size or 100,
             batch_interval=definition.batch_interval or 5,
             timeout=definition.timeout or 30,
+            retry_config=retry_config,
+            buffer_size=buffer_size,
         )
     
     def initialize(self) -> None:

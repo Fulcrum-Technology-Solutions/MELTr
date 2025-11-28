@@ -56,13 +56,24 @@ def create_output_handlers(
             continue
         
         try:
-            handler = handler_type.from_config(definition)
-            
-            # Set retry config and buffer size if handler supports it
-            if hasattr(handler, 'retry_config'):
-                handler.retry_config = retry_config
-            if hasattr(handler, 'buffer_size'):
-                handler.buffer_size = buffer_size
+            # Pass retry_config and buffer_size to from_config if supported
+            if hasattr(handler_type, 'from_config'):
+                # Check if from_config accepts retry_config and buffer_size parameters
+                import inspect
+                sig = inspect.signature(handler_type.from_config)
+                params = list(sig.parameters.keys())
+                
+                if 'retry_config' in params and 'buffer_size' in params:
+                    handler = handler_type.from_config(definition, retry_config=retry_config, buffer_size=buffer_size)
+                else:
+                    handler = handler_type.from_config(definition)
+                    # Fallback: Set as attributes if handler doesn't accept them in from_config
+                    if hasattr(handler, 'retry_config'):
+                        handler.retry_config = retry_config
+                    if hasattr(handler, 'buffer_size'):
+                        handler.buffer_size = buffer_size
+            else:
+                raise ValueError(f"Handler type {handler_type} does not have from_config method")
             
             handlers.append(handler)
             logger.debug(f"Created output handler: {name} (type: {definition.type})")
