@@ -1,0 +1,274 @@
+"""Configuration management."""
+
+import os
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import yaml
+from pydantic import BaseModel, Field, field_validator
+
+from logforge.core.paths import get_logforge_home, validate_path_within_home
+
+
+class RotationConfig(BaseModel):
+    """Log rotation configuration."""
+    
+    max_size: Union[int, str] = Field(default=50 * 1024 * 1024, description="Max log file size")
+    backup_count: int = Field(default=5, description="Number of backup files to keep")
+
+
+class LoggingConfig(BaseModel):
+    """Application logging configuration."""
+    
+    level: str = Field(default="INFO", description="Log level")
+    file: Optional[str] = Field(default=None, description="Log file path")
+    rotation: Optional[RotationConfig] = Field(default=None, description="Log rotation settings")
+    format: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        description="Log format string"
+    )
+
+
+class EngineConfig(BaseModel):
+    """Core engine settings."""
+    
+    max_generators: Optional[int] = Field(default=None, description="Max concurrent generators")
+    thread_pool_size: Optional[int] = Field(default=None, description="Thread pool size (null = auto)")
+    log_level: str = Field(default="INFO", description="Engine log level")
+
+
+class AuthConfig(BaseModel):
+    """API authentication configuration."""
+    
+    enabled: bool = Field(default=False, description="Enable API key authentication")
+    key: Optional[str] = Field(default=None, description="API key (auto-generated if enabled)")
+
+
+class APIConfig(BaseModel):
+    """API server settings."""
+    
+    enabled: bool = Field(default=True, description="Enable API server")
+    host: str = Field(default="127.0.0.1", description="Listen address")
+    port: int = Field(default=8080, description="Listen port")
+    auth: AuthConfig = Field(default_factory=AuthConfig, description="Authentication settings")
+
+
+class EntityRegistryConfig(BaseModel):
+    """Entity registry settings."""
+    
+    path: str = Field(description="Path to entities.yaml")
+    auto_save: bool = Field(default=True, description="Auto-save entities")
+    save_interval: int = Field(default=60, description="Save interval in seconds")
+    backup_enabled: bool = Field(default=True, description="Enable backups")
+    backup_count: int = Field(default=3, description="Number of backups to keep")
+
+
+class TemplatesConfig(BaseModel):
+    """Template settings."""
+    
+    local_path: str = Field(description="Local templates path")
+    default_path: Optional[str] = Field(default=None, description="Default templates path")
+    custom_path: Optional[str] = Field(default=None, description="Custom templates path")
+    precedence: str = Field(default="custom_first", description="Template precedence")
+    community_api_url: str = Field(default="https://api.logforge.io/v1", description="Community API URL")
+    auto_update_check: bool = Field(default=True, description="Auto-check for updates")
+    cache_ttl: int = Field(default=3600, description="Template cache TTL in seconds")
+    auto_backup_on_customize: bool = Field(default=True, description="Backup on customize")
+    diff_tool: str = Field(default="auto", description="Diff tool for template comparison")
+
+
+class RetryConfig(BaseModel):
+    """Output retry configuration."""
+    
+    max_attempts: int = Field(default=-1, description="Max retry attempts (-1 = unlimited)")
+    retry_interval: int = Field(default=5, description="Initial retry interval in seconds")
+    backoff_multiplier: float = Field(default=2.0, description="Exponential backoff multiplier")
+    max_backoff: int = Field(default=300, description="Max backoff in seconds")
+
+
+class OutputRotationConfig(BaseModel):
+    """Output file rotation configuration."""
+    
+    type: str = Field(description="Rotation type: size or time")
+    max_size: Optional[Union[int, str]] = Field(default=None, description="Max file size")
+    max_age: Optional[str] = Field(default=None, description="Max age (e.g., '7d', '24h')")
+    compress: bool = Field(default=True, description="Compress rotated files")
+
+
+class OutputDefinition(BaseModel):
+    """Output destination definition."""
+    
+    name: str = Field(description="Output name")
+    type: str = Field(description="Output type: file, console, http, tcp, syslog")
+    path: Optional[str] = Field(default=None, description="File path (for file type)")
+    format: Optional[str] = Field(default=None, description="Output format")
+    stream: Optional[str] = Field(default=None, description="Stream (stdout/stderr for console)")
+    host: Optional[str] = Field(default=None, description="Host (for tcp/syslog/http)")
+    port: Optional[int] = Field(default=None, description="Port (for tcp/syslog/http)")
+    url: Optional[str] = Field(default=None, description="URL (for http)")
+    method: Optional[str] = Field(default=None, description="HTTP method")
+    headers: Optional[Dict[str, str]] = Field(default=None, description="HTTP headers")
+    batch_size: Optional[int] = Field(default=None, description="Batch size (for http)")
+    batch_interval: Optional[int] = Field(default=None, description="Batch interval in seconds")
+    protocol: Optional[str] = Field(default=None, description="Protocol (tcp/udp for syslog)")
+    facility: Optional[str] = Field(default=None, description="Syslog facility")
+    severity: Optional[str] = Field(default=None, description="Syslog severity")
+    delimiter: Optional[str] = Field(default=None, description="Delimiter (for tcp)")
+    keepalive: Optional[bool] = Field(default=None, description="TCP keepalive")
+    rotation: Optional[OutputRotationConfig] = Field(default=None, description="File rotation")
+    timeout: Optional[int] = Field(default=None, description="Timeout in seconds")
+
+
+class OutputsConfig(BaseModel):
+    """Output handler settings."""
+    
+    retry: RetryConfig = Field(default_factory=RetryConfig, description="Retry configuration")
+    buffer_size: int = Field(default=10000, description="Event buffer size")
+    definitions: List[OutputDefinition] = Field(default_factory=list, description="Output definitions")
+
+
+class FrequencyVariation(BaseModel):
+    """Frequency variation rule."""
+    
+    days: Optional[List[int]] = Field(default=None, description="Days of week (1=Monday, 7=Sunday)")
+    time: Optional[str] = Field(default=None, description="Time range (e.g., '09:00-17:00')")
+    multiplier: float = Field(description="Rate multiplier")
+
+
+class FrequencyConfig(BaseModel):
+    """Generator frequency configuration."""
+    
+    base_rate: float = Field(description="Base rate in events per second")
+    variation: Optional[List[FrequencyVariation]] = Field(default=None, description="Rate variations")
+
+
+class GeneratorConfig(BaseModel):
+    """Generator definition."""
+    
+    name: str = Field(description="Generator name")
+    template: str = Field(description="Template ID")
+    enabled: bool = Field(default=True, description="Generator enabled")
+    frequency: FrequencyConfig = Field(description="Frequency configuration")
+    outputs: List[str] = Field(description="Output destination names")
+
+
+class Config(BaseModel):
+    """Main configuration model."""
+    
+    version: str = Field(default="1.0", description="Config version")
+    engine: EngineConfig = Field(default_factory=EngineConfig, description="Engine settings")
+    api: APIConfig = Field(default_factory=APIConfig, description="API settings")
+    entity_registry: EntityRegistryConfig = Field(description="Entity registry settings")
+    templates: TemplatesConfig = Field(description="Template settings")
+    logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging settings")
+    outputs: OutputsConfig = Field(default_factory=OutputsConfig, description="Output settings")
+    generators: List[GeneratorConfig] = Field(default_factory=list, description="Generator definitions")
+
+
+def substitute_env_vars(value: Any, home: Path) -> Any:
+    """Recursively substitute environment variables in config values.
+    
+    Supports ${VAR} and ${LOGFORGE_HOME} substitution.
+    
+    Args:
+        value: Config value (may be dict, list, or string)
+        home: LOGFORGE_HOME path for ${LOGFORGE_HOME} substitution
+        
+    Returns:
+        Value with environment variables substituted
+    """
+    if isinstance(value, dict):
+        return {k: substitute_env_vars(v, home) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [substitute_env_vars(item, home) for item in value]
+    elif isinstance(value, str):
+        # Substitute ${VAR} patterns
+        def replace_var(match: re.Match) -> str:
+            var_name = match.group(1)
+            if var_name == 'LOGFORGE_HOME':
+                return str(home)
+            return os.getenv(var_name, match.group(0))
+        
+        pattern = r'\$\{([^}]+)\}'
+        return re.sub(pattern, replace_var, value)
+    else:
+        return value
+
+
+def load_config(config_path: Optional[Path] = None) -> Config:
+    """Load configuration from YAML file.
+    
+    Args:
+        config_path: Path to config.yaml. If None, uses default from LOGFORGE_HOME.
+        
+    Returns:
+        Config object with validated settings
+        
+    Raises:
+        FileNotFoundError: If config file doesn't exist
+        ValueError: If config is invalid
+    """
+    home = get_logforge_home()
+    
+    if config_path is None:
+        config_path = home / 'config.yaml'
+    else:
+        # Validate config path is within LOGFORGE_HOME
+        if not validate_path_within_home(config_path, home):
+            raise ValueError(f"Config path {config_path} must be within LOGFORGE_HOME {home}")
+    
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+    
+    # Load YAML
+    try:
+        with config_path.open('r', encoding='utf-8') as f:
+            raw_config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML in config file: {e}") from e
+    
+    if not isinstance(raw_config, dict):
+        raise ValueError("Config file must contain a YAML mapping/object")
+    
+    # Substitute environment variables
+    raw_config = substitute_env_vars(raw_config, home)
+    
+    # Validate with Pydantic
+    try:
+        return Config(**raw_config)
+    except Exception as e:
+        raise ValueError(f"Invalid configuration: {e}") from e
+
+
+def create_default_config(home: Optional[Path] = None) -> Config:
+    """Create default configuration with sensible defaults.
+    
+    Args:
+        home: LOGFORGE_HOME path. If None, resolves automatically.
+        
+    Returns:
+        Default Config object
+    """
+    if home is None:
+        home = get_logforge_home()
+    
+    return Config(
+        version="1.0",
+        engine=EngineConfig(),
+        api=APIConfig(),
+        entity_registry=EntityRegistryConfig(
+            path=str(home / 'entities.yaml')
+        ),
+        templates=TemplatesConfig(
+            local_path=str(home / 'templates'),
+            default_path=str(home / 'templates' / 'default'),
+            custom_path=str(home / 'templates' / 'custom'),
+        ),
+        logging=LoggingConfig(
+            file=str(home / 'logforge.log'),
+            rotation=RotationConfig(),
+        ),
+        outputs=OutputsConfig(),
+        generators=[],
+    )

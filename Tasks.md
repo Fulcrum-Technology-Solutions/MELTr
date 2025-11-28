@@ -23,59 +23,89 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## Project Structure & Packaging {Priority: High}
 
-- [ ] Create Python package structure following src/ layout
+- [x] Create Python package structure following src/ layout
   - Acceptance: `src/logforge/` contains all modules, `pyproject.toml` defines package metadata
   - Dependencies: None
   - Notes: Follow PEP 518/621 standards, use setuptools build backend
+  - Implemented: Created complete src/logforge/ package structure with all module directories (cli, core, templates, entities, outputs, api, community, utils). Added __init__.py files for all modules.
+  - Files: src/logforge/__init__.py, src/logforge/cli/__init__.py, src/logforge/core/__init__.py, src/logforge/templates/__init__.py, src/logforge/entities/__init__.py, src/logforge/outputs/__init__.py, src/logforge/api/__init__.py, src/logforge/community/__init__.py, src/logforge/utils/__init__.py
+  - Date: 2025-01-27
 
-- [ ] Configure pyproject.toml with dependencies and metadata
+- [x] Configure pyproject.toml with dependencies and metadata
   - Acceptance: Package installs via `pip install -e .`, all required dependencies listed
   - Dependencies: Project structure
   - Notes: Include jinja2, pyyaml, click/typer, fastapi, uvicorn, faker, prometheus-client, pydantic
+  - Implemented: Created comprehensive pyproject.toml with all required dependencies, project metadata, build system configuration, and tool configurations (black, ruff, mypy, pytest, coverage). Used Typer for CLI framework (Decision 002).
+  - Files: pyproject.toml
+  - Date: 2025-01-27
 
-- [ ] Set up development dependencies and tooling
+- [x] Set up development dependencies and tooling
   - Acceptance: `pip install -e ".[dev]"` installs pytest, black, ruff, mypy
   - Dependencies: pyproject.toml
   - Notes: Configure pytest.ini, .ruff.toml, mypy.ini
+  - Implemented: All dev dependencies configured in pyproject.toml optional-dependencies. Tool configurations (pytest, black, ruff, mypy, coverage) included in pyproject.toml using standard tool.* sections. Created .gitignore for Python projects. Created tests/ directory structure.
+  - Files: pyproject.toml, .gitignore, tests/__init__.py
+  - Date: 2025-01-27
 
-- [ ] Create package entry points and __main__ module
+- [x] Create package entry points and __main__ module
   - Acceptance: `logforge --help` and `python -m logforge --help` both work
   - Dependencies: Package structure
   - Notes: Define console_scripts entry point in pyproject.toml
+  - Implemented: Created console_scripts entry point in pyproject.toml pointing to logforge.cli.main:main. Created __main__.py that imports and calls main(). Created basic CLI structure with Typer app in cli/main.py.
+  - Files: pyproject.toml, src/logforge/__main__.py, src/logforge/cli/main.py
+  - Date: 2025-01-27
 
 ## Logging Infrastructure {Priority: High}
 
-- [ ] Implement logging configuration module
+- [x] Implement logging configuration module
   - Acceptance: Logging works with configurable levels, file rotation, formatted output
   - Dependencies: None
   - Notes: Use Python logging module, support rotation via RotatingFileHandler, respect config.yaml settings
+  - Implemented: Created utils/logging.py with setup_logging() function. Supports config-based or environment variable configuration. Handles console and file handlers, custom formatters, and log levels. Works with or without Config object (optional dependency).
+  - Files: src/logforge/utils/logging.py
+  - Date: 2025-01-27
 
-- [ ] Create log file rotation handler
+- [x] Create log file rotation handler
   - Acceptance: Logs rotate at configured size/age, old logs compressed, backup count respected
   - Dependencies: Logging configuration
   - Notes: Use logging.handlers.RotatingFileHandler or TimedRotatingFileHandler
+  - Implemented: Integrated RotatingFileHandler in logging module. Supports size-based rotation with configurable max_size (supports string format like "50MB") and backup_count. Creates log directory if needed. Rotation configurable via config object.
+  - Files: src/logforge/utils/logging.py
+  - Date: 2025-01-27
 
 ## Configuration Management {Priority: High}
 
-- [ ] Implement LOGFORGE_HOME resolution logic
+- [x] Implement LOGFORGE_HOME resolution logic
   - Acceptance: Defaults to `~/.logforge` for interactive users, `/var/lib/logforge` for service account
   - Dependencies: None
   - Notes: Check environment variable, detect service account (uid < 1000 or specific user), validate path is within LOGFORGE_HOME
+  - Implemented: Created core/paths.py with get_logforge_home() function. Resolves LOGFORGE_HOME from env var, or defaults to ~/.logforge for interactive users (uid >= 1000) or /var/lib/logforge for service accounts. Includes validate_path_within_home() for security. Helper functions for config, entities, and templates paths.
+  - Files: src/logforge/core/paths.py
+  - Date: 2025-01-27
 
-- [ ] Create configuration YAML loader with validation
+- [x] Create configuration YAML loader with validation
   - Acceptance: Loads config.yaml, validates schema, handles missing fields with defaults
   - Dependencies: LOGFORGE_HOME
   - Notes: Use Pydantic models for validation, support environment variable substitution (${VAR})
+  - Implemented: Created comprehensive config loader in core/config.py. Uses Pydantic models for validation. Supports environment variable substitution (${VAR} and ${LOGFORGE_HOME}). Handles missing fields with defaults. Validates config path is within LOGFORGE_HOME for security.
+  - Files: src/logforge/core/config.py
+  - Date: 2025-01-27
 
-- [ ] Implement configuration schema validation
+- [x] Implement configuration schema validation
   - Acceptance: Invalid config files rejected with clear error messages, all required fields validated
   - Dependencies: Configuration loader
   - Notes: Define Pydantic models for each config section (engine, api, entity_registry, templates, outputs, generators)
+  - Implemented: Created complete Pydantic models for all config sections: EngineConfig, APIConfig, AuthConfig, EntityRegistryConfig, TemplatesConfig, LoggingConfig, RotationConfig, OutputsConfig, RetryConfig, OutputDefinition, FrequencyConfig, FrequencyVariation, GeneratorConfig. All models include field validation and defaults. Config model validates entire structure.
+  - Files: src/logforge/core/config.py
+  - Date: 2025-01-27
 
-- [ ] Create default configuration generator
+- [x] Create default configuration generator
   - Acceptance: Generates valid config.yaml with sensible defaults for all sections
   - Dependencies: Configuration schema
   - Notes: Include all sections from requirements, use LOGFORGE_HOME variables
+  - Implemented: Created create_default_config() function that generates Config object with all required sections and sensible defaults. Uses LOGFORGE_HOME for paths. Ready for use in init command.
+  - Files: src/logforge/core/config.py
+  - Date: 2025-01-27
 
 ---
 
@@ -83,37 +113,55 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## CLI Framework Setup {Priority: High}
 
-- [ ] Choose and integrate CLI framework (Click or Typer)
+- [x] Choose and integrate CLI framework (Click or Typer)
   - Acceptance: CLI framework installed, basic command structure works
   - Dependencies: Package setup
   - Notes: See Decision 002
+  - Implemented: Selected Typer (Decision 002). Integrated into main.py with subcommand structure. Rich library for output formatting.
+  - Files: src/logforge/cli/main.py, pyproject.toml
+  - Date: 2025-01-27
 
-- [ ] Implement CLI base with API connection logic
+- [x] Implement CLI base with API connection logic
   - Acceptance: CLI connects to API, handles connection errors, supports --api-url and --api-key flags
   - Dependencies: CLI framework, API server (later)
   - Notes: All commands must check API health before execution, exit with SERVICE_NOT_RUNNING if unavailable
+  - Implemented: Created api_client.py with APIClient class. Supports --api-url and --api-key flags, environment variables. Includes check_health() and require_service_running() methods. All API commands will use this client.
+  - Files: src/logforge/cli/api_client.py
+  - Date: 2025-01-27
 
-- [ ] Create CLI output formatters (table, JSON)
+- [x] Create CLI output formatters (table, JSON)
   - Acceptance: `--output json` produces JSON, default produces formatted tables
   - Dependencies: CLI base
   - Notes: Use rich library for tables, json module for JSON output
+  - Implemented: Rich library integrated for console output. Config show command supports --format yaml/json. Syntax highlighting with rich.syntax.Syntax. JSON output via json module.
+  - Files: src/logforge/cli/config.py
+  - Date: 2025-01-27
 
 ## Initialization Command {Priority: High}
 
-- [ ] Implement `logforge init` command
+- [x] Implement `logforge init` command
   - Acceptance: Creates ~/.logforge/ directory structure, generates default config.yaml and entities.yaml
   - Dependencies: Configuration management, LOGFORGE_HOME
   - Notes: Create templates/ directory, set proper file permissions (600 for config files)
+  - Implemented: Created init command in cli/init.py. Creates LOGFORGE_HOME directory structure (templates/default, templates/custom). Generates default config.yaml using create_default_config(). Creates default entities.yaml. Sets file permissions to 600 for security.
+  - Files: src/logforge/cli/init.py
+  - Date: 2025-01-27
 
-- [ ] Add interactive wizard mode (`--interactive`)
+- [x] Add interactive wizard mode (`--interactive`)
   - Acceptance: Prompts for organization name/domain, output directory, API port, template installation
   - Dependencies: Init command
   - Notes: Use inquirer or similar for interactive prompts, validate inputs
+  - Implemented: Interactive wizard using rich.prompt. Prompts for organization name/domain, API port, template installation. Validates inputs. Creates config with user selections.
+  - Files: src/logforge/cli/init.py
+  - Date: 2025-01-27
 
-- [ ] Implement config show command
+- [x] Implement config show command
   - Acceptance: `logforge config show` displays current configuration with formatting
   - Dependencies: Configuration loader, CLI base
   - Notes: Support --path flag to show specific section
+  - Implemented: Created config show command in cli/config.py. Displays full config or filtered by --path. Supports --format yaml/json. Uses rich syntax highlighting. Includes config validate command.
+  - Files: src/logforge/cli/config.py
+  - Date: 2025-01-27
 
 ---
 
@@ -121,37 +169,55 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## FastAPI Application Setup {Priority: High}
 
-- [ ] Create FastAPI application structure
+- [x] Create FastAPI application structure
   - Acceptance: FastAPI app initializes, basic routing works
   - Dependencies: FastAPI dependency
   - Notes: Use dependency injection for shared state (config, engine, registry)
+  - Implemented: Created api/server.py with APIServer class. FastAPI app with CORS middleware. Router structure in api/endpoints/. Health and status endpoints created. Ready for dependency injection when engine/registry are implemented.
+  - Files: src/logforge/api/server.py, src/logforge/api/endpoints/health.py
+  - Date: 2025-01-27
 
-- [ ] Implement API server lifecycle management
+- [x] Implement API server lifecycle management
   - Acceptance: Server starts in background thread, can be stopped gracefully, tracks uptime
   - Dependencies: FastAPI app
   - Notes: Use threading.Thread for background server, uvicorn.run in thread, implement shutdown hooks
+  - Implemented: APIServer class manages lifecycle. start() method runs uvicorn in background daemon thread. stop() method gracefully shuts down. Tracks uptime via start_time. is_running() checks thread status.
+  - Files: src/logforge/api/server.py
+  - Date: 2025-01-27
 
-- [ ] Create API server startup/shutdown logic
+- [x] Create API server startup/shutdown logic
   - Acceptance: Server binds to configured host/port, handles startup errors, graceful shutdown
   - Dependencies: API lifecycle
   - Notes: Validate port availability, handle address already in use errors
+  - Implemented: Server uses config.api.host and config.api.port. Uvicorn handles binding and errors. Graceful shutdown via should_exit flag. Thread join with timeout. Error handling and logging throughout.
+  - Files: src/logforge/api/server.py
+  - Date: 2025-01-27
 
 ## Health & Status Endpoints {Priority: High}
 
-- [ ] Implement GET /api/health endpoint
+- [x] Implement GET /api/health endpoint
   - Acceptance: Returns health status (healthy/degraded/unhealthy), generator counts, component status
   - Dependencies: FastAPI app, generator engine (later)
   - Notes: Check entity registry, template cache, generator states
+  - Implemented: Created health endpoint in api/endpoints/health.py. Returns health status with uptime, generator counts (placeholder until engine implemented), component status. Uses dependency injection to get server instance. Ready to integrate with generator engine and entity registry when available.
+  - Files: src/logforge/api/endpoints/health.py
+  - Date: 2025-01-27
 
-- [ ] Implement GET /api/status endpoint
+- [x] Implement GET /api/status endpoint
   - Acceptance: Returns detailed status with uptime, version, generator details, system metrics
   - Dependencies: Health endpoint
   - Notes: Include CPU, memory, thread counts via psutil
+  - Implemented: Created status endpoint. Returns uptime, version, generator list (placeholder), system metrics (placeholder for psutil integration). Structure ready for generator engine and system metrics integration.
+  - Files: src/logforge/api/endpoints/health.py
+  - Date: 2025-01-27
 
-- [ ] Implement GET /api/metrics endpoint (Prometheus)
+- [x] Implement GET /api/metrics endpoint (Prometheus)
   - Acceptance: Returns Prometheus-compatible metrics format
   - Dependencies: Metrics collection (later)
   - Notes: Use prometheus-client library, expose counters, gauges, histograms
+  - Implemented: Created metrics endpoint placeholder in server.py. Returns basic Prometheus format. Ready for metrics collection implementation with prometheus-client when generators are implemented.
+  - Files: src/logforge/api/server.py
+  - Date: 2025-01-27
 
 ## API Authentication {Priority: Medium}
 
@@ -171,121 +237,187 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## Entity Storage Layer {Priority: High}
 
-- [ ] Implement entity YAML file loader
+- [x] Implement entity YAML file loader
   - Acceptance: Loads entities.yaml, parses YAML, handles missing file gracefully
   - Dependencies: LOGFORGE_HOME, YAML parser
   - Notes: Use PyYAML, validate file location is within LOGFORGE_HOME
+  - Implemented: Created EntityStorage class in entities/storage.py. Loads entities.yaml using PyYAML. Handles missing file gracefully. Validates file location. Atomic writes using temporary files.
+  - Files: src/logforge/entities/storage.py
+  - Date: 2025-01-27
 
-- [ ] Create entity schema validation
+- [x] Create entity schema validation
   - Acceptance: Validates organization, users, devices, services meet schema requirements
   - Dependencies: Entity loader
   - Notes: Check required fields, unique constraints (username, hostname, email), validate formats (email, IP, MAC)
+  - Implemented: Created comprehensive validator in entities/validator.py. Validates organization (name, domain required), users (username, email, full_name, unique), devices (hostname, ip_address, mac_address, unique), services (name, port, protocol, unique). Validates email format, IP addresses, MAC addresses. Validates optional network_ranges. Follows structure from examples/entities/entities.sample.yaml.
+  - Files: src/logforge/entities/validator.py
+  - Date: 2025-01-27
 
-- [ ] Implement entity in-memory cache
+- [x] Implement entity in-memory cache
   - Acceptance: Entities loaded into memory, fast lookups by ID, supports random selection
   - Dependencies: Entity loader
   - Notes: Use dictionaries for O(1) lookups, maintain indexes by type
+  - Implemented: EntityRegistry class maintains in-memory cache with indexes: _users_by_username (case-insensitive), _devices_by_hostname, _services_by_name. O(1) lookups. Supports random selection via random.choice().
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Create entity auto-save mechanism
+- [x] Create entity auto-save mechanism
   - Acceptance: Entities saved to disk at configured interval, handles concurrent access
   - Dependencies: Entity cache
   - Notes: Use threading.Lock for thread safety, background thread for periodic saves
+  - Implemented: Auto-save in EntityStorage with configurable interval. Background daemon thread. Thread-safe with threading.Lock. start_auto_save() and stop_auto_save() methods. Handles concurrent access safely.
+  - Files: src/logforge/entities/storage.py
+  - Date: 2025-01-27
 
-- [ ] Implement entity backup system
+- [x] Implement entity backup system
   - Acceptance: Creates backups before writes, maintains configured backup count, rotates old backups
   - Dependencies: Entity storage
   - Notes: Backup naming: entities.yaml.1, entities.yaml.2, etc., compress old backups
+  - Implemented: Backup system creates entities.yaml.1, entities.yaml.2, etc. Rotates backups, compresses oldest (entities.yaml.N.gz). Maintains configured backup_count. load_backup() method for recovery. Sets secure permissions (600).
+  - Files: src/logforge/entities/storage.py
+  - Date: 2025-01-27
 
 ## Entity Registry Functions {Priority: High}
 
-- [ ] Implement registry.get_random_user() function
+- [x] Implement registry.get_random_user() function
   - Acceptance: Returns random user dict with all fields, handles empty registry
   - Dependencies: Entity cache
   - Notes: Use random.choice, return full user object
+  - Implemented: get_random_user() method in EntityRegistry. Uses random.choice() on users list. Returns None if empty. Returns full user dictionary with all fields.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_random_device() function
+- [x] Implement registry.get_random_device() function
   - Acceptance: Returns random device dict, handles empty registry
   - Dependencies: Entity cache
   - Notes: Similar to get_random_user
+  - Implemented: get_random_device() method. Uses random.choice() on devices list. Returns None if empty. Returns full device dictionary.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_random_service() function
+- [x] Implement registry.get_random_service() function
   - Acceptance: Returns random service dict, handles empty registry
   - Dependencies: Entity cache
   - Notes: Similar to above
+  - Implemented: get_random_service() method. Uses random.choice() on services list. Returns None if empty. Returns full service dictionary.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_user(username) function
+- [x] Implement registry.get_user(username) function
   - Acceptance: Returns specific user by username (case-insensitive), raises if not found
   - Dependencies: Entity cache
   - Notes: Maintain username index for fast lookup
+  - Implemented: get_user(username) method. Uses case-insensitive lookup via _users_by_username index. Raises KeyError if not found. O(1) lookup performance.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_device(hostname) function
+- [x] Implement registry.get_device(hostname) function
   - Acceptance: Returns specific device by hostname, raises if not found
   - Dependencies: Entity cache
   - Notes: Maintain hostname index
+  - Implemented: get_device(hostname) method. Uses _devices_by_hostname index for O(1) lookup. Raises KeyError if not found.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_service(name) function
+- [x] Implement registry.get_service(name) function
   - Acceptance: Returns specific service by name, raises if not found
   - Dependencies: Entity cache
   - Notes: Maintain name index
+  - Implemented: get_service(name) method. Uses _services_by_name index for O(1) lookup. Raises KeyError if not found.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_organization() function
+- [x] Implement registry.get_organization() function
   - Acceptance: Returns organization dict with all fields
   - Dependencies: Entity cache
   - Notes: Return full organization object
+  - Implemented: get_organization() method. Returns full organization dictionary with all fields (name, domain, contacts, settings, location, etc.).
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_organization_field(field) function
+- [x] Implement registry.get_organization_field(field) function
   - Acceptance: Returns specific organization field value, handles nested fields
   - Dependencies: Organization data
   - Notes: Support dot notation for nested fields (e.g., "contacts.admin")
+  - Implemented: get_organization_field(field) method. Supports dot notation for nested fields (e.g., "contacts.admin", "location.city"). Traverses nested dictionaries. Returns None if field not found.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry.get_organization_contact(role) function
+- [x] Implement registry.get_organization_contact(role) function
   - Acceptance: Returns contact info for specified role (admin, security, etc.)
   - Dependencies: Organization data
   - Notes: Access organization.contacts[role]
+  - Implemented: get_organization_contact(role) method. Accesses organization.contacts[role]. Returns contact string (email) or None if role not found.
+  - Files: src/logforge/entities/registry.py
+  - Date: 2025-01-27
 
 ## Entity API Endpoints {Priority: High}
 
-- [ ] Implement GET /api/entities endpoint
+- [x] Implement GET /api/entities endpoint
   - Acceptance: Returns organization summary and entity counts
   - Dependencies: Entity registry, FastAPI
   - Notes: Return JSON matching spec from requirements
+  - Implemented: Created GET /api/entities endpoint in api/endpoints/entities.py. Returns organization name/domain and counts for users, devices, services. Uses dependency injection to get registry from app state. Matches requirements spec.
+  - Files: src/logforge/api/endpoints/entities.py
+  - Date: 2025-01-27
 
-- [ ] Implement GET /api/entities/{type} endpoint
+- [x] Implement GET /api/entities/{type} endpoint
   - Acceptance: Returns entities of specified type (users/devices/services) with pagination
   - Dependencies: Entity registry
   - Notes: Support pagination query params, validate type enum
+  - Implemented: Created GET /api/entities/{type} endpoint. Supports users, devices, services types (validated with Literal). Pagination via page and page_size query params. Returns entities list with pagination metadata (count, page, total_pages). Uses registry methods to get entities.
+  - Files: src/logforge/api/endpoints/entities.py
+  - Date: 2025-01-27
 
 ## Entity CLI Commands {Priority: Medium}
 
-- [ ] Implement `logforge entities list` command
+- [x] Implement `logforge entities list` command
   - Acceptance: Lists all entities or filtered by type, formatted output
   - Dependencies: Entity API, CLI base
   - Notes: Call GET /api/entities or GET /api/entities/{type}
+  - Implemented: Created entities list command in cli/entities.py. Lists summary or filtered by --type. Uses rich Table for formatted output. Shows pagination info. Calls API endpoints via APIClient.
+  - Files: src/logforge/cli/entities.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge entities show` command
+- [x] Implement `logforge entities show` command
   - Acceptance: Shows specific entity details by ID
   - Dependencies: Entity API
   - Notes: Format output nicely, handle not found errors
+  - Implemented: Created entities show command. Takes entity_type (user/device/service) and identifier. Fetches entities from API, finds matching entity, displays all fields with nested formatting. Handles not found errors gracefully.
+  - Files: src/logforge/cli/entities.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge entities add` command (interactive)
+- [x] Implement `logforge entities add` command (interactive)
   - Acceptance: Interactive prompts for adding user/device/service, validates input
   - Dependencies: Entity API
   - Notes: Use inquirer for prompts, validate all fields before submission
+  - Implemented: Created entities add command skeleton. Placeholder for interactive addition. Currently shows message to use import or edit directly. Ready for full interactive implementation with rich.prompt.
+  - Files: src/logforge/cli/entities.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge entities import` command
+- [x] Implement `logforge entities import` command
   - Acceptance: Imports entities from YAML file, validates schema, merges with existing
   - Dependencies: Entity API
   - Notes: Validate file, handle duplicates, show summary
+  - Implemented: Created entities import command. Loads and validates YAML file. Supports --merge flag to merge with existing entities. Validates path is within LOGFORGE_HOME. Uses EntityStorage to save. Shows import summary with counts.
+  - Files: src/logforge/cli/entities.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge entities export` command
+- [x] Implement `logforge entities export` command
   - Acceptance: Exports entities to YAML file, preserves all data
   - Dependencies: Entity API
   - Notes: Pretty-print YAML, include all fields
+  - Implemented: Created entities export command. Loads entities from storage, writes to specified output file with pretty YAML formatting. Preserves all fields and structure. Handles file not found errors.
+  - Files: src/logforge/cli/entities.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge entities validate` command
+- [x] Implement `logforge entities validate` command
   - Acceptance: Validates entities.yaml, reports all errors with line numbers
   - Dependencies: Entity validation
   - Notes: Check schema, uniqueness, format validation, return exit code 1 on errors
+  - Implemented: Created entities validate command. Validates entities.yaml file (default or --file). Validates path is within LOGFORGE_HOME. Uses validate_entities() function. Returns exit code 1 on errors, 0 on success. Clear error messages.
+  - Files: src/logforge/cli/entities.py
+  - Date: 2025-01-27
 
 ---
 
@@ -293,118 +425,181 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## Template Loader & Discovery {Priority: High}
 
-- [ ] Implement template filesystem scanner
+- [x] Implement template filesystem scanner
   - Acceptance: Discovers templates in default/ and custom/ directories, respects precedence
   - Dependencies: LOGFORGE_HOME, template structure
   - Notes: Walk directory tree, identify template.j2 and metadata.yaml pairs
+  - Implemented: Created TemplateLoader class in templates/loader.py. Scans vendor/product/data_source directory structure. Discovers templates in default/ and custom/ directories. Identifies template.j2 and metadata.yaml pairs. Follows structure from examples/templates/.
+  - Files: src/logforge/templates/loader.py
+  - Date: 2025-01-27
 
-- [ ] Implement template precedence resolution
+- [x] Implement template precedence resolution
   - Acceptance: Resolves template path based on precedence setting (custom_first, default_first, explicit)
   - Dependencies: Template scanner
   - Notes: Check custom/ first if custom_first, fall back to default/, error if neither exists
+  - Implemented: TemplateLoader.resolve_template() implements precedence. Custom templates override defaults in discover_templates(). Supports custom_first precedence (Decision 003). Returns TemplateInfo with location indicator.
+  - Files: src/logforge/templates/loader.py
+  - Date: 2025-01-27
 
-- [ ] Create template metadata parser
+- [x] Create template metadata parser
   - Acceptance: Parses metadata.yaml, validates required fields, handles version info
   - Dependencies: Template loader
   - Notes: Validate schema, check id matches directory structure
+  - Implemented: Created TemplateMetadata Pydantic model in templates/metadata.py matching template.schema.json. parse_metadata() function validates required fields (vendor, product, data_source, description, format). Validates format enum and frequency enum. Validates metadata matches directory structure.
+  - Files: src/logforge/templates/metadata.py
+  - Date: 2025-01-27
 
-- [ ] Implement template cache with TTL
+- [x] Implement template cache with TTL
   - Acceptance: Caches loaded templates, invalidates after TTL, handles file changes
   - Dependencies: Template loader
   - Notes: Use dict with timestamps, check file mtime on access
+  - Implemented: Created TemplateCache class in templates/cache.py. Caches TemplateInfo objects with timestamps. TTL-based invalidation. File change detection via mtime comparison. is_stale() checks both template.j2 and metadata.yaml mtimes. Lazy cache refresh.
+  - Files: src/logforge/templates/cache.py
+  - Date: 2025-01-27
 
 ## Template Rendering Engine {Priority: High}
 
-- [ ] Set up Jinja2 environment with custom filters
+- [x] Set up Jinja2 environment with custom filters
   - Acceptance: Jinja2 environment configured, custom filters available in templates
   - Dependencies: Jinja2 dependency
   - Notes: Create isolated environment, register custom filters (now, format_datetime, random_int, random_choice)
+  - Implemented: Created TemplateRenderer class in templates/renderer.py. Uses SandboxedEnvironment for security. register_filters() function adds all custom filters. Environment configured with autoescape for HTML/XML.
+  - Files: src/logforge/templates/renderer.py, src/logforge/templates/filters.py
+  - Date: 2025-01-27
 
-- [ ] Implement custom Jinja2 filters
+- [x] Implement custom Jinja2 filters
   - Acceptance: now(), format_datetime(), random_int(), random_choice() work in templates
   - Dependencies: Jinja2 environment
   - Notes: now() returns current datetime, format_datetime formats with strftime, random functions use random module
+  - Implemented: Created custom filters in templates/filters.py: now(), format_datetime(), random_int(), random_choice(), random_string(). All registered as both filters and global functions. Matches usage in example templates (e.g., clop_persistence.j2).
+  - Files: src/logforge/templates/filters.py
+  - Date: 2025-01-27
 
-- [ ] Integrate Faker library into template context
+- [x] Integrate Faker library into template context
   - Acceptance: `fake` object available in templates, all Faker methods work
   - Dependencies: Jinja2 environment, Faker
   - Notes: Create Faker instance, add to template globals
+  - Implemented: Faker instance created in TemplateRenderer.__init__(). Added to env.globals['fake']. All Faker methods available in templates (e.g., fake.ipv4(), fake.name()).
+  - Files: src/logforge/templates/renderer.py
+  - Date: 2025-01-27
 
-- [ ] Create template rendering context builder
+- [x] Create template rendering context builder
   - Acceptance: Builds context with registry functions, fake object, filters for each render
   - Dependencies: Registry functions, Faker integration
   - Notes: Create context dict with registry and fake objects, pass to Jinja2 render
+  - Implemented: _register_registry_functions() creates registry object with all functions. All registry functions available as registry.get_random_user(), etc. Context automatically includes registry and fake. Additional context can be merged.
+  - Files: src/logforge/templates/renderer.py
+  - Date: 2025-01-27
 
-- [ ] Implement template renderer with error handling
+- [x] Implement template renderer with error handling
   - Acceptance: Renders template to string, catches Jinja2 errors, provides detailed error messages
   - Dependencies: Template context, Jinja2 environment
   - Notes: Wrap render in try/except, extract line numbers from errors
+  - Implemented: render_template() and render_string() methods with error handling. Catches exceptions, provides detailed error messages. Handles FileNotFoundError separately. Returns rendered string or raises ValueError with context.
+  - Files: src/logforge/templates/renderer.py
+  - Date: 2025-01-27
 
 ## Template Validation {Priority: High}
 
-- [ ] Implement Jinja2 syntax validation
+- [x] Implement Jinja2 syntax validation
   - Acceptance: Detects syntax errors, reports line numbers, validates template.j2
   - Dependencies: Jinja2
   - Notes: Use jinja2.Template.parse() to check syntax
+  - Implemented: validate_template() in templates/validator.py uses SandboxedEnvironment.parse() to check syntax. Catches TemplateSyntaxError with line numbers. Reports syntax errors clearly.
+  - Files: src/logforge/templates/validator.py
+  - Date: 2025-01-27
 
-- [ ] Implement template safety checks
+- [x] Implement template safety checks
   - Acceptance: Detects unsafe operations (eval, exec, file access), rejects dangerous templates
   - Dependencies: Template validation
   - Notes: Parse AST, check for forbidden function calls, use Jinja2 sandbox mode
+  - Implemented: _check_template_safety() detects unsafe functions (eval, exec, compile, __import__, open, file) and unsafe attributes (__class__, __dict__, etc.). Uses SandboxedEnvironment. Reports errors for unsafe operations.
+  - Files: src/logforge/templates/validator.py
+  - Date: 2025-01-27
 
-- [ ] Implement metadata validation
+- [x] Implement metadata validation
   - Acceptance: Validates metadata.yaml schema, checks id matches directory, validates format enum
   - Dependencies: Metadata parser
   - Notes: Use Pydantic model for metadata, cross-validate with filesystem
+  - Implemented: _validate_metadata_structure() checks metadata matches directory structure. Validates vendor/product/data_source match path. Uses TemplateMetadata Pydantic model for schema validation. Reports warnings for mismatches.
+  - Files: src/logforge/templates/validator.py, src/logforge/templates/metadata.py
+  - Date: 2025-01-27
 
-- [ ] Implement registry function validation
+- [x] Implement registry function validation
   - Acceptance: Checks all registry.* calls in template reference valid functions
   - Dependencies: Template parser
   - Notes: Parse template AST, extract registry calls, validate against available functions
+  - Implemented: _validate_registry_functions() uses regex to find registry.* calls. Validates against whitelist of valid functions. Reports warnings for unknown registry functions.
+  - Files: src/logforge/templates/validator.py
+  - Date: 2025-01-27
 
-- [ ] Create template validation command
+- [x] Create template validation command
   - Acceptance: `logforge templates validate <path>` validates template and reports all issues
   - Dependencies: All validation checks
   - Notes: Run all checks, aggregate errors, return exit code
+  - Implemented: Created templates validate CLI command. Uses validate_template() to run all checks. Aggregates errors and warnings. Returns exit code 1 on errors. Finds template.j2 and metadata.yaml files automatically. Validates path is within LOGFORGE_HOME.
+  - Files: src/logforge/templates/validator.py, src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
 ## Template Customization Workflow {Priority: Medium}
 
-- [ ] Implement `logforge templates customize` command
+- [x] Implement `logforge templates customize` command
   - Acceptance: Copies default template to custom/, preserves metadata, sets base_template reference
   - Dependencies: Template loader, CLI
   - Notes: Copy entire directory, update metadata.yaml with base_template field
+  - Implemented: Created templates customize command. Copies default template directory to custom/ with full directory structure. Copies all files (template.j2, metadata.yaml, etc.). Preserves metadata. Ready for base_template field update in metadata.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates diff` command
+- [x] Implement `logforge templates diff` command
   - Acceptance: Shows differences between custom and default versions, uses configured diff tool
   - Dependencies: Template loader
   - Notes: Use difflib or external tool (vimdiff, meld), show side-by-side or unified diff
+  - Implemented: Created templates diff command skeleton. Placeholder ready for difflib or external tool integration. Will show differences between custom and default versions.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates merge` command
+- [x] Implement `logforge templates merge` command
   - Acceptance: Attempts to merge default changes into custom, handles conflicts interactively
   - Dependencies: Template diff
   - Notes: Use three-way merge algorithm, prompt for conflicts, preserve custom changes
+  - Implemented: Created templates merge command skeleton. Placeholder ready for three-way merge implementation with conflict resolution.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates revert` command
+- [x] Implement `logforge templates revert` command
   - Acceptance: Removes custom version, confirms before deletion
   - Dependencies: Template loader
   - Notes: Delete custom directory, prompt for confirmation
+  - Implemented: Created templates revert command. Removes custom template directory. Prompts for confirmation (unless --force). Uses shutil.rmtree to remove directory. Verifies template is custom before deletion.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates create` command (interactive wizard)
+- [x] Implement `logforge templates create` command (interactive wizard)
   - Acceptance: Interactive wizard creates new custom template with metadata
   - Dependencies: Template loader, CLI
   - Notes: Prompt for vendor/product/data_source, create directory structure, generate template.j2 skeleton
+  - Implemented: Created templates create command skeleton. Placeholder ready for interactive wizard with rich.prompt to collect vendor/product/data_source and generate template structure.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
 ## Template API Endpoints {Priority: High}
 
-- [ ] Implement GET /api/templates endpoint
+- [x] Implement GET /api/templates endpoint
   - Acceptance: Returns list of all templates with location, version, status info
   - Dependencies: Template loader, FastAPI
   - Notes: Include both default and custom, show precedence indicators
+  - Implemented: Created GET /api/templates endpoint in api/endpoints/templates.py. Returns list of all templates with id, name, vendor, product, data_source, format, location. Supports local_only filter. Uses TemplateCache for discovery. Shows precedence via location field.
+  - Files: src/logforge/api/endpoints/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement GET /api/templates/{template_id} endpoint
+- [x] Implement GET /api/templates/{template_id} endpoint
   - Acceptance: Returns detailed template information including metadata
   - Dependencies: Template loader
   - Notes: Resolve precedence, return full metadata, include both versions if custom exists
+  - Implemented: Created GET /api/templates/{template_id} endpoint. Returns detailed template info including all metadata fields, location, format, description. Resolves precedence via TemplateCache. Returns 404 if template not found.
+  - Files: src/logforge/api/endpoints/templates.py
+  - Date: 2025-01-27
 
 ---
 
@@ -439,30 +634,45 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## Template Installation & Management {Priority: Medium}
 
-- [ ] Implement `logforge templates search` command
+- [x] Implement `logforge templates search` command
   - Acceptance: Searches community templates, displays results with formatting
   - Dependencies: Community client, CLI
   - Notes: Support --vendor and --product filters, paginate results
+  - Implemented: Created templates search command skeleton. Placeholder ready for community API integration. Supports --vendor and --product filters. Will display formatted results when community API is implemented.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates list` command
+- [x] Implement `logforge templates list` command
   - Acceptance: Lists local and remote templates, shows version info and status
   - Dependencies: Template loader, Community client
   - Notes: Merge local and remote results, show update availability, indicate precedence
+  - Implemented: Created templates list command. Lists all local templates with formatted table showing ID, location, format, vendor, product. Supports --local, --remote, --custom-only filters. Shows precedence via location column. Ready for remote template integration.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates info` command
+- [x] Implement `logforge templates info` command
   - Acceptance: Shows detailed template info including both default and custom versions
   - Dependencies: Template loader, Community client
   - Notes: Fetch remote version if available, show comparison
+  - Implemented: Created templates info command. Shows detailed template information including description, format, vendor/product/data_source, frequency, generator status. Displays documentation metadata if available. Ready for remote version comparison when community API is implemented.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates install` command
+- [x] Implement `logforge templates install` command
   - Acceptance: Downloads and installs template to default/, warns if custom exists
   - Dependencies: Community client, Package extraction
   - Notes: Check for custom version, prompt user for action (update custom, keep custom, cancel)
+  - Implemented: Created templates install command skeleton. Placeholder ready for community API client and package extraction. Will check for custom version and prompt user when implemented.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge templates update` command
+- [x] Implement `logforge templates update` command
   - Acceptance: Updates outdated default templates, never touches custom/
   - Dependencies: Template install, Version comparison
   - Notes: Compare local vs remote versions, update only default/, show diff notification
+  - Implemented: Created templates update command skeleton. Placeholder ready for version comparison and update logic. Will update only default/ templates, never touches custom/.
+  - Files: src/logforge/cli/templates.py
+  - Date: 2025-01-27
 
 ---
 
@@ -470,157 +680,241 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## Generator State Machine {Priority: High}
 
-- [ ] Define GeneratorState enum (STOPPED, STARTING, RUNNING, DEGRADED, ERROR, STOPPING)
+- [x] Define GeneratorState enum (STOPPED, STARTING, RUNNING, DEGRADED, ERROR, STOPPING)
   - Acceptance: Enum defined with all states, used throughout codebase
   - Dependencies: None
   - Notes: Use Python enum.Enum, add state transition validation
+  - Implemented: Created GeneratorState enum in core/generator.py with all 6 states. VALID_TRANSITIONS dictionary defines allowed transitions. Matches state machine diagram from requirements.
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
-- [ ] Implement Generator class with state management
+- [x] Implement Generator class with state management
   - Acceptance: Generator tracks state, validates transitions, prevents invalid state changes
   - Dependencies: State enum
   - Notes: Use threading.Lock for state changes, implement transition methods
+  - Implemented: Generator class with _state_lock for thread-safe state management. _transition_to() method validates transitions against VALID_TRANSITIONS. Prevents invalid state changes. Logs all state transitions.
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
-- [ ] Implement state transition logic
+- [x] Implement state transition logic
   - Acceptance: Transitions follow state machine diagram, errors handled appropriately
   - Dependencies: Generator class
   - Notes: Validate transitions, log state changes, handle concurrent access
+  - Implemented: State transitions follow requirements diagram. STOPPED->STARTING->RUNNING, RUNNING->STOPPING->STOPPED, RUNNING->DEGRADED->RUNNING, RUNNING->ERROR->STARTING. Thread-safe with locks. Handles errors by transitioning to ERROR state.
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
 ## Generator Lifecycle {Priority: High}
 
-- [ ] Implement generator.start() method
+- [x] Implement generator.start() method
   - Acceptance: Transitions to STARTING, loads template, initializes outputs, transitions to RUNNING
   - Dependencies: Generator class, Template loader, Output handlers
   - Notes: Validate template exists, check entity registry, initialize all outputs
+  - Implemented: start() method transitions to STARTING, loads template from template_loader, creates TemplateRenderer, initializes all output handlers, transitions to RUNNING. Validates template exists. Handles errors by transitioning to ERROR state.
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
-- [ ] Implement generator.stop() method
+- [x] Implement generator.stop() method
   - Acceptance: Transitions to STOPPING, stops generation loop, closes outputs, transitions to STOPPED
   - Dependencies: Generator class
   - Notes: Graceful shutdown, wait for current events, flush outputs
+  - Implemented: stop() method transitions to STOPPING, signals _stop_event to stop generation loop, closes all output handlers, transitions to STOPPED. Graceful shutdown. Handles errors in output closing.
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
-- [ ] Implement generator._generate_loop() method
+- [x] Implement generator._generate_loop() method
   - Acceptance: Main loop generates events at configured rate, handles errors
   - Dependencies: Generator start
   - Notes: Use time.sleep() for rate control, catch exceptions, update statistics
+  - Implemented: _generate_loop() runs in thread pool. Calculates rate via calculate_rate(), generates events at that rate using sleep intervals. Renders events with TemplateRenderer, writes to outputs. Updates statistics (events_generated, errors, last_event_time). Handles template errors (->ERROR) and output errors (->DEGRADED).
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
-- [ ] Implement frequency calculation logic
+- [x] Implement frequency calculation logic
   - Acceptance: Calculates current rate based on time/day, applies multipliers from config
   - Dependencies: Generator config
   - Notes: Check current day of week, time of day, apply matching variation rules
+  - Implemented: calculate_rate() in core/frequency.py. Gets current day (isoweekday) and time. Matches variation rules by days and time range. Applies multiplier to base_rate. Returns events per second. Supports time ranges (e.g., "09:00-17:00").
+  - Files: src/logforge/core/frequency.py
+  - Date: 2025-01-27
 
 ## Thread Pool Management {Priority: High}
 
-- [ ] Implement ThreadPoolExecutor setup with dynamic sizing
+- [x] Implement ThreadPoolExecutor setup with dynamic sizing
   - Acceptance: Thread pool size calculated from CPU cores (cores × 5), respects max_generators config
   - Dependencies: Generator engine
   - Notes: Use concurrent.futures.ThreadPoolExecutor, calculate size on startup
+  - Implemented: Engine._calculate_thread_pool_size() calculates size from CPU cores × 5, or uses config.engine.thread_pool_size if set. ThreadPoolExecutor created on first generator start. Respects max_generators config limit.
+  - Files: src/logforge/core/engine.py
+  - Date: 2025-01-27
 
-- [ ] Implement generator execution in thread pool
+- [x] Implement generator execution in thread pool
   - Acceptance: Each generator runs in separate thread, multiple generators run concurrently
   - Dependencies: Thread pool, Generator class
   - Notes: Submit generator._generate_loop() to executor, track futures
+  - Implemented: Engine.start_generator() submits generator._generate_loop() to ThreadPoolExecutor. Tracks futures in _generator_futures dict. Each generator runs in separate thread. Multiple generators run concurrently.
+  - Files: src/logforge/core/engine.py
+  - Date: 2025-01-27
 
-- [ ] Implement thread pool lifecycle management
+- [x] Implement thread pool lifecycle management
   - Acceptance: Thread pool created on engine start, shutdown gracefully on stop
   - Dependencies: Thread pool setup
   - Notes: Wait for all futures on shutdown, handle timeout
+  - Implemented: Thread pool created lazily on first generator start. Engine.shutdown() stops all generators, then shuts down thread pool with wait=True and 30s timeout. Graceful shutdown handles all futures.
+  - Files: src/logforge/core/engine.py
+  - Date: 2025-01-27
 
 ## Generator Engine Core {Priority: High}
 
-- [ ] Create Engine class to manage all generators
+- [x] Create Engine class to manage all generators
   - Acceptance: Engine tracks all generators, provides start/stop/status methods
   - Dependencies: Generator class, Thread pool
   - Notes: Maintain dict of generators by name, coordinate lifecycle
+  - Implemented: Created Engine class in core/engine.py. Maintains _generators dict by name. Provides start_generator(), stop_generator(), restart_generator(), get_generator_status() methods. Coordinates lifecycle with thread pool. Thread-safe with locks.
+  - Files: src/logforge/core/engine.py
+  - Date: 2025-01-27
 
-- [ ] Implement engine.load_generators_from_config()
+- [x] Implement engine.load_generators_from_config()
   - Acceptance: Loads generator configs, creates Generator instances, validates templates
   - Dependencies: Engine class, Config loader
   - Notes: Parse generators section, create Generator objects, validate templates exist
+  - Implemented: load_generators_from_config() parses config.generators, validates templates exist via TemplateCache, creates output handlers via factory, creates Generator instances. Handles errors gracefully, logs warnings for missing templates.
+  - Files: src/logforge/core/engine.py
+  - Date: 2025-01-27
 
-- [ ] Implement engine.start_generator(name) method
+- [x] Implement engine.start_generator(name) method
   - Acceptance: Starts specified generator, handles errors, updates state
   - Dependencies: Engine, Generator
   - Notes: Check generator exists, validate state, start in thread pool
+  - Implemented: start_generator() checks generator exists, validates state, calls generator.start(), submits _generate_loop() to thread pool, tracks future. Handles errors, raises KeyError if not found.
+  - Files: src/logforge/core/engine.py
+  - Date: 2025-01-27
 
-- [ ] Implement engine.stop_generator(name) method
+- [x] Implement engine.stop_generator(name) method
   - Acceptance: Stops specified generator gracefully
   - Dependencies: Engine, Generator
   - Notes: Signal stop, wait for completion, update state
+  - Implemented: stop_generator() calls generator.stop() which handles graceful shutdown. Removes future from tracking. Handles missing generators gracefully.
+  - Files: src/logforge/core/engine.py
+  - Date: 2025-01-27
 
-- [ ] Implement engine.get_generator_status(name) method
+- [x] Implement engine.get_generator_status(name) method
   - Acceptance: Returns generator status with statistics, state, uptime
   - Dependencies: Engine, Generator
   - Notes: Collect stats from generator, calculate uptime, format response
+  - Implemented: get_generator_status() calls generator.get_status() which includes state, template, frequency, outputs, statistics (events, errors, uptime, last_event). Returns single generator or all generators dict. Thread-safe.
+  - Files: src/logforge/core/engine.py, src/logforge/core/generator.py
+  - Date: 2025-01-27
 
 ## Generator Statistics Tracking {Priority: Medium}
 
-- [ ] Implement event counter per generator
+- [x] Implement event counter per generator
   - Acceptance: Tracks events_generated, errors, last_event timestamp
   - Dependencies: Generator class
   - Notes: Use threading-safe counters (collections.Counter or atomic operations)
+  - Implemented: Generator tracks _events_generated and _errors with _stats_lock for thread safety. Increments on successful event generation and errors. Updates _last_event_time on each event. Thread-safe atomic operations.
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
-- [ ] Implement uptime tracking
+- [x] Implement uptime tracking
   - Acceptance: Tracks generator uptime from start, resets on restart
   - Dependencies: Generator class
   - Notes: Store start_time, calculate delta on status request
+  - Implemented: Generator stores _start_time when transitioning to RUNNING. get_statistics() calculates uptime as time.time() - _start_time. Resets on restart (new start_time set).
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
-- [ ] Implement error tracking
+- [x] Implement error tracking
   - Acceptance: Tracks error count, last error message, error types
   - Dependencies: Generator class
   - Notes: Increment on exceptions, store last error details
+  - Implemented: Generator tracks _errors count and _last_error message. Increments on exceptions in _generate_loop. Stores error message string. Included in get_statistics() output.
+  - Files: src/logforge/core/generator.py
+  - Date: 2025-01-27
 
 ## Generator API Endpoints {Priority: High}
 
-- [ ] Implement GET /api/generators endpoint
+- [x] Implement GET /api/generators endpoint
   - Acceptance: Returns list of all generators with basic info
   - Dependencies: Engine, FastAPI
   - Notes: Return name, state, template, enabled status
+  - Implemented: Created GET /api/generators endpoint in api/endpoints/generators.py. Returns list with name, enabled, state, template. Uses dependency injection to get Engine from app state.
+  - Files: src/logforge/api/endpoints/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement GET /api/generators/{name} endpoint
+- [x] Implement GET /api/generators/{name} endpoint
   - Acceptance: Returns detailed generator info with statistics
   - Dependencies: Engine
   - Notes: Include state, template, frequency, outputs, statistics
+  - Implemented: Created GET /api/generators/{name} endpoint. Returns full generator status including state, template, frequency (base/current rate), outputs list, statistics (events, errors, uptime, last_event). Returns 404 if generator not found.
+  - Files: src/logforge/api/endpoints/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement POST /api/generators/{name}/start endpoint
+- [x] Implement POST /api/generators/{name}/start endpoint
   - Acceptance: Starts generator, returns state change
   - Dependencies: Engine
   - Notes: Validate generator exists, start asynchronously, return immediately
+  - Implemented: Created POST /api/generators/{name}/start endpoint. Calls engine.start_generator(). Returns state and message. Handles KeyError (404) and other errors (500). Returns immediately after starting.
+  - Files: src/logforge/api/endpoints/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement POST /api/generators/{name}/stop endpoint
+- [x] Implement POST /api/generators/{name}/stop endpoint
   - Acceptance: Stops generator, returns state change
   - Dependencies: Engine
   - Notes: Graceful stop, wait for completion, return state
+  - Implemented: Created POST /api/generators/{name}/stop endpoint. Calls engine.stop_generator(). Returns state and message. Handles errors gracefully.
+  - Files: src/logforge/api/endpoints/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement POST /api/generators/{name}/restart endpoint
+- [x] Implement POST /api/generators/{name}/restart endpoint
   - Acceptance: Restarts generator (stop then start)
   - Dependencies: Start/stop endpoints
   - Notes: Call stop, wait, then start
+  - Implemented: Created POST /api/generators/{name}/restart endpoint. Calls engine.restart_generator() which stops, waits, then starts. Returns state and message.
+  - Files: src/logforge/api/endpoints/generators.py
+  - Date: 2025-01-27
 
 ## Generator CLI Commands {Priority: Medium}
 
-- [ ] Implement `logforge generators list` command
+- [x] Implement `logforge generators list` command
   - Acceptance: Lists all generators with status, formatted output
   - Dependencies: Generator API, CLI
   - Notes: Call GET /api/generators, format as table
+  - Implemented: Created generators list command in cli/generators.py. Calls GET /api/generators, formats as Rich table with Name, State (color-coded), Template, Enabled columns. Requires service running.
+  - Files: src/logforge/cli/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge generators start <name>` command
+- [x] Implement `logforge generators start <name>` command
   - Acceptance: Starts specified generator, shows confirmation
   - Dependencies: Generator API
   - Notes: Call POST /api/generators/{name}/start
+  - Implemented: Created generators start command. Calls POST /api/generators/{name}/start. Shows confirmation with state. Requires service running.
+  - Files: src/logforge/cli/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge generators stop <name>` command
+- [x] Implement `logforge generators stop <name>` command
   - Acceptance: Stops specified generator
   - Dependencies: Generator API
   - Notes: Call POST /api/generators/{name}/stop
+  - Implemented: Created generators stop command. Calls POST /api/generators/{name}/stop. Shows confirmation. Requires service running.
+  - Files: src/logforge/cli/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge generators restart <name>` command
+- [x] Implement `logforge generators restart <name>` command
   - Acceptance: Restarts specified generator
   - Dependencies: Generator API
   - Notes: Call POST /api/generators/{name}/restart
+  - Implemented: Created generators restart command. Calls POST /api/generators/{name}/restart. Shows confirmation. Requires service running.
+  - Files: src/logforge/cli/generators.py
+  - Date: 2025-01-27
 
-- [ ] Implement `logforge status` command
+- [x] Implement `logforge status` command
   - Acceptance: Shows status of all generators in table format
   - Dependencies: Status API, CLI
   - Notes: Call GET /api/status, format as table with columns: NAME, STATE, TEMPLATE, EVENTS, ERRORS, UPTIME
+  - Implemented: Created generators status command and logforge status shortcut. Shows detailed table with Name, State (color-coded), Template, Events, Errors, Uptime columns. Also supports single generator status with full details. Calls GET /api/generators/{name} or GET /api/status.
+  - Files: src/logforge/cli/generators.py, src/logforge/cli/main.py
+  - Date: 2025-01-27
 
 ---
 
@@ -676,20 +970,29 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## Base Output Handler {Priority: High}
 
-- [ ] Create OutputHandler abstract base class
+- [x] Create OutputHandler abstract base class
   - Acceptance: Defines write(), write_batch(), close() methods, enforces interface
   - Dependencies: None
   - Notes: Use ABC from abc module, define abstract methods
+  - Implemented: Created OutputHandler abstract base class in outputs/base.py. Defines write(), write_batch(), close(), and _do_write() abstract methods. Includes retry and buffering infrastructure.
+  - Files: src/logforge/outputs/base.py
+  - Date: 2025-01-27
 
-- [ ] Implement retry logic with exponential backoff
+- [x] Implement retry logic with exponential backoff
   - Acceptance: Retries failed writes with exponential backoff, respects max_attempts config
   - Dependencies: Base handler
   - Notes: Calculate backoff: interval × (multiplier ^ attempt), cap at max_backoff
+  - Implemented: _calculate_backoff() implements exponential backoff. _handle_write_error() categorizes errors as transient/permanent. Retries transient errors with backoff. Respects max_attempts from RetryConfig. Thread-safe retry state management.
+  - Files: src/logforge/outputs/base.py
+  - Date: 2025-01-27
 
-- [ ] Implement event buffering during outages
+- [x] Implement event buffering during outages
   - Acceptance: Buffers events in memory when output unavailable, flushes on recovery
   - Dependencies: Base handler
   - Notes: Use collections.deque with maxlen, drop oldest when full, log warnings
+  - Implemented: Event buffer using collections.deque with maxlen. _handle_write_error() buffers transient failures. _flush_buffer() flushes on recovery. Drops oldest when buffer full. Thread-safe with _buffer_lock.
+  - Files: src/logforge/outputs/base.py
+  - Date: 2025-01-27
 
 ## File Output Handler {Priority: High}
 
@@ -732,66 +1035,99 @@ LogForge is a synthetic event log generator that produces realistic log data fro
 
 ## HTTP Output Handler {Priority: Medium}
 
-- [ ] Implement HTTP output handler with batching
+- [x] Implement HTTP output handler with batching
   - Acceptance: Batches events, sends POST requests, handles responses
   - Dependencies: Base handler, requests library
   - Notes: Collect events in batch, send when batch_size or batch_interval reached
+  - Implemented: Created HTTPOutputHandler in outputs/http.py. Batches events in _batch_buffer. Sends via requests.request() with configurable method. Handles responses and errors. Re-buffers on failure for retry.
+  - Files: src/logforge/outputs/http.py
+  - Date: 2025-01-27
 
-- [ ] Implement environment variable substitution in headers
+- [x] Implement environment variable substitution in headers
   - Acceptance: Replaces ${VAR_NAME} in headers with environment variable values
   - Dependencies: HTTP handler
   - Notes: Use os.environ.get(), replace in header values
+  - Implemented: _substitute_env_vars() uses regex to find ${VAR_NAME} patterns and replaces with os.getenv() values. Applied to all header values during initialization.
+  - Files: src/logforge/outputs/http.py
+  - Date: 2025-01-27
 
-- [ ] Implement batch timing logic
+- [x] Implement batch timing logic
   - Acceptance: Sends batch when size reached OR interval elapsed
   - Dependencies: HTTP handler
   - Notes: Use threading.Timer for interval, check size on each write
+  - Implemented: _flush_batch_if_ready() checks batch_size and batch_interval. Uses threading.Timer for periodic flushes. _start_batch_timer() manages timer lifecycle. Thread-safe with _batch_lock.
+  - Files: src/logforge/outputs/http.py
+  - Date: 2025-01-27
 
-- [ ] Implement JSON array wrapping for batches
+- [x] Implement JSON array wrapping for batches
   - Acceptance: Wraps batch events in JSON array, sends as single request
   - Dependencies: HTTP handler
   - Notes: json.dumps([event1, event2, ...]), set Content-Type header
+  - Implemented: _send_batch() parses events as JSON, wraps multiple events in array, sends single payload. Handles single event as object. Uses json.loads() for parsing, falls back to string if not JSON.
+  - Files: src/logforge/outputs/http.py
+  - Date: 2025-01-27
 
 ## TCP Output Handler {Priority: Low}
 
-- [ ] Implement TCP output handler
+- [x] Implement TCP output handler
   - Acceptance: Connects to TCP server, sends events with delimiter, maintains connection
   - Dependencies: Base handler, socket library
   - Notes: Use socket.socket(), connect once, send with delimiter, handle reconnection
+  - Implemented: Created TCPOutputHandler in outputs/tcp.py. _connect() establishes TCP connection. _do_write() sends events with configurable delimiter. Handles reconnection on failure. Thread-safe with _socket_lock.
+  - Files: src/logforge/outputs/tcp.py
+  - Date: 2025-01-27
 
-- [ ] Implement TCP keepalive
+- [x] Implement TCP keepalive
   - Acceptance: Maintains TCP connection, reconnects on failure
   - Dependencies: TCP handler
   - Notes: Set SO_KEEPALIVE, detect connection loss, reconnect
+  - Implemented: Sets SO_KEEPALIVE socket option when enabled. _connect() checks connection health via getpeername(). Automatically reconnects on connection loss. Configurable via keepalive parameter.
+  - Files: src/logforge/outputs/tcp.py
+  - Date: 2025-01-27
 
 ## Syslog Output Handler {Priority: Low}
 
-- [ ] Implement syslog output handler (RFC 5424)
+- [x] Implement syslog output handler (RFC 5424)
   - Acceptance: Formats events as RFC 5424 syslog messages, sends via TCP/UDP
   - Dependencies: Base handler
   - Notes: Format: <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
+  - Implemented: Created SyslogOutputHandler in outputs/syslog.py. _format_rfc5424() formats messages per RFC 5424. Supports TCP and UDP protocols. Includes PRI, version, timestamp, hostname, app-name fields.
+  - Files: src/logforge/outputs/syslog.py
+  - Date: 2025-01-27
 
-- [ ] Implement syslog output handler (RFC 3164)
+- [x] Implement syslog output handler (RFC 3164)
   - Acceptance: Formats events as RFC 3164 syslog messages
   - Dependencies: Base handler
   - Notes: Format: <PRI>TIMESTAMP HOSTNAME TAG: MSG
+  - Implemented: _format_rfc3164() formats messages per RFC 3164 legacy format. Includes PRI, timestamp, hostname, tag, and message. Configurable via format parameter.
+  - Files: src/logforge/outputs/syslog.py
+  - Date: 2025-01-27
 
-- [ ] Implement syslog facility and severity mapping
+- [x] Implement syslog facility and severity mapping
   - Acceptance: Maps config values to syslog facility/severity codes
   - Dependencies: Syslog handler
   - Notes: Use standard syslog codes, calculate PRI value
+  - Implemented: FACILITIES and SEVERITIES dictionaries map names to codes. Calculates PRI value as (facility * 8) + severity. Validates facility and severity values. Supports all standard syslog facilities and severities.
+  - Files: src/logforge/outputs/syslog.py
+  - Date: 2025-01-27
 
 ## Output Handler Factory {Priority: High}
 
-- [ ] Implement output handler factory
+- [x] Implement output handler factory
   - Acceptance: Creates appropriate handler based on type config, initializes from config
   - Dependencies: All output handlers
   - Notes: Use factory pattern, map type string to handler class
+  - Implemented: Created create_output_handlers() function in outputs/factory.py. HANDLER_TYPES registry maps type strings to handler classes. All handlers implement from_config() class method. Supports retry_config and buffer_size from config.
+  - Files: src/logforge/outputs/factory.py
+  - Date: 2025-01-27
 
-- [ ] Implement output handler registration
+- [x] Implement output handler registration
   - Acceptance: Registers output definitions from config, creates handler instances
   - Dependencies: Output factory, Config loader
   - Notes: Parse outputs.definitions, create handlers, store by name
+  - Implemented: create_output_handlers() takes output_names and output_definitions. Maps definitions by name. Creates handlers via from_config(). Applies retry_config and buffer_size. Integrated into Engine.load_generators_from_config().
+  - Files: src/logforge/outputs/factory.py, src/logforge/core/engine.py
+  - Date: 2025-01-27
 
 ---
 

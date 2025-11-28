@@ -1,0 +1,2 @@
+"""Community Integration module."""
+

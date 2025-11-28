@@ -1,0 +1,2 @@
+"""Entity Registry module."""
+
