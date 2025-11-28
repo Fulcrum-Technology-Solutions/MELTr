@@ -1,0 +1,103 @@
+# LogForge Production Configuration
+# This config outputs to STDOUT for easy testing and monitoring
+
+version: "1.0"
+
+# Engine settings
+engine:
+  max_generators: null  # null = unlimited based on CPU
+  thread_pool_size: null  # null = auto (cores × 5)
+  log_level: INFO
+
+# API server settings
+api:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+  auth:
+    enabled: false
+    key: null
+
+# Entity registry settings
+entity_registry:
+  path: ${LOGFORGE_HOME}/entities.yaml
+  auto_save: true
+  save_interval: 60
+  backup_enabled: true
+  backup_count: 3
+
+# Template settings
+templates:
+  local_path: ${LOGFORGE_HOME}/templates
+  default_path: ${LOGFORGE_HOME}/templates/default
+  custom_path: ${LOGFORGE_HOME}/templates/custom
+  precedence: custom_first
+  community_api_url: https://api.logforge.io/v1
+  auto_update_check: true
+  cache_ttl: 3600
+  auto_backup_on_customize: true
+  diff_tool: auto
+
+# Logging settings
+logging:
+  level: INFO
+  file: ${LOGFORGE_HOME}/logforge.log
+  rotation:
+    max_size: 52428800  # 50MB
+    backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Output handler settings
+outputs:
+  retry:
+    max_attempts: -1  # -1 = unlimited retries
+    retry_interval: 5  # seconds
+    backoff_multiplier: 2.0
+    max_backoff: 300  # max 5 minutes
+  buffer_size: 10000
+  
+  # Output definitions
+  definitions:
+    # Console output to STDOUT (JSON format)
+    - name: stdout
+      type: console
+      stream: stdout
+      format: json
+    
+    # Alternative: File output with rotation
+    # Uncomment to use file output instead of console
+    # - name: file-output
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/events.log
+    #   rotation:
+    #     type: size
+    #     max_size: 104857600  # 100MB
+    #     compress: true
+
+# Generator definitions
+# Add your template IDs here to generate events
+generators:
+  # Example generator - replace with your actual template IDs
+  # Template ID format: vendor/product/category/template_name
+  # Example: microsoft/windows/system/clop_persistence
+  
+  # - name: windows-login-success
+  #   template: microsoft/windows/system/clop_persistence
+  #   enabled: true
+  #   frequency:
+  #     base_rate: 0.1  # 0.1 events per second = ~6 events per minute
+  #     variation:
+  #       - days: [1, 2, 3, 4, 5]  # Monday-Friday
+  #         time: "09:00-17:00"
+  #         multiplier: 2.0  # Double rate during business hours
+  #   outputs:
+  #     - stdout
+  
+  # - name: paloalto-wildfire-threats
+  #   template: paloalto/wildfire/threats/wildfire_threat_detected
+  #   enabled: true
+  #   frequency:
+  #     base_rate: 0.01  # 0.01 events per second = ~1 event per 100 seconds
+  #   outputs:
+  #     - stdout
+
