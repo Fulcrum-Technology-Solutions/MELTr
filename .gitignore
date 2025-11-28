@@ -60,7 +60,6 @@ entities.yaml
 *.yaml.*.bak
 
 # Output files
-outputs/
 logs/
 *.out
 *.events
