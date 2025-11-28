@@ -333,6 +333,28 @@ class Generator:
         stats = self.get_statistics()
         current_rate = calculate_rate(self.config.frequency) if self.state == GeneratorState.RUNNING else 0
         
+        # Get output handler statistics
+        output_stats = []
+        for handler in self.output_handlers:
+            if hasattr(handler, 'get_statistics'):
+                try:
+                    output_stats.append(handler.get_statistics())
+                except Exception as e:
+                    logger.warning(f"Generator {self.name}: Failed to get statistics for output {handler.name}: {e}")
+                    # Fallback to basic info
+                    output_stats.append({
+                        "handler_name": handler.name if hasattr(handler, 'name') else 'unknown',
+                        "handler_type": type(handler).__name__,
+                        "health_status": "unknown",
+                    })
+            else:
+                # Handler doesn't support statistics, provide basic info
+                output_stats.append({
+                    "handler_name": handler.name if hasattr(handler, 'name') else 'unknown',
+                    "handler_type": type(handler).__name__,
+                    "health_status": "healthy" if handler.is_healthy() else "degraded",
+                })
+        
         return {
             "name": self.name,
             "state": self.state.value,
@@ -343,6 +365,7 @@ class Generator:
                 "current_rate": current_rate,
             },
             "outputs": [handler.name for handler in self.output_handlers if hasattr(handler, 'name')],
+            "output_status": output_stats,
             "statistics": stats,
         }
 

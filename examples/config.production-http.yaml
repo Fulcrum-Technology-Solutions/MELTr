@@ -1,0 +1,176 @@
+# LogForge Production Configuration
+# This config outputs to HTTP endpoints with authentication
+# 
+# Authentication tokens should be set as environment variables for security:
+#   export API_TOKEN="your-token-here"
+#   export SPLUNK_HEC_TOKEN="your-hec-token-here"
+#   export CUSTOM_API_KEY="your-api-key-here"
+
+version: "1.0"
+
+# Engine settings
+engine:
+  max_generators: null  # null = unlimited based on CPU
+  thread_pool_size: null  # null = auto (cores × 5)
+  log_level: INFO
+
+# API server settings
+api:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+  auth:
+    enabled: false
+    key: null
+
+# Entity registry settings
+entity_registry:
+  path: ${LOGFORGE_HOME}/entities.yaml
+  auto_save: true
+  save_interval: 60
+  backup_enabled: true
+  backup_count: 3
+
+# Template settings
+templates:
+  local_path: ${LOGFORGE_HOME}/templates
+  default_path: ${LOGFORGE_HOME}/templates/default
+  custom_path: ${LOGFORGE_HOME}/templates/custom
+  precedence: custom_first
+  community_api_url: https://api.logforge.io/v1
+  auto_update_check: true
+  cache_ttl: 3600
+  auto_backup_on_customize: true
+  diff_tool: auto
+
+# Logging settings
+logging:
+  level: INFO
+  file: ${LOGFORGE_HOME}/logforge.log
+  rotation:
+    max_size: 52428800  # 50MB
+    backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Output handler settings
+outputs:
+  retry:
+    max_attempts: -1  # -1 = unlimited retries
+    retry_interval: 5  # seconds
+    backoff_multiplier: 2.0
+    max_backoff: 300  # max 5 minutes
+  buffer_size: 10000
+  
+  # Output definitions
+  definitions:
+    # Example 1: Generic HTTP API with Bearer token authentication
+    # Token should be set as environment variable: export API_TOKEN="your-token"
+    - name: http-api-bearer
+      type: http
+      url: https://api.example.com/v1/events
+      method: POST
+      headers:
+        Authorization: "Bearer ${API_TOKEN}"
+        Content-Type: "application/json"
+        User-Agent: "LogForge/1.0"
+      batch_size: 100  # Send events in batches of 100
+      batch_interval: 5  # Or send every 5 seconds, whichever comes first
+      timeout: 30  # Request timeout in seconds
+    
+    # Example 2: Splunk HEC (HTTP Event Collector) with token
+    # Token should be set as environment variable: export SPLUNK_HEC_TOKEN="your-hec-token"
+    - name: splunk-hec
+      type: http
+      url: https://splunk.example.com:8088/services/collector/event
+      method: POST
+      headers:
+        Authorization: "Splunk ${SPLUNK_HEC_TOKEN}"
+        Content-Type: "application/json"
+      batch_size: 100
+      batch_interval: 5
+      timeout: 30
+    
+    # Example 3: API key in custom header
+    # API key should be set as environment variable: export CUSTOM_API_KEY="your-api-key"
+    - name: http-api-key
+      type: http
+      url: https://logs.example.com/api/v1/ingest
+      method: POST
+      headers:
+        X-API-Key: "${CUSTOM_API_KEY}"
+        Content-Type: "application/json"
+        X-Source: "logforge"
+      batch_size: 50
+      batch_interval: 10
+      timeout: 30
+    
+    # Example 4: OAuth2 with access token (token refreshed externally)
+    # Access token should be set as environment variable: export OAUTH_TOKEN="your-oauth-token"
+    - name: http-oauth2
+      type: http
+      url: https://api.example.com/logs
+      method: POST
+      headers:
+        Authorization: "Bearer ${OAUTH_TOKEN}"
+        Content-Type: "application/json"
+      batch_size: 200
+      batch_interval: 3
+      timeout: 30
+    
+    # Example 5: Basic Auth (not recommended for production, use tokens instead)
+    # Credentials should be set as environment variables: export API_USER and API_PASS
+    # Note: Basic auth requires base64 encoding - this is a simplified example
+    # For production, prefer Bearer tokens or API keys
+    # - name: http-basic-auth
+    #   type: http
+    #   url: https://api.example.com/events
+    #   method: POST
+    #   headers:
+    #     Authorization: "Basic ${BASIC_AUTH_CREDENTIALS}"  # Base64 encoded user:pass
+    #     Content-Type: "application/json"
+    #   batch_size: 100
+    #   batch_interval: 5
+    #   timeout: 30
+    
+    # Optional: Also output to file for local backup/monitoring
+    # - name: file-backup
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
+    #   rotation:
+    #     type: size
+    #     max_size: 104857600  # 100MB
+    #     max_files: 10
+    #     compress: true
+    
+    # Optional: Console output for debugging (comment out in production)
+    # - name: stdout
+    #   type: console
+    #   stream: stdout
+    #   format: json
+
+# Generator definitions
+# Add your template IDs here to generate events
+generators:
+  # Example generator - replace with your actual template IDs
+  # Template ID format: vendor/product/category/template_name
+  
+  # - name: windows-login-success
+  #   template: microsoft/windows/system/clop_persistence
+  #   enabled: true
+  #   frequency:
+  #     base_rate: 0.1  # 0.1 events per second = ~6 events per minute
+  #     variation:
+  #       - days: [1, 2, 3, 4, 5]  # Monday-Friday
+  #         time: "09:00-17:00"
+  #         multiplier: 2.0  # Double rate during business hours
+  #   outputs:
+  #     - http-api-bearer  # Use the HTTP output with Bearer token
+  
+  # - name: paloalto-wildfire-threats
+  #   template: paloalto/wildfire/threats/wildfire_threat_detected
+  #   enabled: true
+  #   frequency:
+  #     base_rate: 0.01  # 0.01 events per second = ~1 event per 100 seconds
+  #   outputs:
+  #     - splunk-hec  # Send to Splunk HEC endpoint
+

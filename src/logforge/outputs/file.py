@@ -174,6 +174,20 @@ class FileOutputHandler(OutputHandler):
         if not file_path.exists():
             return
         
+        # Check if time-based template variables have changed
+        # This applies to both size and time-based rotation when path contains time variables
+        if self._path_context:
+            # Re-resolve path to see if it changed (for time-based templates)
+            new_path = self._resolve_path(force_refresh=True)
+            if new_path != file_path:
+                # Time variable changed, rotate current file and switch to new path
+                self._rotate_file(file_path)
+                # Clear cache and current path to force new file on next write
+                self._current_path = None
+                self._resolved_path_cache = None
+                return
+        
+        # Check rotation based on type
         if self.rotation.type == 'size':
             max_size = self._parse_size(self.rotation.max_size)
             if file_path.stat().st_size >= max_size:
@@ -185,17 +199,6 @@ class FileOutputHandler(OutputHandler):
                 file_age = time.time() - file_path.stat().st_mtime
                 if file_age >= max_age_seconds:
                     self._rotate_file(file_path)
-            
-            # Also check if time-based template variables have changed
-            # (e.g., {date} changed, {hour} changed)
-            if self._path_context:
-                # Re-resolve path to see if it changed (for time-based templates)
-                new_path = self._resolve_path(force_refresh=True)
-                if new_path != file_path:
-                    # Time variable changed, rotate current file and switch to new path
-                    self._rotate_file(file_path)
-                    # Clear cache to force new file on next write
-                    self._current_path = None
     
     def _rotate_file(self, file_path: Path) -> None:
         """Rotate file.

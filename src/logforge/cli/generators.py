@@ -161,6 +161,44 @@ def generators_status(
             console.print(f"    Uptime: {stats['uptime']}s")
             if stats.get('last_event'):
                 console.print(f"    Last Event: {stats['last_event']}")
+            
+            # Display output handler status
+            if 'output_status' in data and data['output_status']:
+                console.print(f"\n  [bold]Output Status:[/bold]")
+                for output in data['output_status']:
+                    handler_name = output.get('handler_name', 'unknown')
+                    handler_type = output.get('handler_type', 'unknown')
+                    health_status = output.get('health_status', 'unknown')
+                    
+                    # Determine health color
+                    health_color = {
+                        'healthy': 'green',
+                        'degraded': 'yellow',
+                        'failed': 'red',
+                    }.get(health_status, 'white')
+                    
+                    console.print(f"    [{health_color}]{handler_name}[/{health_color}] ({handler_type}): {health_status.upper()}")
+                    
+                    # Show detailed stats for HTTP handlers
+                    if handler_type == 'http':
+                        if output.get('events_sent', 0) > 0 or output.get('events_failed', 0) > 0:
+                            console.print(f"      Events Sent: {output.get('events_sent', 0)}")
+                            console.print(f"      Events Failed: {output.get('events_failed', 0)}")
+                            console.print(f"      Batches: {output.get('batches_sent', 0)} sent, {output.get('batches_failed', 0)} failed")
+                            if output.get('buffered_events', 0) > 0:
+                                console.print(f"      [yellow]Buffered Events: {output['buffered_events']}[/yellow]")
+                            if output.get('average_response_time_ms'):
+                                console.print(f"      Avg Response Time: {output['average_response_time_ms']}ms")
+                            if output.get('last_error_message'):
+                                console.print(f"      [red]Last Error: {output['last_error_message']}[/red]")
+                            if output.get('last_success_time'):
+                                console.print(f"      Last Success: {output['last_success_time']}")
+                            if output.get('last_failure_time'):
+                                console.print(f"      [yellow]Last Failure: {output['last_failure_time']}[/yellow]")
+                    
+                    # Show buffered events for any handler
+                    elif output.get('buffered_events', 0) > 0:
+                        console.print(f"      [yellow]Buffered Events: {output['buffered_events']}[/yellow]")
         else:
             # All generators table
             table = Table(title="Generator Status")
