@@ -214,7 +214,13 @@ class Engine:
         
         # Shutdown thread pool
         if self._thread_pool:
-            self._thread_pool.shutdown(wait=True, timeout=30.0)
+            # timeout parameter available in Python 3.9+, but handle compatibility
+            # Some Python 3.9.x versions may not support timeout parameter
+            try:
+                self._thread_pool.shutdown(wait=True, timeout=30.0)
+            except TypeError:
+                # Fallback if timeout not supported in this Python version
+                self._thread_pool.shutdown(wait=True)
             self._thread_pool = None
         
         logger.info("Engine shutdown complete")
