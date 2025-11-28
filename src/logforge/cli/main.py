@@ -6,6 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
+from logforge import __version__
 from logforge.cli import api, api_client, config, entities, generators, service, templates
 from logforge.cli.init import init
 
@@ -58,13 +59,23 @@ def status(
     generators_status(None, api_url, api_key)
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
     api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL", help="API server URL"),
     api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY", help="API key for authentication"),
+    version: bool = typer.Option(False, "--version", "-v", help="Show version and exit"),
 ) -> None:
     """LogForge CLI - Manage synthetic event log generation."""
+    # Handle --version flag
+    if version:
+        console.print(f"LogForge {__version__}")
+        raise typer.Exit()
+    
+    # If no command provided, let Typer show help (no_args_is_help=True)
+    if ctx.invoked_subcommand is None:
+        return
+    
     # Store API settings in context for subcommands
     ctx.ensure_object(dict)
     ctx.obj['api_url'] = api_url

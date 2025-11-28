@@ -13,8 +13,9 @@ def get_logforge_home() -> Path:
     1. LOGFORGE_HOME environment variable
     2. ./logforge in current working directory
     3. ../logforge (parent directory)
-    4. ~/.logforge for interactive users (uid >= 1000)
-    5. /var/lib/logforge for service accounts (uid < 1000)
+    4. Installation directory detection (from binary location)
+    5. ~/.logforge for interactive users (uid >= 1000)
+    6. /var/lib/logforge for service accounts (uid < 1000)
     
     Returns:
         Path to LOGFORGE_HOME directory
@@ -37,6 +38,27 @@ def get_logforge_home() -> Path:
     if parent_home.exists() and parent_home.is_dir():
         return parent_home.resolve()
     
+    # Try to detect installation directory from binary location
+    try:
+        import shutil
+        bin_path = shutil.which('logforge')
+        if bin_path:
+            bin_path = Path(bin_path).resolve()
+            # If binary is in /opt/logforge/.venv/bin/logforge, use /opt/logforge/logforge
+            if '/opt/logforge' in str(bin_path):
+                install_dir = Path('/opt/logforge')
+                home = install_dir / 'logforge'
+                if home.exists() or install_dir.exists():
+                    return home.resolve()
+            # If binary is in something like /path/to/logforge/.venv/bin/logforge
+            elif bin_path.parent.parent.name == 'logforge':
+                install_dir = bin_path.parent.parent
+                home = install_dir / 'logforge'
+                if home.exists() or install_dir.exists():
+                    return home.resolve()
+    except Exception:
+        pass
+    
     # Fall back to traditional locations
     # Determine if running as service account
     try:
@@ -53,6 +75,10 @@ def get_logforge_home() -> Path:
             is_service_account = False
     
     if is_service_account:
+        # For service accounts, try /opt/logforge/logforge first (common installation)
+        opt_home = Path('/opt/logforge/logforge')
+        if opt_home.parent.exists():
+            return opt_home.resolve()
         home_path = Path('/var/lib/logforge')
     else:
         home_path = Path.home() / '.logforge'

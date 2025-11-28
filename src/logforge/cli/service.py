@@ -6,6 +6,14 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+try:
+    import grp
+    import pwd
+except ImportError:
+    # Windows or other platforms without pwd/grp
+    grp = None
+    pwd = None
+
 import typer
 from rich.console import Console
 
@@ -18,8 +26,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=logforge
-Group=logforge
+User={service_user}
+Group={service_group}
 WorkingDirectory={logforge_home}
 ExecStart={logforge_bin} api start
 Restart=on-failure
@@ -65,6 +73,9 @@ def _get_logforge_binary_path() -> Path:
 def _get_logforge_home() -> Path:
     """Get LOGFORGE_HOME path.
     
+    Detects installation directory from binary location (like Splunk/Cribl).
+    Defaults to installation directory/logforge or /opt/logforge/logforge.
+    
     Returns:
         Path to LOGFORGE_HOME
     """
@@ -72,7 +83,31 @@ def _get_logforge_home() -> Path:
     if env_home:
         return Path(env_home).expanduser().resolve()
     
-    # Default to /var/lib/logforge for systemd service
+    # Try to detect from binary location
+    try:
+        bin_path = _get_logforge_binary_path()
+        # If binary is in /opt/logforge/.venv/bin/logforge, use /opt/logforge/logforge
+        # If binary is in /usr/local/bin/logforge, use /opt/logforge/logforge
+        # If binary is in /usr/bin/logforge, use /opt/logforge/logforge
+        if '/opt/logforge' in str(bin_path):
+            # Installation is in /opt/logforge
+            install_dir = Path('/opt/logforge')
+            home = install_dir / 'logforge'
+            return home.resolve()
+        elif bin_path.parent.parent.name == 'logforge':
+            # Binary is in something like /path/to/logforge/.venv/bin/logforge
+            install_dir = bin_path.parent.parent
+            home = install_dir / 'logforge'
+            return home.resolve()
+    except Exception:
+        pass
+    
+    # Fallback: try /opt/logforge/logforge (common installation location)
+    opt_home = Path('/opt/logforge/logforge')
+    if opt_home.parent.exists():
+        return opt_home.resolve()
+    
+    # Last resort: /var/lib/logforge
     return Path('/var/lib/logforge')
 
 
@@ -92,11 +127,23 @@ def _check_root() -> None:
 def service_install(
     logforge_home: Optional[str] = typer.Option(None, "--home", help="LOGFORGE_HOME directory"),
     logforge_bin: Optional[str] = typer.Option(None, "--binary", help="Path to logforge binary"),
+    user: Optional[str] = typer.Option(None, "--user", "-u", help="User to run service as (default: logforge)"),
+    group: Optional[str] = typer.Option(None, "--group", "-g", help="Group to run service as (default: same as user)"),
+    create_user: bool = typer.Option(True, "--create-user/--no-create-user", help="Create service user if it doesn't exist"),
 ) -> None:
-    """Install LogForge as a systemd service."""
+    """Install LogForge as a systemd service.
+    
+    Similar to Splunk/Cribl installation, allows specifying the service user.
+    Example:
+        sudo logforge service install --user logmgr --group logmgr --home /opt/logforge/logforge
+    """
     _check_root()
     
     try:
+        # Determine service user and group
+        service_user = user or 'logforge'
+        service_group = group or service_user
+        
         # Determine paths
         if logforge_home:
             home_path = Path(logforge_home).expanduser().resolve()
@@ -112,42 +159,99 @@ def service_install(
             console.print(f"[red]Error: LogForge binary not found at {bin_path}[/red]")
             raise typer.Exit(code=1)
         
-        console.print("[green]Installing LogForge systemd service...[/green]")
+        console.print(f"[green]Installing LogForge systemd service...[/green]")
+        console.print(f"  Service user: {service_user}")
+        console.print(f"  Service group: {service_group}")
+        console.print(f"  LOGFORGE_HOME: {home_path}")
         
-        # Create service user if it doesn't exist
-        try:
-            subprocess.run(
-                ['useradd', '-r', '-s', '/bin/false', '-d', str(home_path), '-c', 'LogForge Service', 'logforge'],
-                check=False,
-                capture_output=True,
-            )
-            console.print("[green]✓ Created service user: logforge[/green]")
-        except FileNotFoundError:
-            console.print("[yellow]⚠ useradd not found, skipping user creation[/yellow]")
-        except subprocess.CalledProcessError:
-            # User might already exist, that's okay
-            console.print("[yellow]⚠ Service user may already exist[/yellow]")
-        
-        # Create directories
+        # Create directories first
         home_path.mkdir(parents=True, exist_ok=True)
-        os.chown(home_path, 0, 0)  # root:root
+        
+        # Create service user if requested and it doesn't exist
+        service_uid = None
+        service_gid = None
+        
+        if create_user:
+            if pwd is None or grp is None:
+                console.print("[yellow]⚠ pwd/grp modules not available, skipping user/group creation[/yellow]")
+            else:
+                try:
+                    # Check if user exists
+                    try:
+                        pwd.getpwnam(service_user)
+                        console.print(f"[yellow]⚠ User {service_user} already exists[/yellow]")
+                    except KeyError:
+                        # User doesn't exist, create it
+                        try:
+                            subprocess.run(
+                                ['useradd', '-r', '-s', '/bin/false', '-d', str(home_path), 
+                                 '-c', 'LogForge Service', service_user],
+                                check=True,
+                                capture_output=True,
+                            )
+                            console.print(f"[green]✓ Created service user: {service_user}[/green]")
+                        except subprocess.CalledProcessError as e:
+                            console.print(f"[yellow]⚠ Could not create user {service_user}: {e}[/yellow]")
+                    
+                    # Check if group exists
+                    try:
+                        grp.getgrnam(service_group)
+                    except KeyError:
+                        # Group doesn't exist, create it
+                        try:
+                            subprocess.run(
+                                ['groupadd', '-r', service_group],
+                                check=True,
+                                capture_output=True,
+                            )
+                            console.print(f"[green]✓ Created service group: {service_group}[/green]")
+                        except subprocess.CalledProcessError:
+                            # Group might already exist or creation failed, that's okay
+                            pass
+                            
+                except FileNotFoundError:
+                    console.print("[yellow]⚠ useradd/groupadd not found, skipping user/group creation[/yellow]")
+        
+        # Get service user UID/GID
+        if pwd is None or grp is None:
+            console.print("[yellow]⚠ pwd/grp modules not available, using root ownership[/yellow]")
+            console.print("[yellow]⚠ Service may not start correctly[/yellow]")
+            service_uid = 0
+            service_gid = 0
+        else:
+            try:
+                service_uid = pwd.getpwnam(service_user).pw_uid
+                try:
+                    service_gid = grp.getgrnam(service_group).gr_gid
+                except KeyError:
+                    # If group doesn't exist, use user's primary group
+                    service_gid = pwd.getpwnam(service_user).pw_gid
+            except KeyError as e:
+                console.print(f"[yellow]⚠ Could not get {service_user} user info: {e}[/yellow]")
+                console.print("[yellow]⚠ Using root ownership - service may not start correctly[/yellow]")
+                service_uid = 0
+                service_gid = 0
+        
+        # Set ownership to service user so service can write
+        if service_uid is not None:
+            os.chown(home_path, service_uid, service_gid)
+            # Also set ownership on parent if it's the installation directory
+            if home_path.parent.name == 'logforge' and home_path.parent.exists():
+                os.chown(home_path.parent, service_uid, service_gid)
         
         log_dir = Path('/var/log/logforge')
         log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Set ownership
-        try:
-            import pwd
-            logforge_uid = pwd.getpwnam('logforge').pw_uid
-            logforge_gid = pwd.getpwnam('logforge').pw_gid
-            os.chown(log_dir, logforge_uid, logforge_gid)
-        except (KeyError, ImportError):
-            pass
+        # Set ownership on log directory
+        if service_uid is not None:
+            os.chown(log_dir, service_uid, service_gid)
         
         # Create service file
         service_content = SERVICE_FILE.format(
             logforge_home=str(home_path),
             logforge_bin=str(bin_path),
+            service_user=service_user,
+            service_group=service_group,
         )
         
         service_file_path = Path('/etc/systemd/system/logforge.service')
