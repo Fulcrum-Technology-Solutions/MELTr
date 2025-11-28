@@ -196,17 +196,18 @@ def substitute_env_vars(value: Any, home: Path) -> Any:
         return value
 
 
-def load_config(config_path: Optional[Path] = None) -> Config:
+def load_config(config_path: Optional[Path] = None, create_if_missing: bool = True) -> Config:
     """Load configuration from YAML file.
     
     Args:
         config_path: Path to config.yaml. If None, uses default from LOGFORGE_HOME.
+        create_if_missing: If True, create default config file if it doesn't exist.
         
     Returns:
         Config object with validated settings
         
     Raises:
-        FileNotFoundError: If config file doesn't exist
+        FileNotFoundError: If config file doesn't exist and create_if_missing is False
         ValueError: If config is invalid
     """
     home = get_logforge_home()
@@ -218,8 +219,23 @@ def load_config(config_path: Optional[Path] = None) -> Config:
         if not validate_path_within_home(config_path, home):
             raise ValueError(f"Config path {config_path} must be within LOGFORGE_HOME {home}")
     
+    # Create default config if missing
     if not config_path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
+        if create_if_missing:
+            from logforge.utils.logging import get_logger
+            logger = get_logger(__name__)
+            logger.info(f"Config file not found at {config_path}, creating default configuration")
+            
+            # Ensure directory exists
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Create default config
+            default_config = create_default_config(home)
+            save_config(default_config, config_path)
+            logger.info(f"Created default config file at {config_path}")
+            return default_config
+        else:
+            raise FileNotFoundError(f"Config file not found: {config_path}")
     
     # Load YAML
     try:
@@ -239,6 +255,49 @@ def load_config(config_path: Optional[Path] = None) -> Config:
         return Config(**raw_config)
     except Exception as e:
         raise ValueError(f"Invalid configuration: {e}") from e
+
+
+def save_config(config: Config, config_path: Optional[Path] = None) -> None:
+    """Save configuration to YAML file.
+    
+    Args:
+        config: Config object to save
+        config_path: Path to save config.yaml. If None, uses default from LOGFORGE_HOME.
+        
+    Raises:
+        ValueError: If config path is invalid
+        RuntimeError: If save fails
+    """
+    home = get_logforge_home()
+    
+    if config_path is None:
+        config_path = home / 'config.yaml'
+    else:
+        # Validate config path is within LOGFORGE_HOME
+        if not validate_path_within_home(config_path, home):
+            raise ValueError(f"Config path {config_path} must be within LOGFORGE_HOME {home}")
+    
+    # Ensure directory exists
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Convert to dict and save
+    try:
+        config_dict = config.model_dump(mode='json', exclude_none=False)
+        
+        # Write to temporary file first (atomic write)
+        temp_path = config_path.with_suffix('.yaml.tmp')
+        with temp_path.open('w', encoding='utf-8') as f:
+            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        
+        # Atomic move
+        temp_path.replace(config_path)
+        
+        # Set secure permissions (600)
+        config_path.chmod(0o600)
+    except Exception as e:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise RuntimeError(f"Failed to save config: {e}") from e
 
 
 def create_default_config(home: Optional[Path] = None) -> Config:

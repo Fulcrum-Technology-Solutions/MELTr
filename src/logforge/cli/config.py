@@ -63,10 +63,13 @@ def config_validate(
     """Validate configuration file."""
     try:
         if config_path:
-            load_config(config_path)
+            load_config(config_path, create_if_missing=False)
         else:
-            load_config()
+            load_config(create_if_missing=False)
         console.print("[green]✓ Configuration is valid[/green]")
+    except FileNotFoundError:
+        console.print("[yellow]⚠ Config file not found. Run 'logforge init' to create one.[/yellow]")
+        raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]✗ Configuration validation failed: {e}[/red]")
         raise typer.Exit(code=1)

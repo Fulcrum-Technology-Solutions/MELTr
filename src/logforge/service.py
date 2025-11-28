@@ -22,29 +22,55 @@ class LogForgeService:
         
         Args:
             config_path: Optional path to config file
+            
+        Raises:
+            Exception: If initialization fails
         """
-        # Load configuration
-        self.config = load_config(config_path)
+        try:
+            # Load configuration
+            self.config = load_config(config_path)
+            logger.info(f"Configuration loaded from: {config_path or 'default'}")
+        except Exception as e:
+            logger.error(f"Failed to load configuration: {e}", exc_info=True)
+            raise
         
-        # Setup logging
-        setup_logging(self.config)
-        logger.info("LogForge service initializing...")
+        try:
+            # Setup logging
+            setup_logging(self.config)
+            logger.info("LogForge service initializing...")
+        except Exception as e:
+            # If logging setup fails, print to stderr
+            import sys
+            print(f"ERROR: Failed to setup logging: {e}", file=sys.stderr)
+            raise
         
-        # Initialize entity registry
-        self.registry = EntityRegistry(self.config)
-        logger.info("Entity registry initialized")
+        try:
+            # Initialize entity registry
+            self.registry = EntityRegistry(self.config)
+            logger.info("Entity registry initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize entity registry: {e}", exc_info=True)
+            raise
         
-        # Initialize engine
-        self.engine = Engine(self.config, self.registry)
-        logger.info("Generator engine initialized")
+        try:
+            # Initialize engine
+            self.engine = Engine(self.config, self.registry)
+            logger.info("Generator engine initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize engine: {e}", exc_info=True)
+            raise
         
-        # Initialize API server
-        self.api_server = APIServer(self.config)
-        
-        # Store in app state for dependency injection
-        self.api_server.app.state.engine = self.engine
-        self.api_server.app.state.registry = self.registry
-        self.api_server.app.state.template_cache = self.engine.template_cache
+        try:
+            # Initialize API server
+            self.api_server = APIServer(self.config)
+            
+            # Store in app state for dependency injection
+            self.api_server.app.state.engine = self.engine
+            self.api_server.app.state.registry = self.registry
+            self.api_server.app.state.template_cache = self.engine.template_cache
+        except Exception as e:
+            logger.error(f"Failed to initialize API server: {e}", exc_info=True)
+            raise
         
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -109,8 +135,14 @@ class LogForgeService:
                 time.sleep(1.0)
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
+        except Exception as e:
+            logger.error(f"Service error: {e}", exc_info=True)
+            raise
         finally:
-            self.stop()
+            try:
+                self.stop()
+            except Exception as e:
+                logger.error(f"Error during shutdown: {e}", exc_info=True)
 
 
 def main() -> None:

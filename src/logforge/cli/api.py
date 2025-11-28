@@ -34,6 +34,10 @@ def api_start(
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutting down...[/yellow]")
     except Exception as e:
+        import traceback
         console.print(f"[red]Error: {e}[/red]")
+        # Print full traceback for debugging
+        console.print(f"[red]Traceback:[/red]")
+        console.print(traceback.format_exc())
         raise typer.Exit(code=1)
 
