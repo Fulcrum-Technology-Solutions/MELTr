@@ -26,6 +26,14 @@ class LogForgeService:
         Raises:
             Exception: If initialization fails
         """
+        # Ensure LOGFORGE_HOME is set (self-discovery if not set)
+        import os
+        if not os.getenv('LOGFORGE_HOME'):
+            from logforge.core.paths import get_logforge_home
+            discovered_home = get_logforge_home()
+            os.environ['LOGFORGE_HOME'] = str(discovered_home)
+            logger.info(f"Set LOGFORGE_HOME={discovered_home} (self-discovered)")
+        
         try:
             # Load configuration
             self.config = load_config(config_path)

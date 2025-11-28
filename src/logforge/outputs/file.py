@@ -70,9 +70,15 @@ class FileOutputHandler(OutputHandler):
         path = self.path_template
         
         # Substitute LOGFORGE_HOME and other environment variables
+        # LOGFORGE_HOME uses self-discovery if not set as env var
         def replace_var(match: re.Match) -> str:
             var_name = match.group(1)
             if var_name == 'LOGFORGE_HOME':
+                # get_logforge_home() does self-discovery:
+                # 1. Checks LOGFORGE_HOME env var
+                # 2. Checks ./logforge, ../logforge
+                # 3. Detects installation directory from binary location
+                # 4. Falls back to ~/.logforge or /var/lib/logforge
                 from logforge.core.paths import get_logforge_home
                 return str(get_logforge_home())
             return os.getenv(var_name, match.group(0))
