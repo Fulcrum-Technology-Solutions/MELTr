@@ -30,6 +30,29 @@ outputs:
       type: console
       stream: stdout
       format: json
+    
+    # Optional: File output with templating
+    # Uncomment to write to files instead of (or in addition to) console
+    # Path template supports variables: {generator}, {vendor}, {product}, {data_source}, {date}, {timestamp}, etc.
+    #
+    # Example: Organized by vendor/product
+    # - name: file-output
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
+    #   rotation:
+    #     type: size
+    #     max_size: 104857600  # 100MB
+    #     max_files: 5
+    #     compress: true
+    #
+    # Example: Simple single file (backward compatible)
+    # - name: file-output-simple
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/events.log
+    #   rotation:
+    #     type: size
+    #     max_size: 104857600
+    #     compress: true
 
 # Add your generators here - just uncomment and set your template ID
 generators:

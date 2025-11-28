@@ -64,14 +64,45 @@ outputs:
       stream: stdout
       format: json
     
-    # Alternative: File output with rotation
+    # Alternative: File output with templating and rotation
     # Uncomment to use file output instead of console
+    # Path template supports variables:
+    #   {generator}, {generator_name} - Generator name
+    #   {vendor}, {product}, {data_source} - Template metadata
+    #   {date}, {year}, {month}, {day}, {hour} - Time variables
+    #   {timestamp} - Unix timestamp
+    #   {output_name} - Output handler name
+    #   {organization_name} - Organization from entity registry
+    #   ${LOGFORGE_HOME} - LOGFORGE_HOME directory
+    #   ${VAR} - Any environment variable
+    #
+    # Example 1: Organized by vendor/product with date
     # - name: file-output
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
+    #   rotation:
+    #     type: size
+    #     max_size: 104857600  # 100MB
+    #     max_files: 10  # Keep last 10 rotated files
+    #     compress: true
+    #
+    # Example 2: Simple path (backward compatible)
+    # - name: file-output-simple
     #   type: file
     #   path: ${LOGFORGE_HOME}/outputs/events.log
     #   rotation:
     #     type: size
-    #     max_size: 104857600  # 100MB
+    #     max_size: 104857600
+    #     compress: true
+    #
+    # Example 3: Hourly rotation with time-based path
+    # - name: file-output-hourly
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{date}/{generator}-{hour}.log
+    #   rotation:
+    #     type: time
+    #     max_age: 24h  # Rotate after 24 hours
+    #     max_files: 7  # Keep last 7 days
     #     compress: true
 
 # Generator definitions

@@ -58,8 +58,18 @@ outputs:
   
   # Output definitions
   definitions:
-    # File output with size-based rotation
-    # Path template supports variables: {generator}, {vendor}, {product}, {data_source}, {date}, {timestamp}, etc.
+    # File output with templating and size-based rotation
+    # Path template supports variables:
+    #   {generator}, {generator_name} - Generator name
+    #   {vendor}, {product}, {data_source} - Template metadata
+    #   {date}, {year}, {month}, {day}, {hour}, {minute} - Time variables
+    #   {timestamp} - Unix timestamp
+    #   {output_name} - Output handler name
+    #   {organization_name} - Organization from entity registry
+    #   ${LOGFORGE_HOME} - LOGFORGE_HOME directory
+    #   ${VAR} - Any environment variable
+    #
+    # Example 1: Organized by vendor/product with date (recommended for production)
     - name: file-output
       type: file
       path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
@@ -69,13 +79,33 @@ outputs:
         max_files: 10  # Keep last 10 rotated files
         compress: true
     
-    # Alternative: Simple path without templating (backward compatible)
+    # Example 2: Simple path without templating (backward compatible)
     # - name: file-output-simple
     #   type: file
     #   path: ${LOGFORGE_HOME}/outputs/events.log
     #   rotation:
     #     type: size
     #     max_size: 104857600
+    #     compress: true
+    
+    # Example 3: Time-based rotation with hourly files
+    # - name: file-output-hourly
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{date}/{generator}-{hour}.log
+    #   rotation:
+    #     type: time
+    #     max_age: 24h  # Rotate after 24 hours
+    #     max_files: 7  # Keep last 7 days (168 files if hourly)
+    #     compress: true
+    
+    # Example 4: Organized by organization and vendor
+    # - name: file-output-org
+    #   type: file
+    #   path: ${LOGFORGE_HOME}/outputs/{organization_name}/{vendor}/{product}/{generator}-{date}.log
+    #   rotation:
+    #     type: size
+    #     max_size: 104857600
+    #     max_files: 10
     #     compress: true
     
     # Optional: Also output to console for monitoring
