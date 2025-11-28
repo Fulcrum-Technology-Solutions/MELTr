@@ -195,10 +195,10 @@ def entities_import(
         console.print(f"[red]Error: Invalid entities file: {e}[/red]")
         raise typer.Exit(code=1)
     
-    # Load existing entities if merging
+    # Load existing entities if merging (use strict=False to allow empty files)
     storage = EntityStorage()
     try:
-        existing_data = storage.load()
+        existing_data = storage.load(strict=False)
     except FileNotFoundError:
         existing_data = None
     
