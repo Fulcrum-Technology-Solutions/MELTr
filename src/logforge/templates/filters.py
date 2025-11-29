@@ -64,6 +64,37 @@ def random_choice(choices: List[Any]) -> Any:
     return random.choice(choices)
 
 
+def random_weighted(choices: List[Any], weights: List[float]) -> Any:
+    """Choose random item from list based on weights.
+    
+    Args:
+        choices: List of choices
+        weights: List of weights (probabilities) corresponding to each choice
+        
+    Returns:
+        Randomly chosen item based on weighted probabilities
+        
+    Example:
+        ['true', 'false'] | random_weighted([90, 10])  # 90% 'true', 10% 'false'
+    """
+    if not choices or not weights:
+        return None
+    
+    if len(choices) != len(weights):
+        # If weights don't match, use equal weights
+        return random.choice(choices)
+    
+    # Normalize weights to sum to 1.0
+    total_weight = sum(weights)
+    if total_weight == 0:
+        return random.choice(choices)
+    
+    normalized_weights = [w / total_weight for w in weights]
+    
+    # Use random.choices with normalized weights
+    return random.choices(choices, weights=normalized_weights, k=1)[0]
+
+
 def random_string(length: int, chars: str = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') -> str:
     """Generate random string.
     
@@ -247,6 +278,7 @@ def register_filters(env: Environment) -> None:
     env.filters['random_int'] = random_int
     env.filters['random_choice'] = random_choice
     env.filters['random_string'] = random_string
+    env.filters['random_weighted'] = random_weighted
     
     # Register as global functions (not just filters)
     env.globals['now'] = now
