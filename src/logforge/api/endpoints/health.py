@@ -81,21 +81,35 @@ async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
         engine = server.app.state.engine
     
     # Get generator details
-    # CRITICAL: get_all_generators() releases lock before returning list
-    # So we can safely call get_status() on each generator
+    # CRITICAL: Use get_generator_status() which handles locks properly
+    # Don't call get_status() directly to avoid deadlock
     generators_list = []
     if engine:
-        generators = engine.get_all_generators()  # Returns list, lock released
-        for gen in generators:
-            gen_status = gen.get_status()  # Safe - no lock held
-            generators_list.append({
-                "name": gen_status["name"],
-                "state": gen_status["state"],
-                "template": gen_status["template"],
-                "events_generated": gen_status["statistics"]["events_generated"],
-                "errors": gen_status["statistics"]["errors"],
-                "uptime": gen_status["statistics"]["uptime"],
-            })
+        try:
+            # Use engine's safe method that handles locks correctly
+            all_status = engine.get_generator_status(name=None)
+            if "generators" in all_status:
+                for gen_status in all_status["generators"]:
+                    generators_list.append({
+                        "name": gen_status["name"],
+                        "state": gen_status["state"],
+                        "template": gen_status["template"],
+                        "events_generated": gen_status["statistics"]["events_generated"],
+                        "errors": gen_status["statistics"]["errors"],
+                        "uptime": gen_status["statistics"]["uptime"],
+                    })
+        except Exception as e:
+            # If status fails, return basic info without detailed stats
+            generators = engine.get_all_generators()
+            for gen in generators:
+                generators_list.append({
+                    "name": gen.name,
+                    "state": gen.state.value,
+                    "template": gen.config.template,
+                    "events_generated": 0,
+                    "errors": 0,
+                    "uptime": 0,
+                })
     
     # Get system metrics
     try:

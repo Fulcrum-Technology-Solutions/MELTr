@@ -248,10 +248,16 @@ class Engine:
         """Get all generator instances.
         
         Returns:
-            List of Generator objects
+            List of Generator objects (snapshot, safe to use without lock)
         """
+        # CRITICAL: Create snapshot and release lock BEFORE returning
+        # Callers will call methods on these generators which may need other locks
+        # If we hold _generators_lock while they access gen.state (which needs _state_lock),
+        # and generator thread holds _state_lock while accessing engine, deadlock occurs
         with self._generators_lock:
-            return list(self._generators.values())
+            generators = list(self._generators.values())
+        # Lock released here, before return
+        return generators
     
     def shutdown(self) -> None:
         """Shutdown engine and all generators."""
