@@ -661,7 +661,7 @@ def _select_template_interactive(config: Config) -> Optional[str]:
         console.print("[cyan]Available Templates:[/cyan]\n")
         all_templates = []
         idx = 1
-            for vendor_product, template_list in sorted(grouped.items()):
+        for vendor_product, template_list in sorted(grouped.items()):
             console.print(f"[bold]{vendor_product}[/bold]")
             for template_id, template_info in sorted(template_list):
                 metadata = template_info.metadata
