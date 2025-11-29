@@ -40,9 +40,14 @@ class Engine:
         # Thread pool
         self._thread_pool: Optional[ThreadPoolExecutor] = None
         self._generator_futures: Dict[str, Future] = {}
+        self._monitor_timer: Optional[threading.Timer] = None
+        self._monitoring_active = True
         
         # Load generators from config
         self.load_generators_from_config()
+        
+        # Start background exception monitoring
+        self._start_exception_monitoring()
     
     def _calculate_thread_pool_size(self) -> int:
         """Calculate thread pool size.
@@ -187,29 +192,61 @@ class Engine:
         time.sleep(0.5)
         self.start_generator(name)
     
+    def _start_exception_monitoring(self) -> None:
+        """Start background timer to check for generator loop exceptions."""
+        self._monitoring_active = True
+        self._schedule_exception_check()
+    
+    def _schedule_exception_check(self) -> None:
+        """Schedule next exception check."""
+        if not self._monitoring_active:
+            return
+        
+        def check_futures() -> None:
+            """Check futures and reschedule."""
+            self._check_future_exceptions()
+            # Reschedule if still active
+            if self._monitoring_active:
+                self._schedule_exception_check()
+        
+        self._monitor_timer = threading.Timer(5.0, check_futures)
+        self._monitor_timer.daemon = True
+        self._monitor_timer.start()
+    
     def _check_future_exceptions(self) -> None:
         """Check all generator futures for exceptions.
         
         This should be called periodically to catch generator loop crashes.
         """
         futures_to_remove = []
-        with self._generators_lock:
-            for name, future in self._generator_futures.items():
-                if future.done():
-                    try:
-                        future.result()  # Will raise if exception occurred
-                    except Exception as e:
-                        logger.error(
-                            f"Generator {name} loop crashed: {e}",
-                            exc_info=True
-                        )
-                        if name in self._generators:
-                            self._generators[name]._transition_to(GeneratorState.ERROR)
-                        futures_to_remove.append(name)
+        # Don't hold lock while checking futures - just get a snapshot
+        futures_snapshot = dict(self._generator_futures)
         
-        # Remove completed/failed futures outside of lock
-        for name in futures_to_remove:
-            self._generator_futures.pop(name, None)
+        for name, future in futures_snapshot.items():
+            if future.done():
+                try:
+                    future.result()  # Will raise if exception occurred (non-blocking for done futures)
+                except Exception as e:
+                    logger.error(
+                        f"Generator {name} loop crashed: {e}",
+                        exc_info=True
+                    )
+                    # Transition to ERROR state (needs lock)
+                    with self._generators_lock:
+                        if name in self._generators:
+                            try:
+                                self._generators[name]._transition_to(GeneratorState.ERROR)
+                            except Exception as transition_error:
+                                logger.error(
+                                    f"Failed to transition generator {name} to ERROR: {transition_error}"
+                                )
+                    futures_to_remove.append(name)
+        
+        # Remove completed/failed futures (needs lock)
+        if futures_to_remove:
+            with self._generators_lock:
+                for name in futures_to_remove:
+                    self._generator_futures.pop(name, None)
     
     def get_generator_status(self, name: Optional[str] = None) -> Dict:
         """Get generator status.
@@ -248,20 +285,25 @@ class Engine:
         """Get all generator instances.
         
         Returns:
-            List of Generator objects (snapshot, safe to use without lock)
+            List of Generator objects (safe to use without lock)
+        
+        Note: Dict access is atomic in CPython, so no lock needed for read-only access.
+        Callers should not modify the returned list or generators.
         """
-        # CRITICAL: Create snapshot and release lock BEFORE returning
-        # Callers will call methods on these generators which may need other locks
-        # If we hold _generators_lock while they access gen.state (which needs _state_lock),
-        # and generator thread holds _state_lock while accessing engine, deadlock occurs
-        with self._generators_lock:
-            generators = list(self._generators.values())
-        # Lock released here, before return
-        return generators
+        # CRITICAL: No lock - dict.values() is atomic in CPython for reads
+        # Holding lock here causes deadlock when API thread holds it while generator
+        # thread needs it, or vice versa
+        return list(self._generators.values())
     
     def shutdown(self) -> None:
         """Shutdown engine and all generators."""
         logger.info("Shutting down engine...")
+        
+        # Stop exception monitoring
+        self._monitoring_active = False
+        if self._monitor_timer:
+            self._monitor_timer.cancel()
+            self._monitor_timer = None
         
         # Stop all generators
         with self._generators_lock:

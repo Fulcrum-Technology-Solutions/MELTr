@@ -216,6 +216,7 @@ class Generator:
     
     def _generate_loop(self) -> None:
         """Main generation loop."""
+        logger.info(f"Generator {self.name}: Loop thread started!")
         try:
             while not self._stop_event.is_set():
                 # Calculate current rate
