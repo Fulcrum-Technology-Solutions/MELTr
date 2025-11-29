@@ -906,11 +906,13 @@ def _save_config(config: Config) -> bool:
         # Try to apply changes automatically (if service is running)
         try:
             from logforge.cli.api_client import get_api_client
+            import requests
+            
             client = get_api_client()
             
             # Check if service is running
             try:
-                health_response = client.get("/api/health", timeout=2.0)
+                health_response = client.get("/api/health", timeout=5.0)
                 if health_response.status_code == 200:
                     # Service is running, apply changes
                     console.print("[cyan]Applying configuration changes...[/cyan]")
@@ -940,14 +942,22 @@ def _save_config(config: Config) -> bool:
                     else:
                         console.print("[green]✓ Configuration changes applied successfully![/green]")
                 else:
-                    console.print("[yellow]⚠ Service not running. Restart service to apply changes.[/yellow]")
-            except Exception:
-                # Service not running or not accessible
-                console.print("[yellow]⚠ Service not running. Restart service to apply changes.[/yellow]")
+                    console.print(f"[yellow]⚠ Service returned status {health_response.status_code}. Restart service to apply changes.[/yellow]")
+            except requests.exceptions.ConnectionError as e:
+                console.print(f"[yellow]⚠ Could not connect to service at {client.api_url}[/yellow]")
+                console.print(f"[yellow]  Error: {str(e)}[/yellow]")
+                console.print("[yellow]  Use 'logforge config reload' after starting the service.[/yellow]")
+            except requests.exceptions.Timeout as e:
+                console.print(f"[yellow]⚠ Service health check timed out (service may be slow or unresponsive)[/yellow]")
+                console.print("[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]")
+            except Exception as e:
+                # Show actual error for debugging
+                console.print(f"[yellow]⚠ Could not apply changes automatically: {type(e).__name__}: {str(e)}[/yellow]")
+                console.print("[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]")
         except Exception as e:
             # API client not available or service not running
-            console.print(f"[yellow]⚠ Could not apply changes automatically: {e}[/yellow]")
-            console.print("[yellow]  Restart the service to apply configuration changes.[/yellow]")
+            console.print(f"[yellow]⚠ Could not apply changes automatically: {type(e).__name__}: {str(e)}[/yellow]")
+            console.print("[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]")
         
         return True
     except Exception as e:
