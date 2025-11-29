@@ -5,9 +5,9 @@ import time
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from logforge.core.config import GeneratorConfig
-from logforge.core.frequency import calculate_rate
 from logforge.entities.registry import EntityRegistry
 from logforge.outputs.base import OutputHandler
 from logforge.templates.loader import TemplateLoader
@@ -137,6 +137,9 @@ class Generator:
             # Create renderer
             self._renderer = TemplateRenderer(self.registry)
             
+            # Get organization timezone for context
+            timezone = self.registry.get_organization_timezone()
+            
             # Initialize output handlers with template context
             for handler in self.output_handlers:
                 try:
@@ -159,12 +162,15 @@ class Generator:
                         except Exception:
                             pass  # Organization not available
                         
-                        handler.set_template_context(
-                            generator_name=self.name,
-                            output_name=handler.name,
-                            template_metadata=template_metadata,
-                            organization_name=organization_name,
-                        )
+                        # Set template context on all handlers that support it
+                        if hasattr(handler, 'set_template_context'):
+                            handler.set_template_context(
+                                generator_name=self.name,
+                                output_name=handler.name,
+                                template_metadata=template_metadata,
+                                organization_name=organization_name,
+                                timezone=timezone,
+                            )
                     
                     # Output handlers should have an initialize method if needed
                     if hasattr(handler, 'initialize'):
@@ -226,15 +232,24 @@ class Generator:
                 iteration += 1
                 logger.info(f"Generator {self.name}: Loop iteration {iteration} (stop_event={self._stop_event.is_set()})")
                 
-                # Calculate current rate
-                logger.debug(f"Generator {self.name}: Calculating rate from frequency config...")
-                rate = calculate_rate(self.config.frequency)
+                # Calculate current rate from template metadata
+                logger.debug(f"Generator {self.name}: Calculating rate from template metadata...")
+                if not self._template_info or not self._template_info.metadata:
+                    logger.error(f"Generator {self.name}: Template metadata not available")
+                    rate = 0.0
+                else:
+                    from logforge.core.frequency import calculate_rate_from_template_metadata
+                    timezone = self.registry.get_organization_timezone()
+                    rate = calculate_rate_from_template_metadata(self._template_info.metadata, timezone)
                 logger.info(f"Generator {self.name}: Calculated rate: {rate} events/sec")
                 
                 if rate <= 0:
-                    # Sleep and continue if rate is 0
+                    # Sleep and continue if rate is 0 (interruptible)
                     logger.info(f"Generator {self.name}: Rate is 0 or negative, sleeping 1.0s")
-                    time.sleep(1.0)
+                    if self._stop_event.wait(timeout=1.0):
+                        # Stop event was set during sleep
+                        logger.info(f"Generator {self.name}: Stop requested during sleep")
+                        break
                     continue
                 
                 # Calculate sleep interval (events per second)
@@ -277,9 +292,52 @@ class Generator:
                             logger.warning(f"Generator {self.name}: Output error, transitioning to DEGRADED state")
                             self._transition_to(GeneratorState.DEGRADED)
                 
-                # Sleep to maintain rate
+                # Sleep to maintain rate (interruptible and respects variable frequency)
+                # For long intervals (>60s), break into chunks to allow rate recalculation
+                # This ensures time-based frequency changes (business hours, etc.) are detected quickly
+                max_sleep_chunk = 60.0  # Maximum sleep chunk in seconds
+                remaining_sleep = sleep_interval
+                
                 logger.debug(f"Generator {self.name}: Sleeping {sleep_interval:.3f}s before next iteration")
-                time.sleep(sleep_interval)
+                
+                while remaining_sleep > 0 and not self._stop_event.is_set():
+                    # Sleep in chunks to allow rate recalculation for variable frequency
+                    chunk = min(remaining_sleep, max_sleep_chunk)
+                    
+                    if self._stop_event.wait(timeout=chunk):
+                        # Stop event was set during sleep
+                        logger.info(f"Generator {self.name}: Stop requested during sleep")
+                        break
+                    
+                    remaining_sleep -= chunk
+                    
+                    # If we have more sleep remaining, recalculate rate to catch time-based changes
+                    # (e.g., business hours starting, weekend transitions, etc.)
+                    if remaining_sleep > 0:
+                        # Recalculate rate to detect time-based frequency changes
+                        if self._template_info and self._template_info.metadata:
+                            from logforge.core.frequency import calculate_rate_from_template_metadata
+                            new_rate = calculate_rate_from_template_metadata(
+                                self._template_info.metadata,
+                                self.registry.get_organization_timezone()
+                            )
+                            
+                            # If rate changed significantly, recalculate remaining sleep
+                            # This handles transitions like business hours starting
+                            if abs(new_rate - rate) > (rate * 0.1):  # 10% change threshold
+                                logger.debug(
+                                    f"Generator {self.name}: Rate changed from {rate:.6f} to {new_rate:.6f} "
+                                    f"during sleep, recalculating remaining interval"
+                                )
+                                # Recalculate remaining sleep based on new rate
+                                new_sleep_interval = 1.0 / new_rate if new_rate > 0 else remaining_sleep
+                                remaining_sleep = min(remaining_sleep, new_sleep_interval)
+                                rate = new_rate
+                
+                if self._stop_event.is_set():
+                    logger.info(f"Generator {self.name}: Stop requested during sleep")
+                    break
+                    
                 logger.debug(f"Generator {self.name}: Sleep completed, starting next iteration")
             
             logger.info(f"Generator {self.name}: Loop exited - stop_event is_set={self._stop_event.is_set()}")
@@ -365,7 +423,10 @@ class Generator:
                 "events_generated": self._events_generated,
                 "errors": self._errors,
                 "uptime": uptime,
-                "last_event": datetime.utcfromtimestamp(self._last_event_time).isoformat() + "Z" if self._last_event_time else None,
+                "last_event": (
+                    datetime.fromtimestamp(self._last_event_time, ZoneInfo(self.registry.get_organization_timezone())).isoformat()
+                    if self._last_event_time else None
+                ),
                 "last_error": self._last_error,
             }
     
@@ -376,7 +437,13 @@ class Generator:
             Dictionary with status information
         """
         stats = self.get_statistics()
-        current_rate = calculate_rate(self.config.frequency) if self.state == GeneratorState.RUNNING else 0
+        # Calculate current rate from template metadata
+        if self.state == GeneratorState.RUNNING and self._template_info and self._template_info.metadata:
+            from logforge.core.frequency import calculate_rate_from_template_metadata
+            timezone = self.registry.get_organization_timezone()
+            current_rate = calculate_rate_from_template_metadata(self._template_info.metadata, timezone)
+        else:
+            current_rate = 0.0
         
         # Get output handler statistics
         output_stats = []
@@ -406,8 +473,9 @@ class Generator:
             "template": self.config.template,
             "enabled": self.config.enabled,
             "frequency": {
-                "base_rate": self.config.frequency.base_rate,
+                "base_rate": self._template_info.metadata.base_frequency / 3600.0 if (self._template_info and self._template_info.metadata and self._template_info.metadata.base_frequency) else 0.0,
                 "current_rate": current_rate,
+                "source": "template_metadata",
             },
             "outputs": [handler.name for handler in self.output_handlers if hasattr(handler, 'name')],
             "output_status": output_stats,

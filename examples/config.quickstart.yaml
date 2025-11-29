@@ -60,8 +60,8 @@ generators:
   # - name: my-generator
   #   template: vendor/product/category/template_name
   #   enabled: true
-  #   frequency:
-  #     base_rate: 0.1  # events per second
+  #   # Frequency is read from template metadata (.meta.yaml)
+  #   # To customize, copy template to custom/ directory and edit .meta.yaml
   #   outputs:
   #     - stdout
 

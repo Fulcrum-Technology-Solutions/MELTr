@@ -60,11 +60,12 @@ class APIClient:
             console.print("[yellow]Hint: start the service first → sudo systemctl start logforge[/yellow]")
             raise typer.Exit(code=1)
     
-    def get(self, endpoint: str, **kwargs) -> requests.Response:
+    def get(self, endpoint: str, timeout: Optional[int] = None, **kwargs) -> requests.Response:
         """Make GET request to API.
         
         Args:
             endpoint: API endpoint (e.g., '/api/status')
+            timeout: Request timeout in seconds (overrides default)
             **kwargs: Additional arguments for requests.get
             
         Returns:
@@ -74,13 +75,15 @@ class APIClient:
             requests.RequestException: On request failure
         """
         url = f'{self.api_url}{endpoint}'
-        return self.session.get(url, timeout=self.timeout, **kwargs)
+        request_timeout = timeout if timeout is not None else self.timeout
+        return self.session.get(url, timeout=request_timeout, **kwargs)
     
-    def post(self, endpoint: str, **kwargs) -> requests.Response:
+    def post(self, endpoint: str, timeout: Optional[int] = None, **kwargs) -> requests.Response:
         """Make POST request to API.
         
         Args:
             endpoint: API endpoint (e.g., '/api/generators/test/start')
+            timeout: Request timeout in seconds (overrides default)
             **kwargs: Additional arguments for requests.post
             
         Returns:
@@ -90,7 +93,8 @@ class APIClient:
             requests.RequestException: On request failure
         """
         url = f'{self.api_url}{endpoint}'
-        return self.session.post(url, timeout=self.timeout, **kwargs)
+        request_timeout = timeout if timeout is not None else self.timeout
+        return self.session.post(url, timeout=request_timeout, **kwargs)
 
 
 def get_api_client(

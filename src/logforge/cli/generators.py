@@ -212,22 +212,34 @@ def generators_status(
             table.add_column("Uptime", style="blue")
             
             for gen in data.get('generators', []):
-                stats = gen.get('statistics', {})
-                uptime_str = f"{stats.get('uptime', 0)}s" if stats.get('uptime') else "N/A"
+                # Handle both flattened (from /api/status) and nested (from /api/generators/{name}) formats
+                if 'statistics' in gen:
+                    # Nested format (from individual generator endpoint)
+                    stats = gen.get('statistics', {})
+                    events = stats.get('events_generated', 0)
+                    errors = stats.get('errors', 0)
+                    uptime = stats.get('uptime')
+                else:
+                    # Flattened format (from /api/status endpoint)
+                    events = gen.get('events_generated', 0)
+                    errors = gen.get('errors', 0)
+                    uptime = gen.get('uptime')
+                
+                uptime_str = f"{uptime}s" if uptime else "N/A"
                 
                 state_style = {
                     "RUNNING": "green",
                     "STOPPED": "dim",
                     "ERROR": "red",
                     "DEGRADED": "yellow",
-                }.get(gen['state'], "white")
+                }.get(gen.get('state', 'UNKNOWN'), "white")
                 
                 table.add_row(
-                    gen['name'],
-                    f"[{state_style}]{gen['state']}[/{state_style}]",
-                    gen['template'],
-                    str(stats.get('events_generated', 0)),
-                    str(stats.get('errors', 0)),
+                    gen.get('name', 'unknown'),
+                    f"[{state_style}]{gen.get('state', 'UNKNOWN')}[/{state_style}]",
+                    gen.get('template', 'unknown'),
+                    str(events),
+                    str(errors),
                     uptime_str,
                 )
             

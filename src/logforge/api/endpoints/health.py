@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from logforge.api.server import APIServer
+from logforge.core.engine import Engine
+from logforge.utils.logging import get_logger
 
 router = APIRouter(prefix="/api", tags=["health"])
 
@@ -12,6 +14,13 @@ router = APIRouter(prefix="/api", tags=["health"])
 def get_server(request: Request) -> APIServer:
     """Dependency to get API server instance from app state."""
     return request.app.state.server
+
+
+def get_engine(request: Request) -> Engine:
+    """Dependency to get engine from app state."""
+    if not hasattr(request.app.state, 'engine'):
+        raise HTTPException(status_code=503, detail="Engine not initialized")
+    return request.app.state.engine
 
 
 @router.get("/health")
@@ -133,4 +142,41 @@ async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
             "threads": thread_count,
         },
     }
+
+
+@router.post("/config/reload")
+async def reload_config(
+    server: Annotated[APIServer, Depends(get_server)],
+    engine: Annotated[Engine, Depends(get_engine)]
+) -> dict:
+    """Reload configuration from disk and apply changes.
+    
+    Detects and applies:
+    - Added generators (starts if enabled)
+    - Removed generators (stops and removes)
+    - Updated generators (restarts if was running)
+    
+    Returns:
+        Reload results with added/removed/updated generators
+    """
+    from logforge.core.config import load_config
+    
+    try:
+        # Load new config from disk
+        new_config = load_config(create_if_missing=False)
+        
+        # Reload and apply changes
+        results = engine.reload_config(new_config)
+        
+        return {
+            "status": "success",
+            "message": "Configuration reloaded successfully",
+            "results": results,
+        }
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Config file not found")
+    except Exception as e:
+        logger = get_logger(__name__)
+        logger.error(f"Failed to reload config: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reload config: {str(e)}")
 

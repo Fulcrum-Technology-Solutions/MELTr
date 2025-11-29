@@ -36,6 +36,12 @@ class TemplateRenderer:
         # Register custom filters
         register_filters(self.env)
         
+        # Get organization timezone and register timezone-aware now() function
+        timezone = self.registry.get_organization_timezone()
+        from logforge.templates.filters import now as now_func
+        self.env.globals['now'] = lambda: now_func(timezone)
+        self.env.globals['current_timestamp'] = lambda: now_func(timezone)
+        
         # Add Faker to globals
         self.env.globals['fake'] = self.faker
         

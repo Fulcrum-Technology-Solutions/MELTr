@@ -66,6 +66,7 @@ class FileOutputHandler(OutputHandler):
         output_name: str,
         template_metadata: Optional[Dict[str, Any]] = None,
         organization_name: Optional[str] = None,
+        timezone: Optional[str] = None,
     ) -> None:
         """Set template context for path resolution.
         
@@ -74,12 +75,14 @@ class FileOutputHandler(OutputHandler):
             output_name: Output handler name
             template_metadata: Template metadata dict (vendor, product, data_source, etc.)
             organization_name: Organization name from entity registry
+            timezone: Timezone string (e.g., 'America/New_York'). Defaults to UTC if not provided.
         """
         self._path_context = PathTemplateContext(
             generator_name=generator_name,
             output_name=output_name,
             template_metadata=template_metadata,
             organization_name=organization_name,
+            timezone=timezone or 'UTC',
         )
         # Clear cache when context changes
         self._resolved_path_cache = None
@@ -110,11 +113,12 @@ class FileOutputHandler(OutputHandler):
         # If no context set, use fallback resolution
         if not self._path_context:
             logger.warning(f"FileOutputHandler '{self.name}': No template context set, using fallback resolution")
-            # Fallback: create minimal context with just generator name from path template
+            # Fallback: create minimal context with UTC timezone
             # This maintains backward compatibility
             self._path_context = PathTemplateContext(
                 generator_name="unknown",
                 output_name=self.name,
+                timezone='UTC',
             )
         
         # Resolve path using template resolver
@@ -218,7 +222,13 @@ class FileOutputHandler(OutputHandler):
         # For size-based rotation, use sequential numbering
         if self.rotation.type == 'time' and self._path_context:
             # Use timestamp-based naming for time rotations
-            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+            # Use timezone from path context if available, otherwise UTC
+            if self._path_context:
+                now_dt = self._path_context._now
+            else:
+                from zoneinfo import ZoneInfo
+                now_dt = datetime.now(ZoneInfo('UTC'))
+            timestamp = now_dt.strftime('%Y%m%d-%H%M%S')
             base_name = file_path.stem
             rotated_path = file_path.parent / f"{base_name}.{timestamp}{file_path.suffix}"
         else:
