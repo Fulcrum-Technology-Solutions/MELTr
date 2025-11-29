@@ -2,7 +2,7 @@
 
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, List, Optional
 from zoneinfo import ZoneInfo
 
@@ -258,6 +258,24 @@ def unix_timestamp(dt: datetime) -> float:
     return 0.0
 
 
+def add_seconds(dt: datetime, seconds: int) -> datetime:
+    """Add seconds to a datetime object.
+    
+    Args:
+        dt: Datetime object
+        seconds: Number of seconds to add (can be negative)
+        
+    Returns:
+        New datetime object with seconds added
+        
+    Example:
+        {{ timestamp | add_seconds(30) }}
+    """
+    if isinstance(dt, datetime):
+        return dt + timedelta(seconds=seconds)
+    return dt
+
+
 def register_filters(env: Environment) -> None:
     """Register custom filters with Jinja2 environment.
     
@@ -273,6 +291,7 @@ def register_filters(env: Environment) -> None:
     env.filters['iso8601_utc'] = iso8601_utc
     env.filters['rfc3339'] = rfc3339
     env.filters['unix_timestamp'] = unix_timestamp
+    env.filters['add_seconds'] = add_seconds
     
     # Random generation filters
     env.filters['random_int'] = random_int
