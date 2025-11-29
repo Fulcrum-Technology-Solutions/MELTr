@@ -158,15 +158,92 @@ def random_hostname() -> str:
     return f"{prefix}-{suffix}"
 
 
+def iso8601(dt: datetime, include_microseconds: bool = True) -> str:
+    """Format datetime as ISO 8601 (e.g., '2025-11-29T18:30:45.123456').
+    
+    Args:
+        dt: Datetime object
+        include_microseconds: Whether to include microseconds
+        
+    Returns:
+        ISO 8601 formatted string
+    """
+    if isinstance(dt, datetime):
+        if include_microseconds:
+            return dt.isoformat()
+        return dt.replace(microsecond=0).isoformat()
+    return str(dt)
+
+
+def iso8601_utc(dt: datetime, include_microseconds: bool = True) -> str:
+    """Format datetime as ISO 8601 with UTC Z suffix (e.g., '2025-11-29T18:30:45.123456Z').
+    
+    Args:
+        dt: Datetime object
+        include_microseconds: Whether to include microseconds
+        
+    Returns:
+        ISO 8601 formatted string with Z suffix
+    """
+    if isinstance(dt, datetime):
+        # Convert to UTC if timezone-aware
+        if dt.tzinfo:
+            dt = dt.astimezone(ZoneInfo('UTC'))
+        
+        # Format with microseconds
+        if include_microseconds:
+            formatted = dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+        else:
+            formatted = dt.strftime('%Y-%m-%dT%H:%M:%S')
+        
+        # Add Z suffix
+        return formatted + 'Z'
+    return str(dt)
+
+
+def rfc3339(dt: datetime) -> str:
+    """Format datetime as RFC 3339 (ISO 8601 with timezone).
+    
+    Args:
+        dt: Datetime object
+        
+    Returns:
+        RFC 3339 formatted string
+    """
+    return iso8601(dt)
+
+
+def unix_timestamp(dt: datetime) -> float:
+    """Convert datetime to Unix timestamp.
+    
+    Args:
+        dt: Datetime object
+        
+    Returns:
+        Unix timestamp (seconds since epoch)
+    """
+    if isinstance(dt, datetime):
+        return dt.timestamp()
+    return 0.0
+
+
 def register_filters(env: Environment) -> None:
     """Register custom filters with Jinja2 environment.
     
     Args:
         env: Jinja2 environment
     """
+    # Datetime formatting filters
     env.filters['format_datetime'] = format_datetime
     env.filters['format_timestamp'] = format_datetime  # Alias for format_datetime
+    env.filters['strftime'] = format_datetime  # Keep for backward compatibility
     env.filters['timestamp_to_iso'] = timestamp_to_iso
+    env.filters['iso8601'] = iso8601
+    env.filters['iso8601_utc'] = iso8601_utc
+    env.filters['rfc3339'] = rfc3339
+    env.filters['unix_timestamp'] = unix_timestamp
+    
+    # Random generation filters
     env.filters['random_int'] = random_int
     env.filters['random_choice'] = random_choice
     env.filters['random_string'] = random_string
