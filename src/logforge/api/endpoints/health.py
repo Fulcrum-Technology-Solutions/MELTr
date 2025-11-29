@@ -81,11 +81,13 @@ async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
         engine = server.app.state.engine
     
     # Get generator details
+    # CRITICAL: get_all_generators() releases lock before returning list
+    # So we can safely call get_status() on each generator
     generators_list = []
     if engine:
-        generators = engine.get_all_generators()
+        generators = engine.get_all_generators()  # Returns list, lock released
         for gen in generators:
-            gen_status = gen.get_status()
+            gen_status = gen.get_status()  # Safe - no lock held
             generators_list.append({
                 "name": gen_status["name"],
                 "state": gen_status["state"],

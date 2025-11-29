@@ -212,8 +212,18 @@ class HTTPOutputHandler(OutputHandler):
         self._log_periodic_stats()
         
         # Send batch (outside lock)
+        # CRITICAL: Catch exceptions here to prevent dual buffering
+        # _send_batch() already re-buffers events on failure
+        # If we let exception propagate, base class will also buffer in self._buffer
         if events_to_send:
-            self._send_batch(events_to_send)
+            try:
+                self._send_batch(events_to_send)
+            except Exception as e:
+                # _send_batch() already re-buffered events, so we just log
+                # Don't re-raise or base class will also buffer
+                logger.debug(
+                    f"HTTP output '{self.name}': Batch send failed, events re-buffered: {e}"
+                )
     
     def _sanitize_header_value(self, key: str, value: str) -> str:
         """Sanitize sensitive header values for logging.
@@ -528,6 +538,11 @@ class HTTPOutputHandler(OutputHandler):
         Returns:
             Dictionary with statistics and health information
         """
+        # Get buffered count first (separate lock to avoid nested locks)
+        with self._batch_lock:
+            buffered_count = len(self._batch_buffer)
+        
+        # Get stats data (avoid nested locks)
         with self._stats_lock:
             # Calculate average response time
             avg_response_time = None
@@ -543,37 +558,49 @@ class HTTPOutputHandler(OutputHandler):
                 else:
                     health_status = "failed"
             
-            # Calculate buffered events count
-            with self._batch_lock:
-                buffered_count = len(self._batch_buffer)
-            
-            stats = {
-                "handler_name": self.name,
-                "handler_type": "http",
-                "url": self.url,
-                "health_status": health_status,
-                "events_sent": self._events_sent,
-                "events_failed": self._events_failed,
-                "batches_sent": self._batches_sent,
-                "batches_failed": self._batches_failed,
-                "buffered_events": buffered_count,
-                "connection_errors": self._connection_errors,
-                "http_errors": self._http_errors,
-                "timeout_errors": self._timeout_errors,
-                "auth_errors": self._auth_errors,
-                "total_bytes_sent": self._total_bytes_sent,
-                "average_response_time_ms": round(avg_response_time, 2) if avg_response_time else None,
-                "last_success_time": (
-                    datetime.utcfromtimestamp(self._last_success_time).isoformat() + "Z"
-                    if self._last_success_time else None
-                ),
-                "last_failure_time": (
-                    datetime.utcfromtimestamp(self._last_failure_time).isoformat() + "Z"
-                    if self._last_failure_time else None
-                ),
-                "last_error_message": self._last_error_message,
-                "last_error_type": self._last_error_type,
-            }
+            # Copy all stats values (read-only, no need to hold lock during dict creation)
+            events_sent = self._events_sent
+            events_failed = self._events_failed
+            batches_sent = self._batches_sent
+            batches_failed = self._batches_failed
+            connection_errors = self._connection_errors
+            http_errors = self._http_errors
+            timeout_errors = self._timeout_errors
+            auth_errors = self._auth_errors
+            total_bytes_sent = self._total_bytes_sent
+            last_success_time = self._last_success_time
+            last_failure_time = self._last_failure_time
+            last_error_message = self._last_error_message
+            last_error_type = self._last_error_type
+        
+        # Build stats dict outside of locks (all values are now copied)
+        stats = {
+            "handler_name": self.name,
+            "handler_type": "http",
+            "url": self.url,
+            "health_status": health_status,
+            "events_sent": events_sent,
+            "events_failed": events_failed,
+            "batches_sent": batches_sent,
+            "batches_failed": batches_failed,
+            "buffered_events": buffered_count,
+            "connection_errors": connection_errors,
+            "http_errors": http_errors,
+            "timeout_errors": timeout_errors,
+            "auth_errors": auth_errors,
+            "total_bytes_sent": total_bytes_sent,
+            "average_response_time_ms": round(avg_response_time, 2) if avg_response_time else None,
+            "last_success_time": (
+                datetime.utcfromtimestamp(last_success_time).isoformat() + "Z"
+                if last_success_time else None
+            ),
+            "last_failure_time": (
+                datetime.utcfromtimestamp(last_failure_time).isoformat() + "Z"
+                if last_failure_time else None
+            ),
+            "last_error_message": last_error_message,
+            "last_error_type": last_error_type,
+        }
         
         return stats
     

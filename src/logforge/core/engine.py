@@ -139,6 +139,21 @@ class Engine:
                 future = self._thread_pool.submit(generator._generate_loop)
                 self._generator_futures[name] = future
                 
+                # Check for immediate exceptions (generator loop crashes on startup)
+                # Use a small delay to catch initialization errors
+                import time
+                time.sleep(0.1)  # Brief delay to catch immediate crashes
+                if future.done():
+                    try:
+                        future.result()  # Will raise exception if one occurred
+                    except Exception as e:
+                        logger.error(
+                            f"Generator {name} loop crashed immediately: {e}",
+                            exc_info=True
+                        )
+                        generator._transition_to(GeneratorState.ERROR)
+                        raise RuntimeError(f"Generator {name} loop failed to start: {e}")
+                
             except Exception as e:
                 logger.error(f"Failed to start generator {name}: {e}", exc_info=True)
                 raise
@@ -172,6 +187,30 @@ class Engine:
         time.sleep(0.5)
         self.start_generator(name)
     
+    def _check_future_exceptions(self) -> None:
+        """Check all generator futures for exceptions.
+        
+        This should be called periodically to catch generator loop crashes.
+        """
+        futures_to_remove = []
+        with self._generators_lock:
+            for name, future in self._generator_futures.items():
+                if future.done():
+                    try:
+                        future.result()  # Will raise if exception occurred
+                    except Exception as e:
+                        logger.error(
+                            f"Generator {name} loop crashed: {e}",
+                            exc_info=True
+                        )
+                        if name in self._generators:
+                            self._generators[name]._transition_to(GeneratorState.ERROR)
+                        futures_to_remove.append(name)
+        
+        # Remove completed/failed futures outside of lock
+        for name in futures_to_remove:
+            self._generator_futures.pop(name, None)
+    
     def get_generator_status(self, name: Optional[str] = None) -> Dict:
         """Get generator status.
         
@@ -181,18 +220,29 @@ class Engine:
         Returns:
             Status dictionary
         """
+        # Check for future exceptions before getting status
+        self._check_future_exceptions()
+        
+        # CRITICAL: Release lock before calling get_status() to avoid deadlock
+        # get_status() calls handler.get_statistics() which acquires handler locks
+        # If generator thread holds handler locks, deadlock occurs
         with self._generators_lock:
             if name:
                 if name not in self._generators:
                     raise KeyError(f"Generator not found: {name}")
-                return self._generators[name].get_status()
+                generator = self._generators[name]
             else:
-                # Return all generators
-                return {
-                    "generators": [
-                        gen.get_status() for gen in self._generators.values()
-                    ]
-                }
+                generators = list(self._generators.values())
+        
+        # Call get_status() OUTSIDE of lock to prevent deadlock
+        if name:
+            return generator.get_status()
+        else:
+            return {
+                "generators": [
+                    gen.get_status() for gen in generators
+                ]
+            }
     
     def get_all_generators(self) -> List[Generator]:
         """Get all generator instances.

@@ -129,9 +129,11 @@ def generators_status(
     name: Optional[str] = typer.Argument(None, help="Generator name (optional)"),
     api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
     api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
+    timeout: int = typer.Option(30, "--timeout", help="Request timeout in seconds"),
 ) -> None:
     """Show generator status."""
     client = get_api_client(api_url, api_key)
+    client.timeout = timeout  # Override timeout for status commands
     client.require_service_running()
     
     try:
