@@ -39,7 +39,7 @@ logforge init --force
 
 This creates the directory layout, default configuration, entity registry, and template scaffolding under `LOGFORGE_HOME`.
 
-### Start the Service
+### Start the Service) 
 
 **Foreground mode (development/testing):**
 ```bash

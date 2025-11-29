@@ -71,7 +71,7 @@ class TemplatesConfig(BaseModel):
     default_path: Optional[str] = Field(default=None, description="Default templates path")
     custom_path: Optional[str] = Field(default=None, description="Custom templates path")
     precedence: str = Field(default="custom_first", description="Template precedence")
-    community_api_url: str = Field(default="https://api.logforge.io/v1", description="Community API URL")
+    community_api_url: str = Field(default="https://logforge.io/api/v1", description="Community API URL")
     auto_update_check: bool = Field(default=True, description="Auto-check for updates")
     cache_ttl: int = Field(default=3600, description="Template cache TTL in seconds")
     auto_backup_on_customize: bool = Field(default=True, description="Backup on customize")

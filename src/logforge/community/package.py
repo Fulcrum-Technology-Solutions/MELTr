@@ -1,0 +1,283 @@
+"""Package download, extraction, and installation utilities."""
+
+import json
+import shutil
+import tarfile
+import tempfile
+from pathlib import Path
+from typing import Callable, Optional
+
+import yaml
+
+from logforge.community.client import CommunityAPIClient, CommunityAPIError
+from logforge.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+class PackageError(Exception):
+    """Base exception for package operations."""
+    pass
+
+
+class PackageValidationError(PackageError):
+    """Package validation failed."""
+    pass
+
+
+class PackageInstallError(PackageError):
+    """Package installation failed."""
+    pass
+
+
+def extract_forge_package(
+    package_path: Path,
+    extract_to: Path,
+    validate: bool = True,
+) -> Path:
+    """Extract .forge package (tar.gz) to target directory.
+    
+    Args:
+        package_path: Path to .forge package file
+        extract_to: Directory to extract to
+        validate: Whether to validate package structure
+        
+    Returns:
+        Path to extracted vendor directory
+        
+    Raises:
+        PackageError: If extraction fails
+        PackageValidationError: If validation fails
+    """
+    if not package_path.exists():
+        raise PackageError(f"Package file not found: {package_path}")
+    
+    logger.info(f"Extracting package: {package_path}")
+    
+    try:
+        # Open tar.gz archive
+        with tarfile.open(package_path, 'r:gz') as tar:
+            # Extract all files
+            extract_to.mkdir(parents=True, exist_ok=True)
+            tar.extractall(extract_to)
+        
+        # Find vendor directory (should be first/only top-level directory)
+        extracted_items = list(extract_to.iterdir())
+        
+        if not extracted_items:
+            raise PackageValidationError("Package is empty")
+        
+        vendor_dir = None
+        for item in extracted_items:
+            if item.is_dir():
+                vendor_dir = item
+                break
+        
+        if not vendor_dir:
+            raise PackageValidationError("No vendor directory found in package")
+        
+        # Validate vendor.yaml exists
+        if validate:
+            vendor_yaml = vendor_dir / 'vendor.yaml'
+            if not vendor_yaml.exists():
+                logger.warning(f"vendor.yaml not found in {vendor_dir}, but continuing")
+            else:
+                logger.debug(f"Found vendor.yaml: {vendor_yaml}")
+        
+        logger.info(f"Extracted package to: {vendor_dir}")
+        return vendor_dir
+        
+    except tarfile.TarError as e:
+        raise PackageError(f"Failed to extract package: {e}") from e
+    except Exception as e:
+        raise PackageError(f"Unexpected error extracting package: {e}") from e
+
+
+def validate_package_structure(vendor_dir: Path) -> bool:
+    """Validate package structure matches expected format.
+    
+    Args:
+        vendor_dir: Path to vendor directory from extracted package
+        
+    Returns:
+        True if valid, raises PackageValidationError if not
+    """
+    # Check vendor.yaml exists
+    vendor_yaml = vendor_dir / 'vendor.yaml'
+    if not vendor_yaml.exists():
+        raise PackageValidationError("vendor.yaml not found")
+    
+    # Check vendor.yaml is valid YAML
+    try:
+        with open(vendor_yaml, 'r') as f:
+            vendor_data = yaml.safe_load(f)
+            if not isinstance(vendor_data, dict):
+                raise PackageValidationError("vendor.yaml is not a valid YAML dictionary")
+    except yaml.YAMLError as e:
+        raise PackageValidationError(f"Invalid vendor.yaml: {e}") from e
+    
+    # Check for at least one product directory
+    product_dirs = [d for d in vendor_dir.iterdir() if d.is_dir() and d.name != '__pycache__']
+    if not product_dirs:
+        raise PackageValidationError("No product directories found in package")
+    
+    logger.debug(f"Package structure validated: {len(product_dirs)} products found")
+    return True
+
+
+def install_package(
+    vendor_dir: Path,
+    target_dir: Path,
+    vendor_id: Optional[str] = None,
+    overwrite: bool = False,
+) -> Path:
+    """Install extracted package to templates directory.
+    
+    Args:
+        vendor_dir: Path to extracted vendor directory
+        target_dir: Target templates directory (typically default/)
+        vendor_id: Expected vendor ID (for validation)
+        overwrite: Whether to overwrite existing vendor directory
+        
+    Returns:
+        Path to installed vendor directory
+        
+    Raises:
+        PackageInstallError: If installation fails
+    """
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Determine vendor ID from directory name if not provided
+    if vendor_id is None:
+        vendor_id = vendor_dir.name
+    
+    installed_dir = target_dir / vendor_id
+    
+    # Check if vendor already exists
+    if installed_dir.exists() and not overwrite:
+        raise PackageInstallError(
+            f"Vendor directory already exists: {installed_dir}. "
+            "Use overwrite=True to replace it."
+        )
+    
+    # Backup existing directory if overwriting
+    if installed_dir.exists() and overwrite:
+        backup_dir = installed_dir.with_suffix(f'.backup.{int(Path.cwd().stat().st_mtime)}')
+        logger.info(f"Backing up existing directory to: {backup_dir}")
+        shutil.move(str(installed_dir), str(backup_dir))
+    
+    try:
+        # Copy vendor directory to target
+        logger.info(f"Installing vendor package to: {installed_dir}")
+        shutil.copytree(vendor_dir, installed_dir, dirs_exist_ok=True)
+        
+        logger.info(f"Package installed successfully: {installed_dir}")
+        return installed_dir
+        
+    except shutil.Error as e:
+        raise PackageInstallError(f"Failed to copy vendor directory: {e}") from e
+    except Exception as e:
+        raise PackageInstallError(f"Unexpected error installing package: {e}") from e
+
+
+def get_local_collection_version(
+    vendor_id: str,
+    product_id: str,
+    templates_path: Path,
+) -> Optional[str]:
+    """Get collection version from local template installation.
+    
+    Args:
+        vendor_id: Vendor identifier
+        product_id: Product identifier
+        templates_path: Base templates path (containing default/ or custom/)
+        
+    Returns:
+        Collection version string or None if not found
+    """
+    # Try default/ first
+    for location in ['default', 'custom']:
+        product_dir = templates_path / location / vendor_id / product_id
+        collection_json = product_dir / 'collection.json'
+        
+        if collection_json.exists():
+            try:
+                with open(collection_json, 'r') as f:
+                    collection_data = json.load(f)
+                    version = collection_data.get('version')
+                    if version:
+                        return str(version)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.debug(f"Failed to read collection.json: {e}")
+                continue
+    
+    return None
+
+
+def download_and_install_vendor(
+    client: CommunityAPIClient,
+    vendor_id: str,
+    target_dir: Path,
+    temp_dir: Optional[Path] = None,
+    overwrite: bool = False,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+) -> Path:
+    """Download vendor package and install it.
+    
+    Args:
+        client: CommunityAPIClient instance
+        vendor_id: Vendor identifier
+        target_dir: Target templates directory (typically default/)
+        temp_dir: Temporary directory for downloads (None = system temp)
+        overwrite: Whether to overwrite existing installation
+        progress_callback: Optional callback for download progress
+        
+    Returns:
+        Path to installed vendor directory
+        
+    Raises:
+        CommunityAPIError: If download fails
+        PackageError: If extraction/installation fails
+    """
+    # Create temporary directory for download if not provided
+    if temp_dir is None:
+        temp_dir = Path(tempfile.mkdtemp(prefix='logforge-package-'))
+        cleanup_temp = True
+    else:
+        temp_dir = Path(temp_dir)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        cleanup_temp = False
+    
+    package_path = temp_dir / f"{vendor_id}.forge"
+    
+    try:
+        # Download package
+        client.download_vendor_package(
+            vendor_id,
+            package_path,
+            progress_callback=progress_callback
+        )
+        
+        # Extract package
+        extract_to = temp_dir / 'extracted'
+        vendor_dir = extract_forge_package(package_path, extract_to, validate=True)
+        
+        # Validate package structure
+        validate_package_structure(vendor_dir)
+        
+        # Install package
+        installed_dir = install_package(
+            vendor_dir,
+            target_dir,
+            vendor_id=vendor_id,
+            overwrite=overwrite
+        )
+        
+        return installed_dir
+        
+    finally:
+        # Cleanup temporary files
+        if cleanup_temp and temp_dir.exists():
+            logger.debug(f"Cleaning up temporary directory: {temp_dir}")
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
