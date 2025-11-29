@@ -10,6 +10,7 @@ from rich.syntax import Syntax
 
 from logforge.core.config import create_default_config, load_config
 from logforge.core.paths import get_config_path, get_logforge_home
+from logforge.cli.config_editor import config_editor
 
 app = typer.Typer(name="config", help="Configuration management")
 console = Console()
@@ -73,4 +74,13 @@ def config_validate(
     except Exception as e:
         console.print(f"[red]✗ Configuration validation failed: {e}[/red]")
         raise typer.Exit(code=1)
+
+
+@app.command("edit")
+def config_edit(
+    section: Optional[str] = typer.Option(None, "--section", help="Edit specific section (outputs, generators, api, engine, logging)"),
+    new: bool = typer.Option(False, "--new", help="Start with fresh default config instead of loading existing"),
+) -> None:
+    """Interactive configuration editor assistant."""
+    config_editor(section=section, edit_existing=not new)
 

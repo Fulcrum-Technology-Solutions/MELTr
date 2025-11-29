@@ -253,12 +253,51 @@ def entities_add(
     entity_type: Literal["user", "device", "service"] = typer.Argument(..., help="Type of entity to add"),
 ) -> None:
     """Interactively add a new entity."""
-    from rich.prompt import Prompt
+    from logforge.cli.entities_editor import (
+        _create_user_interactive,
+        _create_device_interactive,
+        _create_service_interactive,
+    )
+    from logforge.entities.storage import EntityStorage
     
-    console.print(f"[yellow]Interactive entity addition not yet fully implemented[/yellow]")
-    console.print(f"[dim]For now, edit entities.yaml directly or use 'logforge entities import'[/dim]")
+    storage = EntityStorage()
     
-    # TODO: Implement interactive prompts for adding entities
-    # This would use rich.prompt to collect all required fields
-    # Then validate and add to registry via API
+    try:
+        data = storage.load(strict=False)
+    except FileNotFoundError:
+        from logforge.cli.entities_editor import _create_default_entities_structure
+        data = _create_default_entities_structure()
+    
+    if entity_type == "user":
+        new_entity = _create_user_interactive(data.get('users', []))
+        if new_entity:
+            data.setdefault('users', []).append(new_entity)
+    elif entity_type == "device":
+        new_entity = _create_device_interactive(data.get('devices', []))
+        if new_entity:
+            data.setdefault('devices', []).append(new_entity)
+    elif entity_type == "service":
+        new_entity = _create_service_interactive(data.get('services', []))
+        if new_entity:
+            data.setdefault('services', []).append(new_entity)
+    
+    if new_entity:
+        try:
+            from logforge.entities.validator import validate_entities
+            validate_entities(data)
+            storage.save(data)
+            console.print(f"[green]✓ {entity_type.capitalize()} added successfully[/green]")
+        except ValueError as e:
+            console.print(f"[red]Validation failed: {e}[/red]")
+            raise typer.Exit(code=1)
+        except Exception as e:
+            console.print(f"[red]Error saving: {e}[/red]")
+            raise typer.Exit(code=1)
+
+
+@app.command("edit")
+def entities_edit() -> None:
+    """Interactive entity registry editor."""
+    from logforge.cli.entities_editor import entities_editor
+    entities_editor()
 

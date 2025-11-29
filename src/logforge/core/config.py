@@ -145,12 +145,15 @@ class FrequencyConfig(BaseModel):
 
 
 class GeneratorConfig(BaseModel):
-    """Generator definition."""
+    """Generator definition.
+    
+    Note: Frequency is read from template metadata (.meta.yaml), not from config.
+    Customize frequency by copying template to custom/ directory and modifying .meta.yaml.
+    """
     
     name: str = Field(description="Generator name")
     template: str = Field(description="Template ID")
     enabled: bool = Field(default=True, description="Generator enabled")
-    frequency: FrequencyConfig = Field(description="Frequency configuration")
     outputs: List[str] = Field(description="Output destination names")
 
 

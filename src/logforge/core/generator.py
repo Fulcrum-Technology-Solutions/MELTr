@@ -7,7 +7,6 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from logforge.core.config import GeneratorConfig
-from logforge.core.frequency import calculate_rate
 from logforge.entities.registry import EntityRegistry
 from logforge.outputs.base import OutputHandler
 from logforge.templates.loader import TemplateLoader
@@ -226,9 +225,14 @@ class Generator:
                 iteration += 1
                 logger.info(f"Generator {self.name}: Loop iteration {iteration} (stop_event={self._stop_event.is_set()})")
                 
-                # Calculate current rate
-                logger.debug(f"Generator {self.name}: Calculating rate from frequency config...")
-                rate = calculate_rate(self.config.frequency)
+                # Calculate current rate from template metadata
+                logger.debug(f"Generator {self.name}: Calculating rate from template metadata...")
+                if not self._template_info or not self._template_info.metadata:
+                    logger.error(f"Generator {self.name}: Template metadata not available")
+                    rate = 0.0
+                else:
+                    from logforge.core.frequency import calculate_rate_from_template_metadata
+                    rate = calculate_rate_from_template_metadata(self._template_info.metadata)
                 logger.info(f"Generator {self.name}: Calculated rate: {rate} events/sec")
                 
                 if rate <= 0:
@@ -376,7 +380,12 @@ class Generator:
             Dictionary with status information
         """
         stats = self.get_statistics()
-        current_rate = calculate_rate(self.config.frequency) if self.state == GeneratorState.RUNNING else 0
+        # Calculate current rate from template metadata
+        if self.state == GeneratorState.RUNNING and self._template_info and self._template_info.metadata:
+            from logforge.core.frequency import calculate_rate_from_template_metadata
+            current_rate = calculate_rate_from_template_metadata(self._template_info.metadata)
+        else:
+            current_rate = 0.0
         
         # Get output handler statistics
         output_stats = []
@@ -406,8 +415,9 @@ class Generator:
             "template": self.config.template,
             "enabled": self.config.enabled,
             "frequency": {
-                "base_rate": self.config.frequency.base_rate,
+                "base_rate": self._template_info.metadata.base_frequency / 3600.0 if (self._template_info and self._template_info.metadata and self._template_info.metadata.base_frequency) else 0.0,
                 "current_rate": current_rate,
+                "source": "template_metadata",
             },
             "outputs": [handler.name for handler in self.output_handlers if hasattr(handler, 'name')],
             "output_status": output_stats,

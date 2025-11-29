@@ -124,20 +124,16 @@ generators:
   # - name: windows-login-success
   #   template: microsoft/windows/system/clop_persistence
   #   enabled: true
-  #   frequency:
-  #     base_rate: 0.1  # 0.1 events per second = ~6 events per minute
-  #     variation:
-  #       - days: [1, 2, 3, 4, 5]  # Monday-Friday
-  #         time: "09:00-17:00"
-  #         multiplier: 2.0  # Double rate during business hours
+  #   # Frequency is read from template metadata (.meta.yaml)
+  #   # To customize, copy template to custom/ directory and edit .meta.yaml
   #   outputs:
   #     - file-output
   
   # - name: paloalto-wildfire-threats
   #   template: paloalto/wildfire/threats/wildfire_threat_detected
   #   enabled: true
-  #   frequency:
-  #     base_rate: 0.01  # 0.01 events per second = ~1 event per 100 seconds
+  #   # Frequency is read from template metadata (.meta.yaml)
+  #   # To customize, copy template to custom/ directory and edit .meta.yaml
   #   outputs:
   #     - file-output
 
