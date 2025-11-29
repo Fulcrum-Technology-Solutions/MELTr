@@ -153,6 +153,17 @@ class EntityRegistry:
             return contacts.get(role)
         return None
     
+    def get_organization_timezone(self) -> str:
+        """Get organization timezone.
+        
+        Returns:
+            Timezone string (e.g., 'America/New_York') or 'UTC' if not specified
+        """
+        timezone = self.get_organization_field('timezone')
+        if timezone and isinstance(timezone, str):
+            return timezone
+        return 'UTC'
+    
     def get_random_user(self) -> Optional[Dict[str, Any]]:
         """Get random user from registry.
         

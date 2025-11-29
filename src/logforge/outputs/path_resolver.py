@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
 
 from logforge.core.paths import get_logforge_home
 from logforge.utils.logging import get_logger
@@ -21,6 +22,7 @@ class PathTemplateContext:
         output_name: str,
         template_metadata: Optional[Dict[str, Any]] = None,
         organization_name: Optional[str] = None,
+        timezone: str = 'UTC',
     ) -> None:
         """Initialize path template context.
         
@@ -29,12 +31,20 @@ class PathTemplateContext:
             output_name: Output handler name
             template_metadata: Template metadata dict (vendor, product, data_source, etc.)
             organization_name: Organization name from entity registry
+            timezone: Timezone string (e.g., 'America/New_York'). Defaults to UTC.
         """
         self.generator_name = generator_name
         self.output_name = output_name
         self.template_metadata = template_metadata or {}
         self.organization_name = organization_name
-        self._now = datetime.now()
+        
+        # Get current time in specified timezone
+        try:
+            tz = ZoneInfo(timezone)
+        except Exception:
+            # Invalid timezone, fall back to UTC
+            tz = ZoneInfo('UTC')
+        self._now = datetime.now(tz)
     
     def get_variables(self) -> Dict[str, str]:
         """Get all available template variables.

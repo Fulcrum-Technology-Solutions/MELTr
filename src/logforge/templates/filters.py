@@ -3,18 +3,23 @@
 import random
 import uuid
 from datetime import datetime
-from typing import Any, List
+from typing import Any, List, Optional
+from zoneinfo import ZoneInfo
 
 from jinja2 import Environment
 
 
-def now() -> datetime:
-    """Get current timestamp.
+def now(timezone: Optional[str] = None) -> datetime:
+    """Get current timestamp in specified timezone.
+    
+    Args:
+        timezone: Timezone string (e.g., 'America/New_York'). Defaults to UTC.
     
     Returns:
-        Current datetime object
+        Current datetime object in specified timezone
     """
-    return datetime.utcnow()
+    tz = ZoneInfo(timezone) if timezone else ZoneInfo('UTC')
+    return datetime.now(tz)
 
 
 def format_datetime(dt: datetime, format_str: str = '%Y-%m-%dT%H:%M:%S.%fZ') -> str:

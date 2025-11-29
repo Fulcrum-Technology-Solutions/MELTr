@@ -8,6 +8,7 @@ import threading
 import time
 from datetime import datetime
 from typing import Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -80,6 +81,7 @@ class HTTPOutputHandler(OutputHandler):
         self._last_error_message: Optional[str] = None
         self._last_error_type: Optional[str] = None
         self._periodic_stats_time = time.time()
+        self.timezone: str = 'UTC'  # Default timezone, can be set via set_template_context
     
     def _substitute_env_vars(self, headers: Dict[str, str]) -> Dict[str, str]:
         """Substitute environment variables in header values.
@@ -634,11 +636,11 @@ class HTTPOutputHandler(OutputHandler):
             "total_bytes_sent": total_bytes_sent,
             "average_response_time_ms": round(avg_response_time, 2) if avg_response_time else None,
             "last_success_time": (
-                datetime.utcfromtimestamp(last_success_time).isoformat() + "Z"
+                datetime.fromtimestamp(last_success_time, ZoneInfo(self.timezone)).isoformat()
                 if last_success_time else None
             ),
             "last_failure_time": (
-                datetime.utcfromtimestamp(last_failure_time).isoformat() + "Z"
+                datetime.fromtimestamp(last_failure_time, ZoneInfo(self.timezone)).isoformat()
                 if last_failure_time else None
             ),
             "last_error_message": last_error_message,
@@ -667,6 +669,26 @@ class HTTPOutputHandler(OutputHandler):
                 f"avg_latency={stats['average_response_time_ms']}ms, "
                 f"health={stats['health_status']}"
             )
+    
+    def set_template_context(
+        self,
+        generator_name: str,
+        output_name: str,
+        template_metadata: Optional[Dict[str, Any]] = None,
+        organization_name: Optional[str] = None,
+        timezone: Optional[str] = None,
+    ) -> None:
+        """Set template context (including timezone) for HTTP handler.
+        
+        Args:
+            generator_name: Generator name (unused for HTTP)
+            output_name: Output handler name (unused for HTTP)
+            template_metadata: Template metadata dict (unused for HTTP)
+            organization_name: Organization name (unused for HTTP)
+            timezone: Timezone string (e.g., 'America/New_York'). Updates handler timezone.
+        """
+        if timezone:
+            self.timezone = timezone
     
     def close(self) -> None:
         """Close handler and flush remaining batches."""

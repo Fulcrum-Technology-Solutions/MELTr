@@ -3,7 +3,8 @@
 import socket
 import threading
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from logforge.core.config import OutputDefinition
 from logforge.outputs.base import OutputHandler
@@ -38,6 +39,7 @@ class SyslogOutputHandler(OutputHandler):
         facility: str = "local0",
         severity: str = "info",
         format: str = "rfc5424",
+        timezone: str = 'UTC',
     ) -> None:
         """Initialize syslog output handler.
         
@@ -49,6 +51,7 @@ class SyslogOutputHandler(OutputHandler):
             facility: Syslog facility
             severity: Syslog severity
             format: Format ('rfc5424' or 'rfc3164')
+            timezone: Timezone string (e.g., 'America/New_York'). Defaults to UTC.
         """
         super().__init__(name)
         self.host = host
@@ -57,6 +60,7 @@ class SyslogOutputHandler(OutputHandler):
         self.facility = facility.lower()
         self.severity = severity.lower()
         self.format = format.lower()
+        self.timezone = timezone
         
         # Validate
         if self.facility not in FACILITIES:
@@ -75,11 +79,12 @@ class SyslogOutputHandler(OutputHandler):
         self._hostname = socket.gethostname()
     
     @classmethod
-    def from_config(cls, definition: OutputDefinition) -> 'SyslogOutputHandler':
+    def from_config(cls, definition: OutputDefinition, timezone: str = 'UTC') -> 'SyslogOutputHandler':
         """Create handler from output definition.
         
         Args:
             definition: Output definition
+            timezone: Timezone string (e.g., 'America/New_York'). Defaults to UTC.
             
         Returns:
             SyslogOutputHandler instance
@@ -95,7 +100,28 @@ class SyslogOutputHandler(OutputHandler):
             facility=definition.facility or "local0",
             severity=definition.severity or "info",
             format=definition.format or "rfc5424",
+            timezone=timezone,
         )
+    
+    def set_template_context(
+        self,
+        generator_name: str,
+        output_name: str,
+        template_metadata: Optional[Dict[str, Any]] = None,
+        organization_name: Optional[str] = None,
+        timezone: Optional[str] = None,
+    ) -> None:
+        """Set template context (including timezone) for syslog handler.
+        
+        Args:
+            generator_name: Generator name
+            output_name: Output handler name
+            template_metadata: Template metadata dict (unused for syslog)
+            organization_name: Organization name (unused for syslog)
+            timezone: Timezone string (e.g., 'America/New_York'). Updates handler timezone.
+        """
+        if timezone:
+            self.timezone = timezone
     
     def _get_socket(self) -> socket.socket:
         """Get or create socket.
@@ -127,8 +153,17 @@ class SyslogOutputHandler(OutputHandler):
         Returns:
             RFC 5424 formatted syslog message
         """
-        now = datetime.utcnow()
-        timestamp = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+        # Get current time in configured timezone
+        try:
+            tz = ZoneInfo(self.timezone)
+        except Exception:
+            tz = ZoneInfo('UTC')
+        now = datetime.now(tz)
+        
+        # RFC 5424 requires UTC timestamp with 'Z' suffix
+        # Convert to UTC for RFC 5424 compliance
+        now_utc = now.astimezone(ZoneInfo('UTC'))
+        timestamp = now_utc.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
         
         # RFC 5424 format: <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
         return (
@@ -144,7 +179,12 @@ class SyslogOutputHandler(OutputHandler):
         Returns:
             RFC 3164 formatted syslog message
         """
-        now = datetime.now()
+        # Get current time in configured timezone
+        try:
+            tz = ZoneInfo(self.timezone)
+        except Exception:
+            tz = ZoneInfo('UTC')
+        now = datetime.now(tz)
         timestamp = now.strftime('%b %d %H:%M:%S')
         
         # RFC 3164 format: <PRI>TIMESTAMP HOSTNAME TAG: MSG

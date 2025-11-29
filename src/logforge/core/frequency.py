@@ -3,6 +3,7 @@
 import time
 from datetime import datetime
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from logforge.core.config import FrequencyConfig, FrequencyVariation
 from logforge.templates.metadata import TemplateMetadata
@@ -77,7 +78,7 @@ def _parse_time(time_str: str) -> time:
         return time(0, 0)
 
 
-def calculate_rate_from_template_metadata(metadata: TemplateMetadata) -> float:
+def calculate_rate_from_template_metadata(metadata: TemplateMetadata, timezone: str = 'UTC') -> float:
     """Calculate current event rate from template metadata.
     
     Uses base_frequency (events per hour), time_patterns, and multipliers
@@ -85,6 +86,7 @@ def calculate_rate_from_template_metadata(metadata: TemplateMetadata) -> float:
     
     Args:
         metadata: Template metadata with frequency information
+        timezone: Timezone string (e.g., 'America/New_York'). Defaults to UTC.
         
     Returns:
         Current rate in events per second
@@ -104,8 +106,14 @@ def calculate_rate_from_template_metadata(metadata: TemplateMetadata) -> float:
     if not metadata.time_patterns:
         return base_rate
     
-    # Get current time and day
-    now = datetime.now()
+    # Get current time and day in specified timezone
+    try:
+        tz = ZoneInfo(timezone)
+    except Exception:
+        # Invalid timezone, fall back to UTC
+        tz = ZoneInfo('UTC')
+    
+    now = datetime.now(tz)
     current_day = now.isoweekday()  # 1=Monday, 7=Sunday
     current_time = now.time()
     
