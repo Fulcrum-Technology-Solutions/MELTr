@@ -174,12 +174,14 @@ class Generator:
                     raise
             
             # Clear stop event (generation loop will be started by engine)
+            logger.info(f"Generator {self.name}: Clearing stop_event (was set={self._stop_event.is_set()})")
             self._stop_event.clear()
+            logger.info(f"Generator {self.name}: stop_event cleared, is_set={self._stop_event.is_set()}")
             
             # Transition to RUNNING after successful initialization
             if self._transition_to(GeneratorState.RUNNING):
                 self._start_time = time.time()
-                logger.info(f"Generator {self.name} initialized and ready")
+                logger.info(f"Generator {self.name} initialized and ready (stop_event={self._stop_event.is_set()})")
             else:
                 raise RuntimeError("Failed to transition to RUNNING state")
                 
@@ -217,27 +219,46 @@ class Generator:
     def _generate_loop(self) -> None:
         """Main generation loop."""
         logger.info(f"Generator {self.name}: Loop thread started!")
+        logger.info(f"Generator {self.name}: Stop event is_set={self._stop_event.is_set()}")
         try:
+            iteration = 0
             while not self._stop_event.is_set():
+                iteration += 1
+                logger.info(f"Generator {self.name}: Loop iteration {iteration} (stop_event={self._stop_event.is_set()})")
+                
                 # Calculate current rate
+                logger.debug(f"Generator {self.name}: Calculating rate from frequency config...")
                 rate = calculate_rate(self.config.frequency)
+                logger.info(f"Generator {self.name}: Calculated rate: {rate} events/sec")
                 
                 if rate <= 0:
                     # Sleep and continue if rate is 0
+                    logger.info(f"Generator {self.name}: Rate is 0 or negative, sleeping 1.0s")
                     time.sleep(1.0)
                     continue
                 
                 # Calculate sleep interval (events per second)
                 sleep_interval = 1.0 / rate
+                logger.info(f"Generator {self.name}: About to generate event, will sleep {sleep_interval:.3f}s after")
                 
                 # Generate event
                 try:
+                    logger.debug(f"Generator {self.name}: Calling _render_event()...")
                     event = self._render_event()
+                    logger.info(f"Generator {self.name}: Event generated ({len(event)} chars)" if event else "Generator {self.name}: Event generation returned None")
+                    
                     if event:
+                        logger.debug(f"Generator {self.name}: Writing event to {len(self.output_handlers)} output handler(s)...")
                         self._write_to_outputs(event)
+                        logger.debug(f"Generator {self.name}: Event written successfully")
+                        
                         with self._stats_lock:
                             self._events_generated += 1
                             self._last_event_time = time.time()
+                            logger.info(f"Generator {self.name}: Event #{self._events_generated} generated successfully")
+                    else:
+                        logger.warning(f"Generator {self.name}: _render_event() returned None, skipping output")
+                        
                 except Exception as e:
                     logger.error(f"Generator {self.name}: Error generating event: {e}", exc_info=True)
                     with self._stats_lock:
@@ -247,15 +268,21 @@ class Generator:
                     # Check if error should transition to ERROR state
                     # (template errors = ERROR, output errors = DEGRADED)
                     if "template" in str(e).lower() or "render" in str(e).lower():
+                        logger.error(f"Generator {self.name}: Template/render error, transitioning to ERROR state")
                         self._transition_to(GeneratorState.ERROR)
                         break
                     else:
                         # Output error - transition to DEGRADED
                         if self.state == GeneratorState.RUNNING:
+                            logger.warning(f"Generator {self.name}: Output error, transitioning to DEGRADED state")
                             self._transition_to(GeneratorState.DEGRADED)
                 
                 # Sleep to maintain rate
+                logger.debug(f"Generator {self.name}: Sleeping {sleep_interval:.3f}s before next iteration")
                 time.sleep(sleep_interval)
+                logger.debug(f"Generator {self.name}: Sleep completed, starting next iteration")
+            
+            logger.info(f"Generator {self.name}: Loop exited - stop_event is_set={self._stop_event.is_set()}")
         
         except Exception as e:
             logger.error(f"Generator {self.name}: Generation loop error: {e}", exc_info=True)
@@ -267,10 +294,20 @@ class Generator:
         Returns:
             Rendered event string or None on error
         """
+        logger.debug(f"Generator {self.name}: _render_event() called")
+        
         if not self._renderer or not self._template_content:
+            logger.error(f"Generator {self.name}: Renderer or template not initialized - renderer={self._renderer is not None}, template_content={self._template_content is not None}")
             raise RuntimeError("Renderer or template not initialized")
         
-        return self._renderer.render_string(self._template_content)
+        logger.debug(f"Generator {self.name}: Calling renderer.render_string()...")
+        try:
+            event = self._renderer.render_string(self._template_content)
+            logger.debug(f"Generator {self.name}: render_string() completed, returned {len(event) if event else 0} chars")
+            return event
+        except Exception as e:
+            logger.error(f"Generator {self.name}: render_string() raised exception: {e}", exc_info=True)
+            raise
     
     def _write_to_outputs(self, event: str) -> None:
         """Write event to all output handlers.
@@ -278,13 +315,20 @@ class Generator:
         Args:
             event: Event string to write
         """
-        for handler in self.output_handlers:
+        logger.debug(f"Generator {self.name}: _write_to_outputs() called with {len(self.output_handlers)} handler(s)")
+        
+        for i, handler in enumerate(self.output_handlers):
+            handler_name = getattr(handler, 'name', f'handler_{i}')
+            logger.debug(f"Generator {self.name}: Writing to output handler {i+1}/{len(self.output_handlers)}: {handler_name}")
             try:
                 handler.write(event)
+                logger.debug(f"Generator {self.name}: Successfully wrote to handler {handler_name}")
             except Exception as e:
-                logger.warning(f"Generator {self.name}: Output handler write failed: {e}")
+                logger.warning(f"Generator {self.name}: Output handler {handler_name} write failed: {e}", exc_info=True)
                 # Don't raise - let other handlers try
                 # State will transition to DEGRADED if all handlers fail
+        
+        logger.debug(f"Generator {self.name}: _write_to_outputs() completed")
     
     def _validate_entities_available(self) -> None:
         """Validate that entities are available for generation.
