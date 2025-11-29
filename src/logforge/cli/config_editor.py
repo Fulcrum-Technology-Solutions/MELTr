@@ -879,14 +879,76 @@ def _preview_config(config: Config) -> None:
 
 
 def _save_config(config: Config) -> bool:
-    """Save configuration with confirmation."""
+    """Save configuration with confirmation and automatic validation/application."""
     _preview_config(config)
     
     if not Confirm.ask("\n[yellow]Save this configuration?", default=True):
         return False
     
     try:
+        # Validate config before saving
+        from logforge.core.config import load_config
+        try:
+            # Try to create a Config object from the dict to validate
+            config_dict = config.model_dump(mode='json')
+            # Validate by attempting to create a new Config object
+            validated_config = Config(**config_dict)
+            console.print("[green]✓ Configuration validated[/green]")
+        except Exception as e:
+            console.print(f"[red]✗ Configuration validation failed: {e}[/red]")
+            if not Confirm.ask("[yellow]Save anyway? (not recommended)[/yellow]", default=False):
+                return False
+        
+        # Save to file
         save_config_file(config)
+        console.print("[green]✓ Configuration saved[/green]")
+        
+        # Try to apply changes automatically (if service is running)
+        try:
+            from logforge.cli.api_client import get_api_client
+            client = get_api_client()
+            
+            # Check if service is running
+            try:
+                health_response = client.get("/api/health", timeout=2.0)
+                if health_response.status_code == 200:
+                    # Service is running, apply changes
+                    console.print("[cyan]Applying configuration changes...[/cyan]")
+                    reload_response = client.post("/api/config/reload", timeout=30.0)
+                    reload_response.raise_for_status()
+                    reload_data = reload_response.json()
+                    
+                    results = reload_data.get("results", {})
+                    added = results.get("added", [])
+                    removed = results.get("removed", [])
+                    updated = results.get("updated", [])
+                    errors = results.get("errors", [])
+                    
+                    if added:
+                        console.print(f"[green]✓ Started {len(added)} new generator(s): {', '.join(added)}[/green]")
+                    if removed:
+                        console.print(f"[yellow]✓ Stopped {len(removed)} removed generator(s): {', '.join(removed)}[/yellow]")
+                    if updated:
+                        console.print(f"[cyan]✓ Updated {len(updated)} generator(s): {', '.join(updated)}[/cyan]")
+                    if errors:
+                        console.print(f"[red]⚠ Errors during reload:[/red]")
+                        for error in errors:
+                            console.print(f"  [red]- {error}[/red]")
+                    
+                    if not (added or removed or updated or errors):
+                        console.print("[green]✓ Configuration applied (no generator changes)[/green]")
+                    else:
+                        console.print("[green]✓ Configuration changes applied successfully![/green]")
+                else:
+                    console.print("[yellow]⚠ Service not running. Restart service to apply changes.[/yellow]")
+            except Exception:
+                # Service not running or not accessible
+                console.print("[yellow]⚠ Service not running. Restart service to apply changes.[/yellow]")
+        except Exception as e:
+            # API client not available or service not running
+            console.print(f"[yellow]⚠ Could not apply changes automatically: {e}[/yellow]")
+            console.print("[yellow]  Restart the service to apply configuration changes.[/yellow]")
+        
         return True
     except Exception as e:
         console.print(f"[red]Error saving config: {e}[/red]")

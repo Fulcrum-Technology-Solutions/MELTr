@@ -105,6 +105,165 @@ class Engine:
                 except Exception as e:
                     logger.error(f"Failed to load generator {gen_config.name}: {e}", exc_info=True)
     
+    def reload_config(self, new_config: Config) -> Dict[str, any]:
+        """Reload configuration and apply changes dynamically.
+        
+        Detects added/removed generators and starts/stops them accordingly.
+        Updates existing generators if their config changed.
+        
+        Args:
+            new_config: New configuration object
+            
+        Returns:
+            Dictionary with reload results (added, removed, updated, errors)
+        """
+        from logforge.core.config import Config
+        
+        results = {
+            "added": [],
+            "removed": [],
+            "updated": [],
+            "errors": [],
+        }
+        
+        # Update config reference
+        old_config = self.config
+        self.config = new_config
+        
+        # Update template cache config
+        self.template_cache.loader.config = new_config
+        
+        # Get current generator names
+        with self._generators_lock:
+            current_names = set(self._generators.keys())
+        
+        # Get new generator names from config
+        new_gen_configs = {gen.name: gen for gen in new_config.generators}
+        new_names = set(new_gen_configs.keys())
+        
+        # Find removed generators
+        removed_names = current_names - new_names
+        for name in removed_names:
+            try:
+                logger.info(f"Stopping removed generator: {name}")
+                self.stop_generator(name)
+                with self._generators_lock:
+                    if name in self._generators:
+                        del self._generators[name]
+                    self._generator_futures.pop(name, None)
+                results["removed"].append(name)
+            except Exception as e:
+                logger.error(f"Error removing generator {name}: {e}", exc_info=True)
+                results["errors"].append(f"Failed to remove {name}: {e}")
+        
+        # Find added generators
+        added_names = new_names - current_names
+        for name in added_names:
+            try:
+                gen_config = new_gen_configs[name]
+                logger.info(f"Adding new generator: {name}")
+                
+                # Validate template exists
+                template_info = self.template_cache.get_template(gen_config.template)
+                if not template_info:
+                    raise ValueError(f"Template not found: {gen_config.template}")
+                
+                # Create output handlers
+                output_handlers = create_output_handlers(
+                    gen_config.outputs,
+                    new_config.outputs.definitions,
+                    retry_config=new_config.outputs.retry,
+                    buffer_size=new_config.outputs.buffer_size,
+                )
+                
+                # Create generator
+                generator = Generator(
+                    name=gen_config.name,
+                    config=gen_config,
+                    template_loader=TemplateLoader(new_config),
+                    registry=self.registry,
+                    output_handlers=output_handlers,
+                )
+                
+                with self._generators_lock:
+                    self._generators[name] = generator
+                
+                # Start if enabled
+                if gen_config.enabled:
+                    logger.info(f"Starting newly added generator: {name}")
+                    self.start_generator(name)
+                
+                results["added"].append(name)
+            except Exception as e:
+                logger.error(f"Error adding generator {name}: {e}", exc_info=True)
+                results["errors"].append(f"Failed to add {name}: {e}")
+        
+        # Check for updated generators (config changed)
+        updated_names = current_names & new_names
+        for name in updated_names:
+            try:
+                old_gen = None
+                with self._generators_lock:
+                    old_gen = self._generators.get(name)
+                
+                if not old_gen:
+                    continue
+                
+                new_gen_config = new_gen_configs[name]
+                
+                # Check if config changed (simple comparison)
+                old_config_dict = old_gen.config.model_dump()
+                new_config_dict = new_gen_config.model_dump()
+                
+                if old_config_dict != new_config_dict:
+                    logger.info(f"Updating generator config: {name}")
+                    
+                    # Stop if running
+                    was_running = old_gen.state in (GeneratorState.RUNNING, GeneratorState.STARTING)
+                    if was_running:
+                        self.stop_generator(name)
+                    
+                    # Recreate generator with new config
+                    template_info = self.template_cache.get_template(new_gen_config.template)
+                    if not template_info:
+                        raise ValueError(f"Template not found: {new_gen_config.template}")
+                    
+                    output_handlers = create_output_handlers(
+                        new_gen_config.outputs,
+                        new_config.outputs.definitions,
+                        retry_config=new_config.outputs.retry,
+                        buffer_size=new_config.outputs.buffer_size,
+                    )
+                    
+                    new_generator = Generator(
+                        name=new_gen_config.name,
+                        config=new_gen_config,
+                        template_loader=TemplateLoader(new_config),
+                        registry=self.registry,
+                        output_handlers=output_handlers,
+                    )
+                    
+                    with self._generators_lock:
+                        self._generators[name] = new_generator
+                        self._generator_futures.pop(name, None)
+                    
+                    # Restart if it was running or if enabled
+                    if was_running or new_gen_config.enabled:
+                        logger.info(f"Restarting updated generator: {name}")
+                        self.start_generator(name)
+                    
+                    results["updated"].append(name)
+            except Exception as e:
+                logger.error(f"Error updating generator {name}: {e}", exc_info=True)
+                results["errors"].append(f"Failed to update {name}: {e}")
+        
+        logger.info(
+            f"Config reloaded: {len(results['added'])} added, "
+            f"{len(results['removed'])} removed, {len(results['updated'])} updated"
+        )
+        
+        return results
+    
     def start_generator(self, name: str) -> None:
         """Start a generator.
         

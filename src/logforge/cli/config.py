@@ -84,3 +84,52 @@ def config_edit(
     """Interactive configuration editor assistant."""
     config_editor(section=section, edit_existing=not new)
 
+
+@app.command("reload")
+def config_reload(
+    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
+) -> None:
+    """Reload configuration from disk and apply changes.
+    
+    Use this after editing config.yaml directly. Detects and applies:
+    - Added generators (starts if enabled)
+    - Removed generators (stops and removes)
+    - Updated generators (restarts if was running)
+    """
+    from logforge.cli.api_client import get_api_client
+    
+    client = get_api_client(api_url, api_key)
+    client.require_service_running()
+    
+    try:
+        console.print("[cyan]Reloading configuration...[/cyan]")
+        response = client.post("/api/config/reload", timeout=30.0)
+        response.raise_for_status()
+        data = response.json()
+        
+        results = data.get("results", {})
+        added = results.get("added", [])
+        removed = results.get("removed", [])
+        updated = results.get("updated", [])
+        errors = results.get("errors", [])
+        
+        if added:
+            console.print(f"[green]✓ Started {len(added)} new generator(s): {', '.join(added)}[/green]")
+        if removed:
+            console.print(f"[yellow]✓ Stopped {len(removed)} removed generator(s): {', '.join(removed)}[/yellow]")
+        if updated:
+            console.print(f"[cyan]✓ Updated {len(updated)} generator(s): {', '.join(updated)}[/cyan]")
+        if errors:
+            console.print(f"[red]⚠ Errors during reload:[/red]")
+            for error in errors:
+                console.print(f"  [red]- {error}[/red]")
+        
+        if not (added or removed or updated or errors):
+            console.print("[green]✓ Configuration reloaded (no generator changes)[/green]")
+        else:
+            console.print("[green]✓ Configuration reloaded successfully![/green]")
+    except Exception as e:
+        console.print(f"[red]Error reloading config: {e}[/red]")
+        raise typer.Exit(code=1)
+
