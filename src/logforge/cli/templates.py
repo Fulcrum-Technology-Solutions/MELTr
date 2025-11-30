@@ -269,7 +269,7 @@ def templates_revert(
 
 @app.command("search")
 def templates_search(
-    query: Optional[str] = typer.Argument(None, help="Search query (optional if filters provided)"),
+    query: Optional[str] = typer.Argument(None, help="Search query (omit to browse all templates)"),
     vendor: Optional[str] = typer.Option(None, "--vendor", help="Filter by vendor"),
     product: Optional[str] = typer.Option(None, "--product", help="Filter by product"),
     api_url: Optional[str] = typer.Option(
@@ -279,14 +279,9 @@ def templates_search(
         help="Community API URL"
     ),
     page: int = typer.Option(1, "--page", help="Page number"),
-    page_size: int = typer.Option(10, "--page-size", help="Results per page"),
+    page_size: int = typer.Option(20, "--page-size", help="Results per page"),
 ) -> None:
-    """Search templates from community registry."""
-    # Validate that either query or filters are provided
-    if not query and not vendor and not product:
-        console.print("[red]Error: Must provide either a search query or filter options (--vendor, --product)[/red]")
-        raise typer.Exit(code=1)
-    
+    """Search or browse templates from community registry."""
     try:
         # Get API URL from config or parameter
         if api_url is None:
@@ -299,16 +294,17 @@ def templates_search(
         # Display search/filter info
         if query:
             console.print(f"[dim]Searching for: {query}[/dim]")
-        else:
-            # Must have vendor or product filter (validated above)
+        elif vendor or product:
             filters = []
             if vendor:
                 filters.append(f"vendor={vendor}")
             if product:
                 filters.append(f"product={product}")
             console.print(f"[dim]Filtering: {', '.join(filters)}[/dim]")
+        else:
+            console.print(f"[dim]Browsing all templates (page {page})[/dim]")
         
-        # Search templates
+        # Search/browse templates
         result = client.search_templates(
             query=query,
             vendor_id=vendor,
@@ -360,8 +356,117 @@ def templates_search(
             console.print()
         
         if total > page_size:
-            console.print(f"[dim]Showing page {page} of {(total + page_size - 1) // page_size}[/dim]")
-            console.print(f"[dim]Use --page to see more results[/dim]")
+            total_pages = (total + page_size - 1) // page_size
+            console.print(f"[dim]Showing page {page} of {total_pages}[/dim]")
+            if page < total_pages:
+                console.print(f"[dim]Use --page {page + 1} to see more results[/dim]")
+    
+    except CommunityAPIRateLimitError as e:
+        console.print(f"[red]Rate limit exceeded: {e}[/red]")
+        raise typer.Exit(code=1)
+    except CommunityAPIError as e:
+        console.print(f"[red]API error: {e}[/red]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]", exc_info=True)
+        raise typer.Exit(code=1)
+
+
+@app.command("browse")
+def templates_browse(
+    vendor: Optional[str] = typer.Option(None, "--vendor", help="Browse templates for specific vendor"),
+    api_url: Optional[str] = typer.Option(
+        None,
+        "--api-url",
+        envvar="LOGFORGE_COMMUNITY_API_URL",
+        help="Community API URL"
+    ),
+    page: int = typer.Option(1, "--page", help="Page number"),
+    page_size: int = typer.Option(20, "--page-size", help="Results per page"),
+) -> None:
+    """Browse community templates hierarchically (vendors → products → templates)."""
+    try:
+        # Get API URL from config or parameter
+        if api_url is None:
+            config = load_config()
+            api_url = config.templates.community_api_url
+        
+        client = CommunityAPIClient(base_url=api_url)
+        
+        if vendor:
+            # Show vendor detail with all products
+            console.print(f"[dim]Browsing vendor: {vendor}[/dim]\n")
+            
+            try:
+                vendor_info = client.get_vendor_detail(vendor)
+                vendor_name = vendor_info.get('vendor', vendor)
+                vendor_desc = vendor_info.get('description', '')
+                
+                console.print(f"[bold cyan]{vendor_name}[/bold cyan] ({vendor})")
+                if vendor_desc:
+                    console.print(f"[dim]{vendor_desc}[/dim]\n")
+                
+                products = vendor_info.get('products', [])
+                if not products:
+                    console.print("[yellow]No products found for this vendor[/yellow]")
+                    return
+                
+                # Get products detail
+                for product_id in products:
+                    try:
+                        product_info = client.get_product_detail(vendor, product_id)
+                        product_name = product_info.get('product', product_id)
+                        collection_version = product_info.get('collection_version', 'N/A')
+                        
+                        console.print(f"  [green]└─[/green] {product_name} (v{collection_version})")
+                        
+                        data_sources = product_info.get('data_sources', [])
+                        for ds_data in data_sources:
+                            ds_id = ds_data.get('data_source_id', 'unknown')
+                            ds_name = ds_data.get('name', ds_id)
+                            templates = ds_data.get('event_types', [])
+                            
+                            if templates:
+                                console.print(f"      [yellow]└─[/yellow] {ds_name} ({len(templates)} templates)")
+                                for template in templates[:5]:
+                                    template_name = template.get('name', template.get('event_type_id', 'unknown'))
+                                    console.print(f"          • {template_name}")
+                                if len(templates) > 5:
+                                    console.print(f"          ... and {len(templates) - 5} more")
+                        
+                        console.print()
+                    except CommunityAPINotFoundError:
+                        continue
+                    except Exception as e:
+                        console.print(f"[yellow]Warning: Failed to load product {product_id}: {e}[/yellow]")
+                        continue
+                        
+            except CommunityAPINotFoundError:
+                console.print(f"[red]Error: Vendor '{vendor}' not found[/red]")
+                raise typer.Exit(code=1)
+        else:
+            # List all vendors
+            console.print("[dim]Browsing all vendors[/dim]\n")
+            
+            vendors = client.get_vendors()
+            
+            if not vendors:
+                console.print("[yellow]No vendors found[/yellow]")
+                return
+            
+            console.print(f"[bold]Available Vendors ({len(vendors)}):[/bold]\n")
+            
+            for vendor_data in vendors:
+                vendor_id = vendor_data.get('id', 'unknown')
+                vendor_name = vendor_data.get('vendor', vendor_id)
+                vendor_desc = vendor_data.get('description', '')
+                products_count = len(vendor_data.get('products', []))
+                
+                console.print(f"[cyan]{vendor_name}[/cyan] ([dim]{vendor_id}[/dim])")
+                if vendor_desc:
+                    console.print(f"  [dim]{vendor_desc[:80]}{'...' if len(vendor_desc) > 80 else ''}[/dim]")
+                console.print(f"  [green]{products_count} product(s) available[/green]")
+                console.print(f"  [dim]Use: logforge templates browse --vendor {vendor_id}[/dim]\n")
     
     except CommunityAPIRateLimitError as e:
         console.print(f"[red]Rate limit exceeded: {e}[/red]")
@@ -376,8 +481,9 @@ def templates_search(
 
 @app.command("install")
 def templates_install(
-    template_or_vendor: str = typer.Argument(..., help="Template ID or vendor ID to install"),
+    template_or_vendor: Optional[str] = typer.Argument(None, help="Template ID or vendor ID to install"),
     vendor: bool = typer.Option(False, "--vendor", help="Install all templates from vendor"),
+    list_vendors: bool = typer.Option(False, "--list-vendors", help="List available vendors to install"),
     api_url: Optional[str] = typer.Option(
         None,
         "--api-url",
@@ -389,6 +495,46 @@ def templates_install(
 ) -> None:
     """Install templates from community registry or local package."""
     try:
+        # Get API URL from config or parameter
+        if api_url is None:
+            config = load_config()
+            api_url = config.templates.community_api_url
+        
+        client = CommunityAPIClient(base_url=api_url)
+        
+        # Handle --list-vendors option
+        if list_vendors:
+            console.print("[cyan]Available Vendors:[/cyan]\n")
+            
+            try:
+                vendors = client.get_vendors()
+                
+                if not vendors:
+                    console.print("[yellow]No vendors found in registry[/yellow]")
+                    return
+                
+                for vendor_data in vendors:
+                    vendor_id = vendor_data.get('id', 'unknown')
+                    vendor_name = vendor_data.get('vendor', vendor_id)
+                    products = vendor_data.get('products', [])
+                    product_count = len(products)
+                    
+                    console.print(f"[bold cyan]{vendor_name}[/bold cyan] ([dim]{vendor_id}[/dim])")
+                    console.print(f"  [green]{product_count} product(s)[/green]")
+                    console.print(f"  [dim]Install: logforge templates install {vendor_id} --vendor[/dim]\n")
+                
+                return
+            except CommunityAPIError as e:
+                console.print(f"[red]Error listing vendors: {e}[/red]")
+                raise typer.Exit(code=1)
+        
+        # Require template_or_vendor if not listing
+        if not template_or_vendor:
+            console.print("[red]Error: Must specify template/vendor ID or use --list-vendors[/red]")
+            console.print("[dim]Hint: Use 'logforge templates install --list-vendors' to see available vendors[/dim]")
+            raise typer.Exit(code=1)
+        
+        # Load config for paths
         config = load_config()
         templates_path = Path(config.templates.local_path)
         default_path = templates_path / 'default'
@@ -424,12 +570,6 @@ def templates_install(
                 return
         
         # Install from API
-        # Get API URL from config or parameter
-        if api_url is None:
-            api_url = config.templates.community_api_url
-        
-        client = CommunityAPIClient(base_url=api_url)
-        
         if vendor or '/' not in template_or_vendor:
             # Install vendor package
             vendor_id = template_or_vendor.lower()
@@ -658,6 +798,99 @@ def templates_update(
     except CommunityAPIError as e:
         console.print(f"[red]API error: {e}[/red]")
         raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]", exc_info=True)
+        raise typer.Exit(code=1)
+
+
+@app.command("compare")
+def templates_compare(
+    api_url: Optional[str] = typer.Option(
+        None,
+        "--api-url",
+        envvar="LOGFORGE_COMMUNITY_API_URL",
+        help="Community API URL"
+    ),
+) -> None:
+    """Compare local templates with remote registry (show installed, available, updates)."""
+    try:
+        config = load_config()
+        templates_path = Path(config.templates.local_path)
+        default_path = templates_path / 'default'
+        
+        # Get API URL from config or parameter
+        if api_url is None:
+            api_url = config.templates.community_api_url
+        
+        client = CommunityAPIClient(base_url=api_url)
+        
+        # Get local templates
+        loader = TemplateLoader(config)
+        local_templates = loader.discover_templates()
+        local_template_ids = set(local_templates.keys())
+        
+        # Get remote vendors
+        try:
+            remote_vendors = client.get_vendors()
+        except CommunityAPIError as e:
+            console.print(f"[red]Error fetching remote templates: {e}[/red]")
+            raise typer.Exit(code=1)
+        
+        # Build remote template set
+        remote_template_ids = set()
+        remote_vendor_products = {}
+        
+        for vendor_data in remote_vendors:
+            vendor_id = vendor_data.get('id')
+            products = vendor_data.get('products', [])
+            
+            for product_id in products:
+                try:
+                    product_info = client.get_product_detail(vendor_id, product_id)
+                    data_sources = product_info.get('data_sources', [])
+                    
+                    for ds_data in data_sources:
+                        templates = ds_data.get('event_types', [])
+                        for template in templates:
+                            template_id = template.get('id')
+                            if template_id:
+                                remote_template_ids.add(template_id)
+                    
+                    if vendor_id not in remote_vendor_products:
+                        remote_vendor_products[vendor_id] = set()
+                    remote_vendor_products[vendor_id].add(product_id)
+                except Exception:
+                    continue
+        
+        # Compare
+        only_local = local_template_ids - remote_template_ids
+        only_remote = remote_template_ids - local_template_ids
+        both = local_template_ids & remote_template_ids
+        
+        console.print(f"\n[bold]Template Comparison[/bold]\n")
+        console.print(f"  [green]Installed locally:[/green] {len(local_template_ids)} templates")
+        console.print(f"  [cyan]Available remotely:[/cyan] {len(remote_template_ids)} templates")
+        console.print(f"  [yellow]Installed & up to date:[/yellow] {len(both)} templates")
+        
+        if only_local:
+            console.print(f"\n[dim]Templates installed locally but not in registry ({len(only_local)}):[/dim]")
+            for tid in sorted(list(only_local))[:10]:
+                console.print(f"  • {tid}")
+            if len(only_local) > 10:
+                console.print(f"  ... and {len(only_local) - 10} more")
+        
+        if only_remote:
+            console.print(f"\n[dim]Templates available remotely but not installed ({len(only_remote)}):[/dim]")
+            console.print(f"  [dim]Use 'logforge templates search' or 'logforge templates browse' to discover them[/dim]")
+        
+        # Check for vendors installed locally
+        if default_path.exists():
+            local_vendors = {d.name for d in default_path.iterdir() if d.is_dir() and not d.name.startswith('.')}
+            console.print(f"\n[bold]Installed Vendors:[/bold] {', '.join(sorted(local_vendors))}")
+        
+        console.print(f"\n[bold]Available Vendors in Registry:[/bold] {', '.join(sorted(remote_vendor_products.keys()))}")
+        console.print(f"\n[dim]Use 'logforge templates update' to check for updates[/dim]")
+    
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]", exc_info=True)
         raise typer.Exit(code=1)
