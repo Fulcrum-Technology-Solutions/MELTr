@@ -740,7 +740,23 @@ def _edit_generator_interactive(config: Config) -> Config:
         
         try:
             indices = [int(x.strip()) - 1 for x in output_choices.split(",")]
-            gen.outputs = [config.outputs.definitions[i].name for i in indices if 0 <= i < len(config.outputs.definitions)]
+            selected_outputs = [config.outputs.definitions[i] for i in indices if 0 <= i < len(config.outputs.definitions)]
+            gen.outputs = [output.name for output in selected_outputs]
+            
+            # Configure metadata for HTTP outputs
+            http_outputs = [output for output in selected_outputs if output.type == "http"]
+            if http_outputs:
+                console.print("\n[bold]HTTP Output Metadata Configuration[/bold]")
+                for output in http_outputs:
+                    current_setting = "enabled" if output.include_metadata else "disabled"
+                    console.print(f"\n[cyan]{output.name}[/cyan] (current: {current_setting})")
+                    if Confirm.ask(
+                        f"  Include logforge_metadata wrapper for {output.name}?",
+                        default=output.include_metadata,
+                    ):
+                        output.include_metadata = True
+                    else:
+                        output.include_metadata = False
         except (ValueError, IndexError):
             console.print("[red]Invalid output selection[/red]")
     

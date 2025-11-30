@@ -76,6 +76,7 @@ outputs:
       batch_size: 100  # Send events in batches of 100
       batch_interval: 5  # Or send every 5 seconds, whichever comes first
       timeout: 30  # Request timeout in seconds
+      include_metadata: false  # Set to true to wrap events with logforge_metadata for routing
     
     # Example 2: Splunk HEC (HTTP Event Collector) with token
     # Token should be set as environment variable: export SPLUNK_HEC_TOKEN="your-hec-token"
@@ -89,6 +90,7 @@ outputs:
       batch_size: 100
       batch_interval: 5
       timeout: 30
+      include_metadata: false  # Set to true to wrap events with logforge_metadata for routing
     
     # Example 3: API key in custom header
     # API key should be set as environment variable: export CUSTOM_API_KEY="your-api-key"
@@ -103,6 +105,7 @@ outputs:
       batch_size: 50
       batch_interval: 10
       timeout: 30
+      include_metadata: false  # Set to true to wrap events with logforge_metadata for routing
     
     # Example 4: OAuth2 with access token (token refreshed externally)
     # Access token should be set as environment variable: export OAUTH_TOKEN="your-oauth-token"
@@ -116,6 +119,7 @@ outputs:
       batch_size: 200
       batch_interval: 3
       timeout: 30
+      include_metadata: false  # Set to true to wrap events with logforge_metadata for routing
     
     # Example 5: Basic Auth (not recommended for production, use tokens instead)
     # Credentials should be set as environment variables: export API_USER and API_PASS

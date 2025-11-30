@@ -140,6 +140,67 @@ Tests mirror this structure under `tests/`.
 
 The generated `config.yaml` controls API parameters, engine behavior, entity registry options, template paths, output definitions, and generator configurations. Paths are validated to stay under `LOGFORGE_HOME`.
 
+### HTTP Output Metadata Wrapping
+
+HTTP outputs support an optional `include_metadata` setting that wraps events with routing metadata. This is useful when sending events to routing systems like Cribl that need to route based on vendor/product information.
+
+**Configuration**:
+
+```yaml
+outputs:
+  definitions:
+    - name: http-collector
+      type: http
+      url: https://collector.example.com/events
+      method: POST
+      headers:
+        Authorization: "Bearer ${API_TOKEN}"
+        Content-Type: "application/json"
+      batch_size: 100
+      batch_interval: 5
+      timeout: 30
+      include_metadata: true  # Enable metadata wrapping
+```
+
+**When `include_metadata: false` (default)**:
+Events are sent as raw JSON:
+```json
+{
+  "metadata": { ... },
+  "time": 1732995095,
+  "api": { ... }
+}
+```
+
+**When `include_metadata: true`**:
+Events are wrapped with routing metadata:
+```json
+{
+  "event": {
+    "metadata": { ... },
+    "time": 1732995095,
+    "api": { ... }
+  },
+  "logforge_metadata": {
+    "generated_at": "2025-11-30T16:31:35.797Z",
+    "generator": "aws-cloudtrail-generator",
+    "template_id": "aws/cloudtrail/management/delete_trail",
+    "vendor": "aws",
+    "product": "cloudtrail",
+    "data_source": "management"
+  }
+}
+```
+
+**Use Cases**:
+- **Cribl Routing**: Route events based on `logforge_metadata.vendor` or `logforge_metadata.product`
+- **SIEM Parsing**: Extract clean events from `event` field while maintaining routing context
+- **Multi-Destination**: Fork events to different destinations based on metadata
+
+**Configuration via CLI**:
+- When creating HTTP outputs: `logforge config edit` → Manage Outputs → Add new output → HTTP
+- When editing generators: `logforge config edit` → Manage Generators → Edit generator → Edit outputs → Configure metadata for HTTP outputs
+
 ## License
 
 Apache 2.0. See `LICENSE` for details.
