@@ -276,6 +276,24 @@ def add_seconds(dt: datetime, seconds: int) -> datetime:
     return dt
 
 
+def subtract_seconds(dt: datetime, seconds: int) -> datetime:
+    """Subtract seconds from a datetime object.
+    
+    Args:
+        dt: Datetime object
+        seconds: Number of seconds to subtract
+        
+    Returns:
+        New datetime object with seconds subtracted
+        
+    Example:
+        {{ timestamp | subtract_seconds(3600) }}
+    """
+    if isinstance(dt, datetime):
+        return dt - timedelta(seconds=seconds)
+    return dt
+
+
 def register_filters(env: Environment) -> None:
     """Register custom filters with Jinja2 environment.
     
@@ -292,6 +310,7 @@ def register_filters(env: Environment) -> None:
     env.filters['rfc3339'] = rfc3339
     env.filters['unix_timestamp'] = unix_timestamp
     env.filters['add_seconds'] = add_seconds
+    env.filters['subtract_seconds'] = subtract_seconds
     
     # Random generation filters
     env.filters['random_int'] = random_int
