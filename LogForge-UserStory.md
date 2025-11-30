@@ -1998,7 +1998,7 @@ entity_registry:
 
 templates:
   local_path: ~/.logforge/templates
-  community_api_url: https://api.logforge.io/v1
+  community_api_url: https://logforge.io/api/v1
   auto_update_check: true
   cache_ttl: 3600
 

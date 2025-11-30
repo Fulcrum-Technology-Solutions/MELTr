@@ -32,7 +32,7 @@ templates:
   default_path: ${LOGFORGE_HOME}/templates/default
   custom_path: ${LOGFORGE_HOME}/templates/custom
   precedence: custom_first
-  community_api_url: https://api.logforge.io/v1
+  community_api_url: https://logforge.io/api/v1
   auto_update_check: true
   cache_ttl: 3600
   auto_backup_on_customize: true

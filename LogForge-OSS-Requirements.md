@@ -370,7 +370,7 @@ templates:
   default_path: ${LOGFORGE_HOME}/templates/default  # Community templates
   custom_path: ${LOGFORGE_HOME}/templates/custom    # User templates
   precedence: custom_first                      # custom_first, default_first, explicit
-  community_api_url: https://api.logforge.io/v1
+  community_api_url: https://logforge.io/api/v1
   auto_update_check: true
   cache_ttl: 3600                              # seconds
   
@@ -417,7 +417,7 @@ entity_registry:
 # Template Settings
 templates:
   local_path: ${LOGFORGE_HOME}/templates
-  community_api_url: https://api.logforge.io/v1
+  community_api_url: https://logforge.io/api/v1
   auto_update_check: true
   cache_ttl: 3600                # seconds
 
@@ -1130,7 +1130,7 @@ app-2025-11-09.log.gz     (2 days ago)
 
 **Purpose**: Discover and download templates from community repository
 
-**Base URL**: `https://api.logforge.io/v1` (configurable)
+**Base URL**: `https://logforge.io/api/v1` (configurable)
 
 **Installation Target**: All community templates install to `default/` directory
 
@@ -2008,7 +2008,7 @@ LOGFORGE_ENTITIES_PATH=/path/to/entities.yaml
 
 # Templates
 LOGFORGE_TEMPLATES_PATH=/path/to/templates
-LOGFORGE_COMMUNITY_API_URL=https://api.logforge.io/v1
+LOGFORGE_COMMUNITY_API_URL=https://logforge.io/api/v1
 ```
 
 ---
