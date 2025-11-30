@@ -119,6 +119,7 @@ class OutputDefinition(BaseModel):
     keepalive: Optional[bool] = Field(default=None, description="TCP keepalive")
     rotation: Optional[OutputRotationConfig] = Field(default=None, description="File rotation")
     timeout: Optional[int] = Field(default=None, description="Timeout in seconds")
+    include_metadata: bool = Field(default=False, description="Include logforge_metadata wrapper for HTTP output")
 
 
 class OutputsConfig(BaseModel):

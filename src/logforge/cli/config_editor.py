@@ -132,6 +132,8 @@ def _edit_outputs_section(config: Config) -> Config:
                     details.append(f"path: {output.path}")
                 elif output.type == "http" and output.url:
                     details.append(f"url: {output.url}")
+                    if output.include_metadata:
+                        details.append("metadata: enabled")
                 elif output.type == "tcp" and output.host:
                     details.append(f"{output.host}:{output.port}")
                 elif output.type == "console":
@@ -341,6 +343,12 @@ def _create_http_output(name: str) -> OutputDefinition:
     batch_interval = IntPrompt.ask("Batch interval (seconds)", default=5)
     timeout = IntPrompt.ask("Request timeout (seconds)", default=30)
     
+    # Metadata wrapping
+    include_metadata = Confirm.ask(
+        "Include logforge_metadata wrapper? (wraps events with routing metadata)",
+        default=False,
+    )
+    
     return OutputDefinition(
         name=name,
         type="http",
@@ -350,6 +358,7 @@ def _create_http_output(name: str) -> OutputDefinition:
         batch_size=batch_size,
         batch_interval=batch_interval,
         timeout=timeout,
+        include_metadata=include_metadata,
     )
 
 

@@ -149,6 +149,7 @@ class Generator:
                             "vendor": template_info.vendor,
                             "product": template_info.product,
                             "data_source": template_info.data_source,
+                            "template_id": template_info.id,  # Full template ID for metadata wrapping
                         }
                         # Note: collection is not part of the template ID structure
                         # Template ID format: vendor/product/data_source/template_name

@@ -82,6 +82,9 @@ class HTTPOutputHandler(OutputHandler):
         self._last_error_type: Optional[str] = None
         self._periodic_stats_time = time.time()
         self.timezone: str = 'UTC'  # Default timezone, can be set via set_template_context
+        self.include_metadata: bool = False  # Whether to wrap events in metadata
+        self.template_metadata: Optional[Dict[str, Any]] = None  # Template metadata for wrapping
+        self.generator_name: Optional[str] = None  # Generator name for metadata
     
     def _substitute_env_vars(self, headers: Dict[str, str]) -> Dict[str, str]:
         """Substitute environment variables in header values.
@@ -124,7 +127,7 @@ class HTTPOutputHandler(OutputHandler):
         if not definition.url:
             raise ValueError(f"HTTP output handler '{definition.name}' requires 'url'")
         
-        return cls(
+        handler = cls(
             name=definition.name,
             url=definition.url,
             method=definition.method or "POST",
@@ -135,6 +138,8 @@ class HTTPOutputHandler(OutputHandler):
             retry_config=retry_config,
             buffer_size=buffer_size,
         )
+        handler.include_metadata = definition.include_metadata or False
+        return handler
     
     def initialize(self) -> None:
         """Initialize handler and start batch timer."""
@@ -256,6 +261,43 @@ class HTTPOutputHandler(OutputHandler):
                     except queue.Full:
                         logger.warning(f"HTTP output '{self.name}': Failed to re-buffer event, dropping")
     
+    def _wrap_event_with_metadata(self, event: Any) -> Dict[str, Any]:
+        """Wrap event with logforge_metadata.
+        
+        Args:
+            event: Event data (dict or string)
+            
+        Returns:
+            Wrapped event with 'event' and 'logforge_metadata' fields
+        """
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        
+        # Build metadata
+        metadata = {
+            "generated_at": datetime.now(ZoneInfo(self.timezone)).isoformat(),
+        }
+        
+        # Add generator name
+        if self.generator_name:
+            metadata["generator"] = self.generator_name
+        
+        # Add template information from metadata
+        if self.template_metadata:
+            if "template_id" in self.template_metadata:
+                metadata["template_id"] = self.template_metadata["template_id"]
+            if "vendor" in self.template_metadata:
+                metadata["vendor"] = self.template_metadata["vendor"]
+            if "product" in self.template_metadata:
+                metadata["product"] = self.template_metadata["product"]
+            if "data_source" in self.template_metadata:
+                metadata["data_source"] = self.template_metadata["data_source"]
+        
+        return {
+            "event": event,
+            "logforge_metadata": metadata
+        }
+    
     def _sanitize_header_value(self, key: str, value: str) -> str:
         """Sanitize sensitive header values for logging.
         
@@ -320,11 +362,24 @@ class HTTPOutputHandler(OutputHandler):
                     # Not JSON, send as string
                     json_events.append(event)
             
-            # Wrap in array if multiple events
-            if len(json_events) > 1:
-                payload = json_events
+            # Wrap events with metadata if enabled
+            if self.include_metadata:
+                wrapped_events = []
+                for event in json_events:
+                    wrapped = self._wrap_event_with_metadata(event)
+                    wrapped_events.append(wrapped)
+                
+                # Wrap in array if multiple events
+                if len(wrapped_events) > 1:
+                    payload = wrapped_events
+                else:
+                    payload = wrapped_events[0] if wrapped_events else {}
             else:
-                payload = json_events[0] if json_events else {}
+                # Wrap in array if multiple events
+                if len(json_events) > 1:
+                    payload = json_events
+                else:
+                    payload = json_events[0] if json_events else {}
             
             # Log request details at DEBUG level
             if logger.isEnabledFor(10):  # DEBUG level
@@ -681,14 +736,17 @@ class HTTPOutputHandler(OutputHandler):
         """Set template context (including timezone) for HTTP handler.
         
         Args:
-            generator_name: Generator name (unused for HTTP)
+            generator_name: Generator name
             output_name: Output handler name (unused for HTTP)
-            template_metadata: Template metadata dict (unused for HTTP)
+            template_metadata: Template metadata dict (vendor, product, data_source, template_id)
             organization_name: Organization name (unused for HTTP)
             timezone: Timezone string (e.g., 'America/New_York'). Updates handler timezone.
         """
         if timezone:
             self.timezone = timezone
+        if template_metadata:
+            self.template_metadata = template_metadata.copy()
+        self.generator_name = generator_name
     
     def close(self) -> None:
         """Close handler and flush remaining batches."""
