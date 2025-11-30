@@ -214,6 +214,107 @@ def get_local_collection_version(
     return None
 
 
+def download_and_install_product(
+    client: CommunityAPIClient,
+    vendor_id: str,
+    product_id: str,
+    target_dir: Path,
+    temp_dir: Optional[Path] = None,
+    overwrite: bool = False,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+) -> Path:
+    """Download vendor package and install only specified product.
+    
+    This maintains collection.json integrity since products are
+    self-contained units with their own collection.json.
+    
+    Args:
+        client: CommunityAPIClient instance
+        vendor_id: Vendor identifier
+        product_id: Product identifier
+        target_dir: Target templates directory (typically default/)
+        temp_dir: Temporary directory for downloads (None = system temp)
+        overwrite: Whether to overwrite existing installation
+        progress_callback: Optional callback for download progress
+        
+    Returns:
+        Path to installed product directory
+        
+    Raises:
+        CommunityAPIError: If download fails
+        PackageError: If extraction/installation fails
+    """
+    # Create temporary directory for download if not provided
+    if temp_dir is None:
+        temp_dir = Path(tempfile.mkdtemp(prefix='logforge-product-'))
+        cleanup_temp = True
+    else:
+        temp_dir = Path(temp_dir)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        cleanup_temp = False
+    
+    package_path = temp_dir / f"{vendor_id}.forge"
+    
+    try:
+        # Download vendor package (we need it to extract the product)
+        logger.info(f"Downloading vendor package to extract product '{product_id}'")
+        client.download_vendor_package(
+            vendor_id,
+            package_path,
+            progress_callback=progress_callback
+        )
+        
+        # Extract package
+        extract_to = temp_dir / 'extracted'
+        vendor_dir = extract_forge_package(package_path, extract_to, validate=False)
+        
+        # Find product in extracted vendor directory
+        product_source = vendor_dir / product_id
+        if not product_source.exists():
+            # List available products for better error message
+            available_products = [d.name for d in vendor_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
+            raise PackageError(
+                f"Product '{product_id}' not found in vendor '{vendor_id}' package. "
+                f"Available products: {', '.join(available_products) if available_products else 'none'}"
+            )
+        
+        # Validate product has collection.json
+        collection_json = product_source / 'collection.json'
+        if not collection_json.exists():
+            raise PackageValidationError(
+                f"Product '{product_id}' missing collection.json - invalid product structure"
+            )
+        
+        # Install product to target
+        target_vendor_dir = target_dir / vendor_id
+        target_vendor_dir.mkdir(parents=True, exist_ok=True)
+        
+        target_product_dir = target_vendor_dir / product_id
+        
+        if target_product_dir.exists() and not overwrite:
+            raise PackageInstallError(
+                f"Product already installed: {target_product_dir}. "
+                "Use --overwrite to replace it."
+            )
+        
+        if target_product_dir.exists() and overwrite:
+            logger.info(f"Overwriting existing product: {target_product_dir}")
+            shutil.rmtree(target_product_dir)
+        
+        # Copy product directory
+        logger.info(f"Installing product '{product_id}' to: {target_product_dir}")
+        shutil.copytree(product_source, target_product_dir)
+        
+        logger.info(f"Product installed successfully: {target_product_dir}")
+        return target_product_dir
+        
+    finally:
+        # Cleanup temporary files
+        if cleanup_temp and temp_dir.exists():
+            logger.debug(f"Cleaning up temporary directory: {temp_dir}")
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 def download_and_install_vendor(
     client: CommunityAPIClient,
     vendor_id: str,

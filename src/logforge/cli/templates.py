@@ -15,6 +15,7 @@ from logforge.community.client import (
 )
 from logforge.community.package import (
     download_and_install_vendor,
+    download_and_install_product,
     get_local_collection_version,
     PackageError,
 )
@@ -577,8 +578,9 @@ def templates_browse(
 
 @app.command("install")
 def templates_install(
-    template_or_vendor: Optional[str] = typer.Argument(None, help="Template ID or vendor ID to install"),
-    vendor: bool = typer.Option(False, "--vendor", help="Install all templates from vendor"),
+    vendor_or_product: Optional[str] = typer.Argument(None, help="Vendor ID (e.g., 'microsoft') or Product ID (e.g., 'microsoft/windows')"),
+    vendor: bool = typer.Option(False, "--vendor", help="Install all products from vendor"),
+    product: bool = typer.Option(False, "--product", help="Install specific product (use vendor/product format)"),
     list_vendors: bool = typer.Option(False, "--list-vendors", help="List available vendors to install"),
     api_url: Optional[str] = typer.Option(
         None,
@@ -589,7 +591,18 @@ def templates_install(
     overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing installation"),
     local_file: Optional[Path] = typer.Option(None, "--local-file", help="Install from local .forge file"),
 ) -> None:
-    """Install templates from community registry or local package."""
+    """Install template packages from community registry or local package.
+    
+    Installation levels:
+      - Vendor: Install all products for a vendor
+        Example: logforge templates install microsoft --vendor
+      
+      - Product: Install a specific product (maintains collection.json integrity)
+        Example: logforge templates install microsoft/windows --product
+        Example: logforge templates install aws/cloudtrail --product
+    
+    Individual templates are enabled/disabled via generator configuration in config.yaml.
+    """
     try:
         # Get API URL from config or parameter
         if api_url is None:
@@ -626,10 +639,13 @@ def templates_install(
                 console.print(f"[red]Error listing vendors: {e}[/red]")
                 raise typer.Exit(code=1)
         
-        # Require template_or_vendor if not listing
-        if not template_or_vendor:
-            console.print("[red]Error: Must specify template/vendor ID or use --list-vendors[/red]")
+        # Require vendor_or_product if not listing
+        if not vendor_or_product:
+            console.print("[red]Error: Must specify vendor or product ID, or use --list-vendors[/red]")
             console.print("[dim]Hint: Use 'logforge templates install --list-vendors' to see available vendors[/dim]")
+            console.print("[dim]Examples:[/dim]")
+            console.print("[dim]  Vendor:  logforge templates install microsoft --vendor[/dim]")
+            console.print("[dim]  Product: logforge templates install microsoft/windows --product[/dim]")
             raise typer.Exit(code=1)
         
         # Load config for paths
@@ -668,16 +684,20 @@ def templates_install(
                 return
         
         # Install from API
-        if vendor or '/' not in template_or_vendor:
-            # Install vendor package
-            vendor_id = template_or_vendor.lower()
+        # Determine if this is vendor or product installation
+        parts = vendor_or_product.split('/')
+        
+        if vendor or len(parts) == 1:
+            # Vendor-level installation
+            vendor_id = parts[0].lower()
             console.print(f"[cyan]Installing vendor package: {vendor_id}[/cyan]")
             
             # Verify vendor exists
             try:
                 vendor_info = client.get_vendor_detail(vendor_id)
                 vendor_name = vendor_info.get('vendor', vendor_id)
-                console.print(f"[dim]Vendor: {vendor_name}[/dim]")
+                products = vendor_info.get('products', [])
+                console.print(f"[dim]Vendor: {vendor_name} ({len(products)} products)[/dim]")
             except CommunityAPINotFoundError:
                 console.print(f"[red]Error: Vendor '{vendor_id}' not found[/red]")
                 raise typer.Exit(code=1)
@@ -710,31 +730,71 @@ def templates_install(
             
             console.print(f"\n[green]✓ Vendor package installed successfully[/green]")
             console.print(f"  Location: {installed_dir}")
+            console.print(f"[dim]Configure generators in config.yaml to enable/disable individual templates[/dim]")
         
-        else:
-            # Install specific template (requires downloading full vendor package)
-            template_id = template_or_vendor
-            parts = template_id.split('/')
+        elif product or len(parts) == 2:
+            # Product-level installation
+            vendor_id = parts[0].lower()
+            product_id = parts[1].lower()
+            console.print(f"[cyan]Installing product: {vendor_id}/{product_id}[/cyan]")
             
-            if len(parts) < 4:
-                console.print(f"[red]Error: Invalid template ID: {template_id}[/red]")
-                console.print("[yellow]Expected format: vendor/product/data_source/template[/yellow]")
+            # Verify product exists
+            try:
+                product_info = client.get_product_detail(vendor_id, product_id)
+                product_name = product_info.get('product', product_id)
+                collection_version = product_info.get('collection_version', 'N/A')
+                data_sources = product_info.get('data_sources', [])
+                total_templates = sum(len(ds.get('event_types', [])) for ds in data_sources)
+                console.print(f"[dim]Product: {product_name} (v{collection_version}, {total_templates} templates)[/dim]")
+            except CommunityAPINotFoundError:
+                console.print(f"[red]Error: Product '{vendor_id}/{product_id}' not found[/red]")
+                console.print(f"[dim]Use 'logforge templates browse --vendor {vendor_id}' to see available products[/dim]")
                 raise typer.Exit(code=1)
             
-            vendor_id = parts[0]
-            console.print(f"[cyan]Installing template: {template_id}[/cyan]")
-            console.print(f"[yellow]Note: Installing full vendor package for {vendor_id}[/yellow]")
+            # Download progress callback
+            def progress_callback(bytes_downloaded: int, total_bytes: int):
+                if total_bytes > 0:
+                    percent = (bytes_downloaded / total_bytes) * 100
+                    console.print(f"\r[dim]Downloading: {bytes_downloaded:,} / {total_bytes:,} bytes ({percent:.1f}%)[/dim]", end="")
             
-            # Install vendor package (which includes the template)
-            installed_dir = download_and_install_vendor(
-                client=client,
-                vendor_id=vendor_id,
-                target_dir=default_path,
-                overwrite=overwrite,
-            )
+            # Download and install product
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                DownloadColumn(),
+                console=console,
+            ) as progress:
+                task = progress.add_task("[cyan]Downloading...", total=None)
+                
+                installed_dir = download_and_install_product(
+                    client=client,
+                    vendor_id=vendor_id,
+                    product_id=product_id,
+                    target_dir=default_path,
+                    overwrite=overwrite,
+                    progress_callback=lambda b, t: progress.update(task, completed=b, total=t),
+                )
+                
+                progress.update(task, completed=True, description="[green]Complete")
             
-            console.print(f"[green]✓ Template installed successfully[/green]")
+            console.print(f"\n[green]✓ Product installed successfully[/green]")
             console.print(f"  Location: {installed_dir}")
+            console.print(f"[dim]Configure generators in config.yaml to enable/disable individual templates[/dim]")
+        
+        else:
+            # Invalid - too many parts (individual template not supported)
+            console.print(f"[red]Error: Individual template installation not supported[/red]")
+            console.print(f"[yellow]Install at product or vendor level:[/yellow]")
+            if len(parts) >= 2:
+                vendor_id = parts[0]
+                product_id = parts[1]
+                console.print(f"[cyan]  Product: logforge templates install {vendor_id}/{product_id} --product[/cyan]")
+                console.print(f"[cyan]  Vendor:  logforge templates install {vendor_id} --vendor[/cyan]")
+            else:
+                console.print(f"[cyan]  Vendor:  logforge templates install {parts[0]} --vendor[/cyan]")
+            console.print(f"[dim]Individual templates are enabled/disabled via generator configuration[/dim]")
+            raise typer.Exit(code=1)
     
     except CommunityAPINotFoundError as e:
         console.print(f"[red]Error: {e}[/red]")
