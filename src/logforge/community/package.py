@@ -301,6 +301,23 @@ def download_and_install_product(
             logger.info(f"Overwriting existing product: {target_product_dir}")
             shutil.rmtree(target_product_dir)
         
+        # Copy vendor.meta.yaml if it doesn't exist (always ensure it's present for product installs)
+        vendor_meta_source = vendor_dir / 'vendor.meta.yaml'
+        vendor_meta_target = target_vendor_dir / 'vendor.meta.yaml'
+        
+        if vendor_meta_source.exists():
+            if not vendor_meta_target.exists():
+                logger.info(f"Copying vendor.meta.yaml to: {vendor_meta_target}")
+                shutil.copy2(vendor_meta_source, vendor_meta_target)
+            elif overwrite:
+                # Update vendor.meta.yaml if overwriting (fresh install)
+                logger.info(f"Updating vendor.meta.yaml (overwrite mode)")
+                shutil.copy2(vendor_meta_source, vendor_meta_target)
+            else:
+                logger.debug(f"vendor.meta.yaml already exists, preserving existing version")
+        else:
+            logger.warning(f"vendor.meta.yaml not found in vendor package, skipping")
+        
         # Copy product directory
         logger.info(f"Installing product '{product_id}' to: {target_product_dir}")
         shutil.copytree(product_source, target_product_dir)
