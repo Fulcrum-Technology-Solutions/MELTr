@@ -269,7 +269,7 @@ def templates_revert(
 
 @app.command("search")
 def templates_search(
-    query: str = typer.Argument(..., help="Search query"),
+    query: Optional[str] = typer.Argument(None, help="Search query (optional if filters provided)"),
     vendor: Optional[str] = typer.Option(None, "--vendor", help="Filter by vendor"),
     product: Optional[str] = typer.Option(None, "--product", help="Filter by product"),
     api_url: Optional[str] = typer.Option(
@@ -282,6 +282,11 @@ def templates_search(
     page_size: int = typer.Option(10, "--page-size", help="Results per page"),
 ) -> None:
     """Search templates from community registry."""
+    # Validate that either query or filters are provided
+    if not query and not vendor and not product:
+        console.print("[red]Error: Must provide either a search query or filter options (--vendor, --product)[/red]")
+        raise typer.Exit(code=1)
+    
     try:
         # Get API URL from config or parameter
         if api_url is None:
@@ -291,8 +296,19 @@ def templates_search(
         # Create API client
         client = CommunityAPIClient(base_url=api_url)
         
+        # Display search/filter info
+        if query:
+            console.print(f"[dim]Searching for: {query}[/dim]")
+        else:
+            # Must have vendor or product filter (validated above)
+            filters = []
+            if vendor:
+                filters.append(f"vendor={vendor}")
+            if product:
+                filters.append(f"product={product}")
+            console.print(f"[dim]Filtering: {', '.join(filters)}[/dim]")
+        
         # Search templates
-        console.print(f"[dim]Searching for: {query}[/dim]")
         result = client.search_templates(
             query=query,
             vendor_id=vendor,
