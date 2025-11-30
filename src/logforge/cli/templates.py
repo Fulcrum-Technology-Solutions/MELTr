@@ -34,44 +34,129 @@ def templates_list(
     local_only: bool = typer.Option(False, "--local", help="Show only local templates"),
     remote_only: bool = typer.Option(False, "--remote", help="Show only remote templates"),
     custom_only: bool = typer.Option(False, "--custom-only", help="Show only custom templates"),
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
+    show_remote: bool = typer.Option(False, "--show-remote", help="Include remote templates with installed status"),
+    api_url: Optional[str] = typer.Option(
+        None,
+        "--api-url",
+        envvar="LOGFORGE_COMMUNITY_API_URL",
+        help="Community API URL"
+    ),
 ) -> None:
-    """List available templates."""
-    # TODO: Use API when available, fall back to direct loader for now
+    """List available templates (local and/or remote)."""
     from logforge.core.config import load_config
     
     try:
         config = load_config()
-        loader = TemplateLoader(config)
-        all_templates = loader.discover_templates()
         
-        # Filter templates
+        # Get local templates
+        loader = TemplateLoader(config)
+        local_templates = loader.discover_templates()
+        local_template_ids = set(local_templates.keys())
+        
+        # Filter local templates
         if custom_only:
-            templates = {tid: t for tid, t in all_templates.items() if t.location == 'custom'}
+            templates_to_show = {tid: t for tid, t in local_templates.items() if t.location == 'custom'}
         else:
-            templates = all_templates
+            templates_to_show = local_templates
+        
+        # Get remote templates if requested
+        remote_templates = {}
+        if remote_only or show_remote:
+            if api_url is None:
+                api_url = config.templates.community_api_url
+            
+            try:
+                client = CommunityAPIClient(base_url=api_url)
+                result = client.search_templates(page=1, page_size=100)
+                
+                # Build remote template dict
+                for vendor_data in result.get('vendors', []):
+                    for product_data in vendor_data.get('products', []):
+                        for ds_data in product_data.get('data_sources', []):
+                            for template in ds_data.get('templates', []):
+                                template_id = template.get('id')
+                                if template_id:
+                                    remote_templates[template_id] = {
+                                        'name': template.get('name', template_id),
+                                        'vendor': vendor_data.get('id'),
+                                        'product': product_data.get('product_id'),
+                                        'format': template.get('format', 'N/A'),
+                                    }
+            except Exception as e:
+                if remote_only:
+                    console.print(f"[red]Error fetching remote templates: {e}[/red]")
+                    raise typer.Exit(code=1)
+                console.print(f"[yellow]Warning: Could not fetch remote templates: {e}[/yellow]")
+        
+        # Create unified template info structure
+        unified_templates = {}
+        
+        # Add local templates
+        for tid, template_info in templates_to_show.items():
+            unified_templates[tid] = {
+                'format': template_info.metadata.format,
+                'vendor': template_info.vendor,
+                'product': template_info.product,
+                'location': template_info.location,
+            }
+        
+        # Add remote templates based on options
+        if remote_only:
+            unified_templates = {}
+            for tid, remote_info in remote_templates.items():
+                unified_templates[tid] = {
+                    'format': remote_info['format'],
+                    'vendor': remote_info['vendor'],
+                    'product': remote_info['product'],
+                    'location': 'remote',
+                }
+        elif show_remote:
+            # Merge remote templates (only add if not already in local)
+            for tid, remote_info in remote_templates.items():
+                if tid not in unified_templates:
+                    unified_templates[tid] = {
+                        'format': remote_info['format'],
+                        'vendor': remote_info['vendor'],
+                        'product': remote_info['product'],
+                        'location': 'remote',
+                    }
         
         # Display as table
         table = Table(title="Templates")
         table.add_column("ID", style="cyan")
-        table.add_column("Location", style="green")
+        table.add_column("Installed", style="green")
+        table.add_column("Location", style="dim")
         table.add_column("Format", style="yellow")
         table.add_column("Vendor", style="magenta")
         table.add_column("Product", style="blue")
         
-        for template_id, template_info in sorted(templates.items()):
-            metadata = template_info.metadata
+        for template_id in sorted(unified_templates.keys()):
+            template_info = unified_templates[template_id]
+            
+            # Determine installed status
+            is_installed = template_id in local_template_ids
+            installed_mark = "[green]✓[/green]" if is_installed else "[dim]-[/dim]"
+            
             table.add_row(
                 template_id,
-                template_info.location,
-                metadata.format,
-                template_info.vendor,
-                template_info.product,
+                installed_mark,
+                template_info['location'],
+                template_info['format'],
+                template_info['vendor'],
+                template_info['product'],
             )
         
         console.print(table)
-        console.print(f"\n[dim]Total: {len(templates)} templates[/dim]")
+        
+        local_count = len([t for t in unified_templates.keys() if t in local_template_ids])
+        remote_count = len([t for t in unified_templates.keys() if t not in local_template_ids])
+        
+        summary = f"\n[dim]Total: {len(unified_templates)} templates"
+        if show_remote or remote_only:
+            summary += f" ({local_count} installed, {remote_count} available remotely)"
+        summary += "[/dim]"
+        console.print(summary)
+        
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
@@ -394,79 +479,90 @@ def templates_browse(
         client = CommunityAPIClient(base_url=api_url)
         
         if vendor:
-            # Show vendor detail with all products
+            # Show vendor detail with all products using search_templates for full hierarchy
             console.print(f"[dim]Browsing vendor: {vendor}[/dim]\n")
             
             try:
-                vendor_info = client.get_vendor_detail(vendor)
-                vendor_name = vendor_info.get('vendor', vendor)
-                vendor_desc = vendor_info.get('description', '')
+                # Use search with vendor filter to get full hierarchy
+                result = client.search_templates(vendor_id=vendor, page=1, page_size=100)
+                vendors = result.get('vendors', [])
                 
-                console.print(f"[bold cyan]{vendor_name}[/bold cyan] ({vendor})")
-                if vendor_desc:
-                    console.print(f"[dim]{vendor_desc}[/dim]\n")
+                if not vendors:
+                    console.print(f"[yellow]Vendor '{vendor}' not found or has no templates[/yellow]")
+                    return
                 
-                products = vendor_info.get('products', [])
+                vendor_data = vendors[0]  # Should only be one vendor
+                vendor_id = vendor_data.get('id', vendor)
+                vendor_name = vendor_data.get('vendor', vendor)
+                
+                console.print(f"[bold cyan]{vendor_name}[/bold cyan] ({vendor_id})\n")
+                
+                products = vendor_data.get('products', [])
                 if not products:
                     console.print("[yellow]No products found for this vendor[/yellow]")
                     return
                 
-                # Get products detail
-                for product_id in products:
-                    try:
-                        product_info = client.get_product_detail(vendor, product_id)
-                        product_name = product_info.get('product', product_id)
-                        collection_version = product_info.get('collection_version', 'N/A')
+                for product_data in products:
+                    product_id = product_data.get('product_id', 'unknown')
+                    product_name = product_data.get('product', product_id)
+                    collection_version = product_data.get('collection_version', 'N/A')
+                    
+                    console.print(f"  [green]└─[/green] {product_name} (v{collection_version})")
+                    
+                    data_sources = product_data.get('data_sources', [])
+                    for ds_data in data_sources:
+                        ds_id = ds_data.get('data_source_id', 'unknown')
+                        ds_name = ds_data.get('name', ds_id)
+                        templates = ds_data.get('templates', [])
                         
-                        console.print(f"  [green]└─[/green] {product_name} (v{collection_version})")
-                        
-                        data_sources = product_info.get('data_sources', [])
-                        for ds_data in data_sources:
-                            ds_id = ds_data.get('data_source_id', 'unknown')
-                            ds_name = ds_data.get('name', ds_id)
-                            templates = ds_data.get('event_types', [])
-                            
-                            if templates:
-                                console.print(f"      [yellow]└─[/yellow] {ds_name} ({len(templates)} templates)")
-                                for template in templates[:5]:
-                                    template_name = template.get('name', template.get('event_type_id', 'unknown'))
-                                    console.print(f"          • {template_name}")
-                                if len(templates) > 5:
-                                    console.print(f"          ... and {len(templates) - 5} more")
-                        
-                        console.print()
-                    except CommunityAPINotFoundError:
-                        continue
-                    except Exception as e:
-                        console.print(f"[yellow]Warning: Failed to load product {product_id}: {e}[/yellow]")
-                        continue
+                        if templates:
+                            console.print(f"      [yellow]└─[/yellow] {ds_name} ({len(templates)} templates)")
+                            for template in templates[:5]:
+                                template_name = template.get('name', template.get('event_type_id', 'unknown'))
+                                console.print(f"          • {template_name}")
+                            if len(templates) > 5:
+                                console.print(f"          ... and {len(templates) - 5} more")
+                    
+                    console.print()
                         
             except CommunityAPINotFoundError:
                 console.print(f"[red]Error: Vendor '{vendor}' not found[/red]")
                 raise typer.Exit(code=1)
         else:
-            # List all vendors
+            # List all vendors using search_templates to get full hierarchy with product counts
             console.print("[dim]Browsing all vendors[/dim]\n")
             
-            vendors = client.get_vendors()
-            
-            if not vendors:
-                console.print("[yellow]No vendors found[/yellow]")
-                return
-            
-            console.print(f"[bold]Available Vendors ({len(vendors)}):[/bold]\n")
-            
-            for vendor_data in vendors:
-                vendor_id = vendor_data.get('id', 'unknown')
-                vendor_name = vendor_data.get('vendor', vendor_id)
-                vendor_desc = vendor_data.get('description', '')
-                products_count = len(vendor_data.get('products', []))
+            try:
+                result = client.search_templates(page=1, page_size=100)
+                vendors = result.get('vendors', [])
                 
-                console.print(f"[cyan]{vendor_name}[/cyan] ([dim]{vendor_id}[/dim])")
-                if vendor_desc:
-                    console.print(f"  [dim]{vendor_desc[:80]}{'...' if len(vendor_desc) > 80 else ''}[/dim]")
-                console.print(f"  [green]{products_count} product(s) available[/green]")
-                console.print(f"  [dim]Use: logforge templates browse --vendor {vendor_id}[/dim]\n")
+                if not vendors:
+                    console.print("[yellow]No vendors found[/yellow]")
+                    return
+                
+                console.print(f"[bold]Available Vendors ({len(vendors)}):[/bold]\n")
+                
+                for vendor_data in vendors:
+                    vendor_id = vendor_data.get('id', 'unknown')
+                    vendor_name = vendor_data.get('vendor', vendor_id)
+                    vendor_desc = vendor_data.get('description', '')
+                    products = vendor_data.get('products', [])
+                    products_count = len(products)
+                    
+                    console.print(f"[cyan]{vendor_name}[/cyan] ([dim]{vendor_id}[/dim])")
+                    if vendor_desc:
+                        console.print(f"  [dim]{vendor_desc[:80]}{'...' if len(vendor_desc) > 80 else ''}[/dim]")
+                    console.print(f"  [green]{products_count} product(s) available[/green]")
+                    console.print(f"  [dim]Use: logforge templates browse --vendor {vendor_id}[/dim]\n")
+            except Exception as e:
+                console.print(f"[yellow]Warning: Using fallback vendor list[/yellow]")
+                # Fallback to basic vendor list if search fails
+                vendors = client.get_vendors()
+                for vendor_data in vendors:
+                    vendor_id = vendor_data.get('id', 'unknown')
+                    vendor_name = vendor_data.get('vendor', vendor_id)
+                    console.print(f"[cyan]{vendor_name}[/cyan] ([dim]{vendor_id}[/dim])")
+                    console.print(f"  [dim]Use: logforge templates browse --vendor {vendor_id}[/dim]\n")
     
     except CommunityAPIRateLimitError as e:
         console.print(f"[red]Rate limit exceeded: {e}[/red]")
@@ -507,7 +603,9 @@ def templates_install(
             console.print("[cyan]Available Vendors:[/cyan]\n")
             
             try:
-                vendors = client.get_vendors()
+                # Use search_templates to get full hierarchy with product counts
+                result = client.search_templates(page=1, page_size=100)
+                vendors = result.get('vendors', [])
                 
                 if not vendors:
                     console.print("[yellow]No vendors found in registry[/yellow]")
