@@ -121,3 +121,5 @@ class CachedTemplate:
         return (current_template_mtime > self.template_mtime or
                 current_metadata_mtime > self.metadata_mtime)
 
+
+

@@ -81,3 +81,5 @@ def parse_metadata(metadata_path: Path) -> TemplateMetadata:
     except Exception as e:
         raise ValueError(f"Invalid metadata: {e}") from e
 
+
+

@@ -214,3 +214,5 @@ class TemplateInfo:
     def __repr__(self) -> str:
         return f"TemplateInfo(id={self.id!r}, location={self.location!r})"
 
+
+

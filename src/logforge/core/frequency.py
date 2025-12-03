@@ -1,7 +1,6 @@
 """Frequency calculation logic for generators."""
 
-import time
-from datetime import datetime
+from datetime import datetime, time
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
