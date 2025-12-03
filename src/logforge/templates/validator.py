@@ -137,3 +137,5 @@ def _validate_registry_functions(template_content: str, result: ValidationResult
         if func_name not in valid_registry_functions:
             result.add_warning(f"Unknown registry function: registry.{func_name}")
 
+
+

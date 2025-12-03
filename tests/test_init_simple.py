@@ -14,3 +14,5 @@ def test_init_command_exists():
     assert result.exit_code == 0
     assert 'init' in result.stdout.lower() or 'Initialize' in result.stdout
 
+
+

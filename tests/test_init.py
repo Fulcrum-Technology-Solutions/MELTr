@@ -103,3 +103,5 @@ def test_init_sets_file_permissions(tmp_path, monkeypatch):
         assert config_mode == 0o600
         assert entities_mode == 0o600
 
+
+
