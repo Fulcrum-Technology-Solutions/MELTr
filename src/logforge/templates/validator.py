@@ -139,3 +139,7 @@ def _validate_registry_functions(template_content: str, result: ValidationResult
 
 
 
+
+
+
+
