@@ -1,0 +1,72 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel twine
+      
+      - name: Extract version and update pyproject.toml
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#v}
+          else
+            # Manual dispatch: use input tag_name
+            TAG_NAME="${{ inputs.tag_name }}"
+            VERSION=${TAG_NAME#v}
+          fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Update pyproject.toml with the extracted version to ensure consistency
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          rm pyproject.toml.bak
+          echo "Updated pyproject.toml version to $VERSION"
+      
+      - name: Build package
+        run: |
+          python -m build
+      
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum *.whl *.tar.gz > checksums.txt
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/checksums.txt
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.tag_name, 'alpha') || contains(steps.version.outputs.tag_name, 'beta') || contains(steps.version.outputs.tag_name, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
