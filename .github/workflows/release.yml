@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'  # Trigger on version tags like v1.0.0
   workflow_dispatch:  # Allow manual trigger
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
 
 jobs:
   build:
@@ -25,17 +29,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install build wheel twine
       
-      - name: Extract version from tag
+      - name: Extract version and update pyproject.toml
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#v}
           else
-            # Use version from pyproject.toml for manual builds
-            VERSION=$(grep -m1 '^version =' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            # Manual dispatch: use input tag_name
+            TAG_NAME="${{ inputs.tag_name }}"
+            VERSION=${TAG_NAME#v}
           fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Update pyproject.toml with the extracted version to ensure consistency
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          rm pyproject.toml.bak
+          echo "Updated pyproject.toml version to $VERSION"
       
       - name: Build package
         run: |
@@ -49,12 +60,13 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
           files: |
             dist/*.whl
             dist/*.tar.gz
             dist/checksums.txt
           draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          prerelease: ${{ contains(steps.version.outputs.tag_name, 'alpha') || contains(steps.version.outputs.tag_name, 'beta') || contains(steps.version.outputs.tag_name, 'rc') }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
