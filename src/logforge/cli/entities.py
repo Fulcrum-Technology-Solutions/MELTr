@@ -141,19 +141,18 @@ def entities_show(
 
 @app.command("validate")
 def entities_validate(
-    entities_path: Optional[Path] = typer.Option(None, "--file", help="Path to entities.yaml file"),
+    entities_path: Optional[Path] = typer.Option(None, "--file", "-f", help="Path to entities.yaml file (default: LOGFORGE_HOME/entities.yaml)"),
+    schema_path: Optional[Path] = typer.Option(None, "--schema", "-s", help="Path to entity.schema.json (default: auto-detect)"),
 ) -> None:
-    """Validate entities.yaml file."""
-    from logforge.core.paths import get_logforge_home
+    """Validate entities.yaml file.
+    
+    Can validate files anywhere on the filesystem. Schema is auto-detected
+    from common locations, or can be specified explicitly.
+    """
+    from logforge.core.paths import get_entities_path
     
     if entities_path is None:
         entities_path = get_entities_path()
-    else:
-        # Validate path is within LOGFORGE_HOME
-        home = get_logforge_home()
-        if not validate_path_within_home(entities_path, home):
-            console.print(f"[red]Error: File must be within LOGFORGE_HOME ({home})[/red]")
-            raise typer.Exit(code=1)
     
     if not entities_path.exists():
         console.print(f"[red]Error: File not found: {entities_path}[/red]")
@@ -163,8 +162,8 @@ def entities_validate(
         with entities_path.open('r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
         
-        validate_entities(data)
-        console.print("[green]✓ Entities file is valid[/green]")
+        validate_entities(data, schema_path=schema_path)
+        console.print(f"[green]✓ Entities file is valid: {entities_path}[/green]")
     except Exception as e:
         console.print(f"[red]✗ Validation failed: {e}[/red]")
         raise typer.Exit(code=1)
@@ -186,11 +185,11 @@ def entities_import(
         console.print(f"[red]Error: File not found: {file_path}[/red]")
         raise typer.Exit(code=1)
     
-    # Load and validate import file
+    # Load and validate import file (allow validation outside LOGFORGE_HOME)
     try:
         with file_path.open('r', encoding='utf-8') as f:
             import_data = yaml.safe_load(f)
-        validate_entities(import_data)
+        validate_entities(import_data, schema_path=None)  # Auto-detect schema
     except Exception as e:
         console.print(f"[red]Error: Invalid entities file: {e}[/red]")
         raise typer.Exit(code=1)
@@ -210,8 +209,8 @@ def entities_import(
         merged_data['users'] = existing_data.get('users', []) + import_data.get('users', [])
         merged_data['devices'] = existing_data.get('devices', []) + import_data.get('devices', [])
         merged_data['services'] = existing_data.get('services', []) + import_data.get('services', [])
-        # Re-validate merged data
-        validate_entities(merged_data)
+        # Re-validate merged data (auto-detect schema)
+        validate_entities(merged_data, schema_path=None)
         storage.save(merged_data)
     else:
         # Replace
@@ -284,7 +283,7 @@ def entities_add(
     if new_entity:
         try:
             from logforge.entities.validator import validate_entities
-            validate_entities(data)
+            validate_entities(data, schema_path=None)  # Auto-detect schema
             storage.save(data)
             console.print(f"[green]✓ {entity_type.capitalize()} added successfully[/green]")
         except ValueError as e:

@@ -247,6 +247,8 @@ All metadata files **must validate** against their respective JSON schemas befor
 | `collection.json` | `schemas/collection.schema.json` |
 | `{template_name}.meta.yaml` | `schemas/template.schema.json` |
 
+**Note**: The `schemas/entity.schema.json` file defines the schema for LogForge entity registry files (`entities.yaml`), which are used by the LogForge application itself for synthetic log generation. This is separate from template repository schemas.
+
 ### Validation Tools
 
 **Python (recommended)**:
@@ -453,4 +455,112 @@ repository-root/
 │           ├── service_start.j2
 │           └── service_start.meta.yaml
 └── README.md
+```
+
+---
+
+## Entity Registry Schema
+
+The `entity.schema.json` file defines the schema for LogForge entity registry files (`entities.yaml`). This schema is used by the LogForge application itself for synthetic log generation, separate from template repository schemas.
+
+### Purpose
+
+Entity registry files define the organizational structure, users, devices, and services that are used as data sources when generating synthetic logs. Templates reference these entities to create realistic log entries.
+
+### Schema File
+
+| File | Schema File |
+|------|-------------|
+| `entities.yaml` | `schemas/entity.schema.json` |
+
+### Required Sections
+
+1. **`organization`** (object, required): Organization-wide configuration
+   - Required fields: `name`, `domain`
+   - Optional fields: `netbios_domain`, `timezone`, `industry`, `location`, `contacts`, `settings`
+
+2. **`users`** (array, required, min 1): List of user entities
+   - Required fields per user: `username`, `email`, `full_name`
+   - Usernames and emails must be unique (case-insensitive)
+   - Optional fields: `user_id`, `department`, `title`, `is_admin`, `employee_type`, `location`, `organization`, and custom attributes
+
+3. **`devices`** (array, required, min 1): List of device entities
+   - Required fields per device: `hostname`, `ip_address`, `mac_address`
+   - Hostnames must be unique
+   - IP addresses validated as IPv4 or IPv6
+   - MAC addresses validated (format: `XX:XX:XX:XX:XX:XX` or `XX-XX-XX-XX-XX-XX`)
+   - Optional fields: `fqdn`, `device_id`, `os_type`, `os_version`, `owner`, `device_type`, `model`, `department`, `status`, `last_updated`, and custom attributes
+
+4. **`services`** (array, required, min 1): List of service entities
+   - Required fields per service: `name`, `port`, `protocol`
+   - Service names must be unique
+   - Ports must be integers between 1 and 65535
+   - Optional fields: `service_id`, `description`, `owner`, `url`, and custom attributes
+
+5. **`network_ranges`** (array, optional): Network ranges for IP generation
+   - Each range must have either:
+     - `cidr` (CIDR notation), OR
+     - `start_ip` and `end_ip` (both required, start_ip < end_ip)
+   - Optional fields: `name`, `description`, `location`, `security_level`
+
+### Validation
+
+Entity registry files are validated by the LogForge application using both:
+- JSON Schema validation (`entity.schema.json`)
+- Programmatic validation (`src/logforge/entities/validator.py`)
+
+The programmatic validator enforces additional constraints:
+- Uniqueness checks (usernames, emails, hostnames, service names)
+- Format validation (email, IP address, MAC address)
+- Business logic (e.g., start_ip < end_ip for network ranges)
+
+### Example Structure
+
+```yaml
+organization:
+  name: "Acme Corporation"
+  domain: "acme.com"
+  timezone: "America/New_York"
+  contacts:
+    security: "security@acme.com"
+    it_support: "support@acme.com"
+
+network_ranges:
+  - cidr: "10.1.0.0/16"
+    name: "office"
+  - start_ip: "192.168.1.0"
+    end_ip: "192.168.1.255"
+    name: "vpn"
+
+users:
+  - username: "jsmith"
+    email: "jsmith@acme.com"
+    full_name: "John Smith"
+    department: "IT"
+    is_admin: true
+
+devices:
+  - hostname: "WS001"
+    ip_address: "192.168.1.101"
+    mac_address: "00:1A:2B:3C:4D:5E"
+    os_type: "Windows 10"
+    device_type: "desktop"
+
+services:
+  - name: "Web Server"
+    port: 80
+    protocol: "HTTP"
+```
+
+### Validation Tools
+
+**Python**:
+```bash
+pip install pyyaml jsonschema
+python -c "import yaml, json, jsonschema; data = yaml.safe_load(open('entities.yaml')); schema = json.load(open('schemas/entity.schema.json')); jsonschema.validate(data, schema)"
+```
+
+**Using LogForge CLI**:
+```bash
+logforge entities validate
 ```
