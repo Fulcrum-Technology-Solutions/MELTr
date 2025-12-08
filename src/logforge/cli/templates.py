@@ -713,7 +713,8 @@ def templates_install(
                     vendor_dir,
                     default_path,
                     vendor_id=vendor_id,
-                    overwrite=overwrite
+                    overwrite=overwrite,
+                    backup_count=config.templates.backup_count,
                 )
                 
                 console.print(f"[green]✓ Package installed successfully[/green]")
@@ -761,6 +762,7 @@ def templates_install(
                     target_dir=default_path,
                     overwrite=overwrite,
                     progress_callback=lambda b, t: progress.update(task, completed=b, total=t),
+                    backup_count=config.templates.backup_count,
                 )
                 
                 progress.update(task, completed=True, description="[green]Complete")
@@ -977,6 +979,7 @@ def templates_update(
                     vendor_id=vendor_id,
                     target_dir=default_path,
                     overwrite=True,  # Always overwrite for updates
+                    backup_count=config.templates.backup_count,
                 )
                 
                 console.print(f"[green]✓ Updated {vendor_id}[/green]")

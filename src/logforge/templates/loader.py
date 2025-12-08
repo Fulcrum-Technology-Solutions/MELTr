@@ -75,6 +75,12 @@ class TemplateLoader:
             if not vendor_dir.is_dir():
                 continue
             
+            # Skip hidden directories and legacy backup directories
+            # (New backups are stored in $LOGFORGE_HOME/backups/templates/)
+            vendor_name = vendor_dir.name
+            if vendor_name.startswith('.') or '.backup.' in vendor_name:
+                continue
+            
             vendor_id = vendor_dir.name
             vendor_meta_path = vendor_dir / 'vendor.meta.yaml'
             

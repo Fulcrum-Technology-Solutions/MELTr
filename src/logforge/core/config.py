@@ -75,6 +75,7 @@ class TemplatesConfig(BaseModel):
     auto_update_check: bool = Field(default=True, description="Auto-check for updates")
     cache_ttl: int = Field(default=3600, description="Template cache TTL in seconds")
     auto_backup_on_customize: bool = Field(default=True, description="Backup on customize")
+    backup_count: int = Field(default=5, description="Number of template backups to keep")
     diff_tool: str = Field(default="auto", description="Diff tool for template comparison")
 
 

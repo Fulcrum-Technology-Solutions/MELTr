@@ -1,15 +1,18 @@
 """Package download, extraction, and installation utilities."""
 
+import gzip
 import json
 import shutil
 import tarfile
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
 import yaml
 
 from logforge.community.client import CommunityAPIClient, CommunityAPIError
+from logforge.core.paths import get_backups_path
 from logforge.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -125,11 +128,70 @@ def validate_package_structure(vendor_dir: Path) -> bool:
     return True
 
 
+def backup_vendor_directory(
+    vendor_dir: Path,
+    vendor_id: str,
+    backup_count: int = 5,
+) -> Path:
+    """Backup vendor directory to backups location with rotation.
+    
+    Args:
+        vendor_dir: Path to vendor directory to backup
+        vendor_id: Vendor identifier
+        backup_count: Number of backups to keep
+        
+    Returns:
+        Path to backup directory
+        
+    Raises:
+        PackageError: If backup fails
+    """
+    backups_path = get_backups_path()
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    backup_name = f"{vendor_id}-{timestamp}"
+    backup_dir = backups_path / backup_name
+    
+    try:
+        # Create backup
+        logger.info(f"Creating backup: {backup_dir}")
+        shutil.copytree(vendor_dir, backup_dir)
+        
+        # Get all backups for this vendor (sorted by name, which includes timestamp)
+        vendor_backups = sorted(
+            [d for d in backups_path.iterdir() 
+             if d.is_dir() and d.name.startswith(f"{vendor_id}-")],
+            key=lambda p: p.name,
+            reverse=True
+        )
+        
+        # Remove oldest backups if we exceed backup_count
+        if len(vendor_backups) > backup_count:
+            for old_backup in vendor_backups[backup_count:]:
+                logger.debug(f"Removing old backup: {old_backup}")
+                # Try to compress before removing
+                try:
+                    backup_tar = old_backup.with_suffix('.tar.gz')
+                    with tarfile.open(backup_tar, 'w:gz') as tar:
+                        tar.add(old_backup, arcname=old_backup.name)
+                    shutil.rmtree(old_backup)
+                    logger.debug(f"Compressed old backup to: {backup_tar}")
+                except Exception as e:
+                    logger.warning(f"Failed to compress backup {old_backup}, removing directly: {e}")
+                    shutil.rmtree(old_backup, ignore_errors=True)
+        
+        logger.info(f"Backup created successfully: {backup_dir}")
+        return backup_dir
+        
+    except Exception as e:
+        raise PackageError(f"Failed to create backup: {e}") from e
+
+
 def install_package(
     vendor_dir: Path,
     target_dir: Path,
     vendor_id: Optional[str] = None,
     overwrite: bool = False,
+    backup_count: int = 5,
 ) -> Path:
     """Install extracted package to templates directory.
     
@@ -138,6 +200,7 @@ def install_package(
         target_dir: Target templates directory (typically default/)
         vendor_id: Expected vendor ID (for validation)
         overwrite: Whether to overwrite existing vendor directory
+        backup_count: Number of backups to keep (default: 5)
         
     Returns:
         Path to installed vendor directory
@@ -162,9 +225,12 @@ def install_package(
     
     # Backup existing directory if overwriting
     if installed_dir.exists() and overwrite:
-        backup_dir = installed_dir.with_suffix(f'.backup.{int(Path.cwd().stat().st_mtime)}')
-        logger.info(f"Backing up existing directory to: {backup_dir}")
-        shutil.move(str(installed_dir), str(backup_dir))
+        try:
+            backup_vendor_directory(installed_dir, vendor_id, backup_count)
+        except Exception as e:
+            logger.warning(f"Failed to create backup: {e}. Continuing with installation...")
+        # Remove old directory after backup
+        shutil.rmtree(installed_dir)
     
     try:
         # Copy vendor directory to target
@@ -339,6 +405,7 @@ def download_and_install_vendor(
     temp_dir: Optional[Path] = None,
     overwrite: bool = False,
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    backup_count: int = 5,
 ) -> Path:
     """Download vendor package and install it.
     
@@ -349,6 +416,7 @@ def download_and_install_vendor(
         temp_dir: Temporary directory for downloads (None = system temp)
         overwrite: Whether to overwrite existing installation
         progress_callback: Optional callback for download progress
+        backup_count: Number of backups to keep (default: 5)
         
     Returns:
         Path to installed vendor directory
@@ -388,7 +456,8 @@ def download_and_install_vendor(
             vendor_dir,
             target_dir,
             vendor_id=vendor_id,
-            overwrite=overwrite
+            overwrite=overwrite,
+            backup_count=backup_count,
         )
         
         return installed_dir
