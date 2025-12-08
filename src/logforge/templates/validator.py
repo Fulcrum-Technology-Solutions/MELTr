@@ -130,6 +130,25 @@ def _load_schema_validator(schema_path: Optional[Path] = None) -> Any:
     return _SCHEMA_VALIDATOR
 
 
+class ValidationResult:
+    """Result of template validation."""
+    
+    def __init__(self) -> None:
+        """Initialize validation result."""
+        self.is_valid = True
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
+    
+    def add_error(self, message: str) -> None:
+        """Add validation error."""
+        self.is_valid = False
+        self.errors.append(message)
+    
+    def add_warning(self, message: str) -> None:
+        """Add validation warning."""
+        self.warnings.append(message)
+
+
 def _validate_metadata_schema(metadata_data: Dict[str, Any], result: ValidationResult) -> None:
     """Validate metadata against JSON schema.
     
@@ -158,25 +177,6 @@ def _validate_metadata_schema(metadata_data: Dict[str, Any], result: ValidationR
         result.add_warning(f"JSON schema validation skipped: {e}")
     except Exception as e:
         result.add_warning(f"JSON schema validation failed: {e}")
-
-
-class ValidationResult:
-    """Result of template validation."""
-    
-    def __init__(self) -> None:
-        """Initialize validation result."""
-        self.is_valid = True
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
-    
-    def add_error(self, message: str) -> None:
-        """Add validation error."""
-        self.is_valid = False
-        self.errors.append(message)
-    
-    def add_warning(self, message: str) -> None:
-        """Add validation warning."""
-        self.warnings.append(message)
 
 
 def validate_template(template_path: Path, metadata_path: Path) -> ValidationResult:
