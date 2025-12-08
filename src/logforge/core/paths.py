@@ -162,3 +162,19 @@ def get_templates_path(home: Optional[Path] = None) -> Path:
         home = get_logforge_home()
     return home / 'templates'
 
+
+def get_backups_path(home: Optional[Path] = None) -> Path:
+    """Get path to backups directory.
+    
+    Args:
+        home: LOGFORGE_HOME path. If None, resolves automatically.
+        
+    Returns:
+        Path to backups directory
+    """
+    if home is None:
+        home = get_logforge_home()
+    backups_path = home / 'backups' / 'templates'
+    _ensure_directory(backups_path)
+    return backups_path
+
