@@ -1,8 +1,8 @@
 """Entity management API endpoints."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Dict, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
 from logforge.entities.registry import EntityRegistry
 
@@ -82,6 +82,90 @@ async def get_entities_by_type(
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size,
         "entities": entities,
+    }
+
+
+@router.post("/import")
+async def import_entities(
+    registry: Annotated[EntityRegistry, Depends(get_registry)],
+    entities_data: Annotated[Dict[str, Any], Body(description="Entity data to import")],
+    merge: bool = Query(False, description="Merge with existing entities"),
+) -> dict:
+    """Import entities into the registry.
+    
+    Args:
+        registry: Entity registry instance
+        entities_data: Entity data to import
+        merge: If True, merge with existing entities
+        
+    Returns:
+        Import summary
+    """
+    from logforge.entities.validator import validate_entities
+    
+    # Validate import data
+    try:
+        validate_entities(entities_data, schema_path=None)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid entities: {str(e)}")
+    
+    # Get current data
+    current_data = registry._data or {
+        'organization': {},
+        'users': [],
+        'devices': [],
+        'services': [],
+        'network_ranges': [],
+    }
+    
+    if merge:
+        # Merge logic
+        merged_data = current_data.copy()
+        merged_data['users'] = current_data.get('users', []) + entities_data.get('users', [])
+        merged_data['devices'] = current_data.get('devices', []) + entities_data.get('devices', [])
+        merged_data['services'] = current_data.get('services', []) + entities_data.get('services', [])
+        # Update organization if provided
+        if 'organization' in entities_data:
+            merged_data['organization'] = entities_data['organization']
+        # Merge network ranges
+        if 'network_ranges' in entities_data:
+            merged_data['network_ranges'] = current_data.get('network_ranges', []) + entities_data.get('network_ranges', [])
+        
+        # Re-validate
+        validate_entities(merged_data, schema_path=None)
+        registry._data = merged_data
+    else:
+        # Replace
+        registry._data = entities_data
+    
+    # Rebuild indexes and save
+    registry._rebuild_indexes()
+    registry.save()
+    
+    return {
+        "message": "Entities imported successfully",
+        "users": len(registry.get_all_users()),
+        "devices": len(registry.get_all_devices()),
+        "services": len(registry.get_all_services()),
+    }
+
+
+@router.post("/reload")
+async def reload_entities(
+    registry: Annotated[EntityRegistry, Depends(get_registry)]
+) -> dict:
+    """Reload entities from disk.
+    
+    Returns:
+        Reload summary
+    """
+    registry.reload(strict=False)
+    
+    return {
+        "message": "Entities reloaded successfully",
+        "users": len(registry.get_all_users()),
+        "devices": len(registry.get_all_devices()),
+        "services": len(registry.get_all_services()),
     }
 
 
