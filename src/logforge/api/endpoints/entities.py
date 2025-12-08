@@ -42,49 +42,6 @@ async def get_entities_summary(
     }
 
 
-@router.get("/{entity_type}")
-async def get_entities_by_type(
-    entity_type: Literal["users", "devices", "services"],
-    registry: Annotated[EntityRegistry, Depends(get_registry)],
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(100, ge=1, le=1000, description="Items per page"),
-) -> dict:
-    """Get entities of specified type with pagination.
-    
-    Args:
-        entity_type: Type of entities to retrieve
-        registry: Entity registry instance
-        page: Page number (1-indexed)
-        page_size: Number of items per page
-        
-    Returns:
-        Entities list with pagination info
-    """
-    if entity_type == "users":
-        all_entities = registry.get_all_users()
-    elif entity_type == "devices":
-        all_entities = registry.get_all_devices()
-    elif entity_type == "services":
-        all_entities = registry.get_all_services()
-    else:
-        raise HTTPException(status_code=400, detail=f"Invalid entity type: {entity_type}")
-    
-    # Pagination
-    total = len(all_entities)
-    start = (page - 1) * page_size
-    end = start + page_size
-    entities = all_entities[start:end]
-    
-    return {
-        "type": entity_type,
-        "count": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size,
-        "entities": entities,
-    }
-
-
 @router.post("/import")
 async def import_entities(
     registry: Annotated[EntityRegistry, Depends(get_registry)],
@@ -166,6 +123,49 @@ async def reload_entities(
         "users": len(registry.get_all_users()),
         "devices": len(registry.get_all_devices()),
         "services": len(registry.get_all_services()),
+    }
+
+
+@router.get("/{entity_type}")
+async def get_entities_by_type(
+    entity_type: Literal["users", "devices", "services"],
+    registry: Annotated[EntityRegistry, Depends(get_registry)],
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(100, ge=1, le=1000, description="Items per page"),
+) -> dict:
+    """Get entities of specified type with pagination.
+    
+    Args:
+        entity_type: Type of entities to retrieve
+        registry: Entity registry instance
+        page: Page number (1-indexed)
+        page_size: Number of items per page
+        
+    Returns:
+        Entities list with pagination info
+    """
+    if entity_type == "users":
+        all_entities = registry.get_all_users()
+    elif entity_type == "devices":
+        all_entities = registry.get_all_devices()
+    elif entity_type == "services":
+        all_entities = registry.get_all_services()
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid entity type: {entity_type}")
+    
+    # Pagination
+    total = len(all_entities)
+    start = (page - 1) * page_size
+    end = start + page_size
+    entities = all_entities[start:end]
+    
+    return {
+        "type": entity_type,
+        "count": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+        "entities": entities,
     }
 
 
