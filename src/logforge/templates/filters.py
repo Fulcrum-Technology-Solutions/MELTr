@@ -246,13 +246,26 @@ def random_private_ip() -> str:
         return f"192.168.{random.randint(0, 255)}.{random.randint(1, 254)}"
 
 
-def random_port() -> int:
+def random_port(min_port: Optional[int] = None, max_port: Optional[int] = None) -> int:
     """Generate random port number.
     
+    Args:
+        min_port: Minimum port number (default: 1024)
+        max_port: Maximum port number (default: 65535)
+    
     Returns:
-        Random port number (1024-65535)
+        Random port number in specified range
+        
+    Example:
+        {{ random_port() }}  # Random port 1024-65535
+        {{ random_port(1024, 65535) }}  # Explicit range
+        {{ random_port(8000, 9000) }}  # Custom range
     """
-    return random.randint(1024, 65535)
+    if min_port is None:
+        min_port = 1024
+    if max_port is None:
+        max_port = 65535
+    return random.randint(min_port, max_port)
 
 
 def random_guid() -> str:
