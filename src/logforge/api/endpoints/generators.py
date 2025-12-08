@@ -139,3 +139,42 @@ async def restart_generator(
         raise HTTPException(status_code=404, detail=f"Generator not found: {name}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to restart generator: {str(e)}")
+
+
+@router.post("/restart-all")
+async def restart_all_generators(
+    engine: Annotated[Engine, Depends(get_engine)]
+) -> dict:
+    """Restart all generators.
+    
+    Returns:
+        Summary of restart operations
+    """
+    generators = engine.get_all_generators()
+    results = []
+    success_count = 0
+    
+    for generator in generators:
+        try:
+            engine.restart_generator(generator.name)
+            status = engine.get_generator_status(generator.name)
+            results.append({
+                "name": generator.name,
+                "success": True,
+                "state": status["state"],
+            })
+            success_count += 1
+        except Exception as e:
+            results.append({
+                "name": generator.name,
+                "success": False,
+                "error": str(e),
+                "state": generator.state.value,
+            })
+    
+    return {
+        "message": f"Restarted {success_count} of {len(generators)} generator(s)",
+        "count": success_count,
+        "total": len(generators),
+        "results": results,
+    }
