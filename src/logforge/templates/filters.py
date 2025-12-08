@@ -294,6 +294,25 @@ def subtract_seconds(dt: datetime, seconds: int) -> datetime:
     return dt
 
 
+def hex_filter(value: Any) -> str:
+    """Convert integer to hexadecimal string (lowercase, no prefix).
+    
+    Args:
+        value: Integer value to convert
+        
+    Returns:
+        Hexadecimal string without '0x' prefix
+        
+    Example:
+        {{ random_int(0, 67108864) | hex }}  # Returns: "1a2b3c"
+        # Use with prefix: 0x{{ random_int(0, 67108864) | hex }}
+    """
+    try:
+        return format(int(value), 'x')
+    except (ValueError, TypeError):
+        return '0'
+
+
 def register_filters(env: Environment) -> None:
     """Register custom filters with Jinja2 environment.
     
@@ -317,6 +336,9 @@ def register_filters(env: Environment) -> None:
     env.filters['random_choice'] = random_choice
     env.filters['random_string'] = random_string
     env.filters['random_weighted'] = random_weighted
+    
+    # Formatting filters
+    env.filters['hex'] = hex_filter
     
     # Register as global functions (not just filters)
     env.globals['now'] = now
