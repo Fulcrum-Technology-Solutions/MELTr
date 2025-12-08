@@ -164,6 +164,10 @@ def generators_status(
     timeout: int = typer.Option(30, "--timeout", help="Request timeout in seconds"),
 ) -> None:
     """Show generator status."""
+    # Handle case where timeout might be a Typer OptionInfo object (when called directly)
+    if isinstance(timeout, typer.models.OptionInfo):
+        timeout = timeout.default if hasattr(timeout, 'default') else 30
+    
     client = get_api_client(api_url, api_key)
     client.timeout = timeout  # Override timeout for status commands
     client.require_service_running()
