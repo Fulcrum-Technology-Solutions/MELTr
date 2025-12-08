@@ -294,23 +294,21 @@ def subtract_seconds(dt: datetime, seconds: int) -> datetime:
     return dt
 
 
-def hex_filter(value: Any) -> str:
-    """Convert integer to hexadecimal string (lowercase, no prefix).
+def random_hex(min_val: int, max_val: int) -> str:
+    """Generate random hexadecimal value with '0x' prefix.
     
     Args:
-        value: Integer value to convert
+        min_val: Minimum integer value
+        max_val: Maximum integer value
         
     Returns:
-        Hexadecimal string without '0x' prefix
+        Hexadecimal string with '0x' prefix (e.g., '0x1a2b3c')
         
     Example:
-        {{ random_int(0, 67108864) | hex }}  # Returns: "1a2b3c"
-        # Use with prefix: 0x{{ random_int(0, 67108864) | hex }}
+        {{ random_hex(0, 67108864) }}  # Returns: "0x1a2b3c"
     """
-    try:
-        return format(int(value), 'x')
-    except (ValueError, TypeError):
-        return '0'
+    value = random.randint(min_val, max_val)
+    return f"0x{format(value, 'x')}"
 
 
 def register_filters(env: Environment) -> None:
@@ -337,9 +335,6 @@ def register_filters(env: Environment) -> None:
     env.filters['random_string'] = random_string
     env.filters['random_weighted'] = random_weighted
     
-    # Formatting filters
-    env.filters['hex'] = hex_filter
-    
     # Register as global functions (not just filters)
     env.globals['now'] = now
     env.globals['current_timestamp'] = now
@@ -351,4 +346,5 @@ def register_filters(env: Environment) -> None:
     env.globals['random_port'] = random_port
     env.globals['random_guid'] = random_guid
     env.globals['random_hostname'] = random_hostname
+    env.globals['random_hex'] = random_hex
 
