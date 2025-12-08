@@ -173,6 +173,8 @@ def entities_validate(
 def entities_import(
     file_path: Path = typer.Argument(..., help="Path to entities YAML file to import"),
     merge: bool = typer.Option(False, "--merge", help="Merge with existing entities instead of replacing"),
+    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
 ) -> None:
     """Import entities from YAML file."""
     from logforge.core.paths import get_logforge_home, get_entities_path
@@ -193,6 +195,34 @@ def entities_import(
     except Exception as e:
         console.print(f"[red]Error: Invalid entities file: {e}[/red]")
         raise typer.Exit(code=1)
+    
+    # Try to use API if service is running
+    client = get_api_client(api_url, api_key)
+    is_healthy, _ = client.check_health()
+    
+    if is_healthy:
+        # Use API to import (updates in-memory registry)
+        try:
+            response = client.post(
+                "/api/entities/import",
+                json=import_data,
+                params={"merge": merge}
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            console.print(f"[green]✓ {data['message']}[/green]")
+            console.print(f"  Users: {data['users']}")
+            console.print(f"  Devices: {data['devices']}")
+            console.print(f"  Services: {data['services']}")
+            return
+        except Exception as e:
+            console.print(f"[red]Error importing via API: {e}[/red]")
+            console.print("[yellow]Falling back to direct file write...[/yellow]")
+    
+    # Fallback: Direct file write (service not running or API failed)
+    console.print("[yellow]⚠ Service not running - importing directly to file[/yellow]")
+    console.print("[dim]Note: Restart service or use 'logforge entities reload' to load changes[/dim]")
     
     # Load existing entities if merging (use strict=False to allow empty files)
     storage = EntityStorage()
@@ -220,6 +250,29 @@ def entities_import(
     console.print(f"  Users: {len(import_data.get('users', []))}")
     console.print(f"  Devices: {len(import_data.get('devices', []))}")
     console.print(f"  Services: {len(import_data.get('services', []))}")
+
+
+@app.command("reload")
+def entities_reload(
+    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
+) -> None:
+    """Reload entities from disk (requires running service)."""
+    client = get_api_client(api_url, api_key)
+    client.require_service_running()
+    
+    try:
+        response = client.post("/api/entities/reload")
+        response.raise_for_status()
+        data = response.json()
+        
+        console.print(f"[green]✓ {data['message']}[/green]")
+        console.print(f"  Users: {data['users']}")
+        console.print(f"  Devices: {data['devices']}")
+        console.print(f"  Services: {data['services']}")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("export")
