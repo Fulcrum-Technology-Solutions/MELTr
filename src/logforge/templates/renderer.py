@@ -16,11 +16,13 @@ logger = get_logger(__name__)
 class TemplateRenderer:
     """Renders Jinja2 templates with registry and Faker context."""
     
-    def __init__(self, registry: EntityRegistry) -> None:
+    def __init__(self, registry: EntityRegistry, timezone: Optional[str] = None) -> None:
         """Initialize template renderer.
         
         Args:
             registry: Entity registry instance
+            timezone: Optional timezone override (e.g., 'America/New_York').
+                     If not provided, uses organization timezone.
         """
         self.registry = registry
         self.faker = Faker()
@@ -36,8 +38,11 @@ class TemplateRenderer:
         # Register custom filters
         register_filters(self.env)
         
-        # Get organization timezone and register timezone-aware now() function
-        timezone = self.registry.get_organization_timezone()
+        # Get timezone (use provided timezone or fall back to organization timezone)
+        if timezone is None:
+            timezone = self.registry.get_organization_timezone()
+        
+        # Register timezone-aware now() function
         from logforge.templates.filters import now as now_func
         self.env.globals['now'] = lambda: now_func(timezone)
         self.env.globals['current_timestamp'] = lambda: now_func(timezone)

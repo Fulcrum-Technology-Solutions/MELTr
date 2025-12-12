@@ -60,6 +60,8 @@ generators:
   # - name: my-generator
   #   template: vendor/product/category/template_name
   #   enabled: true
+  #   # Optional: Override timezone (defaults to organization timezone from entities.yaml)
+  #   # timezone: America/New_York
   #   # Frequency is read from template metadata (.meta.yaml)
   #   # To customize, copy template to custom/ directory and edit .meta.yaml
   #   outputs:

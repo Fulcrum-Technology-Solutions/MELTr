@@ -115,6 +115,8 @@ generators:
   # - name: windows-login-success
   #   template: microsoft/windows/system/clop_persistence
   #   enabled: true
+  #   # Optional: Override timezone (defaults to organization timezone from entities.yaml)
+  #   # timezone: America/New_York
   #   # Frequency is read from template metadata (.meta.yaml)
   #   # To customize, copy template to custom/ directory and edit .meta.yaml
   #   outputs:
@@ -123,6 +125,8 @@ generators:
   # - name: paloalto-wildfire-threats
   #   template: paloalto/wildfire/threats/wildfire_threat_detected
   #   enabled: true
+  #   # Optional: Override timezone (defaults to organization timezone from entities.yaml)
+  #   # timezone: Europe/London
   #   # Frequency is read from template metadata (.meta.yaml)
   #   # To customize, copy template to custom/ directory and edit .meta.yaml
   #   outputs:

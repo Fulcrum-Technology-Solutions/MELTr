@@ -158,6 +158,7 @@ class GeneratorConfig(BaseModel):
     template: str = Field(description="Template ID")
     enabled: bool = Field(default=True, description="Generator enabled")
     outputs: List[str] = Field(description="Output destination names")
+    timezone: Optional[str] = Field(default=None, description="Timezone override (e.g., 'America/New_York'). Takes precedence over organization timezone.")
 
 
 class Config(BaseModel):
