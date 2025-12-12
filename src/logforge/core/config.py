@@ -113,6 +113,7 @@ class OutputDefinition(BaseModel):
     headers: Optional[Dict[str, str]] = Field(default=None, description="HTTP headers")
     batch_size: Optional[int] = Field(default=None, description="Batch size (for http)")
     batch_interval: Optional[int] = Field(default=None, description="Batch interval in seconds")
+    streaming: Optional[bool] = Field(default=True, description="Stream events individually (True) or batch them (False) for HTTP output")
     protocol: Optional[str] = Field(default=None, description="Protocol (tcp/udp for syslog)")
     facility: Optional[str] = Field(default=None, description="Syslog facility")
     severity: Optional[str] = Field(default=None, description="Syslog severity")
