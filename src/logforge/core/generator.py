@@ -484,6 +484,7 @@ class Generator:
             "state": self.state.value,
             "template": self.config.template,
             "enabled": self.config.enabled,
+            "timezone": self.config.timezone,  # Include timezone in status
             "frequency": {
                 "base_rate": self._template_info.metadata.base_frequency / 3600.0 if (self._template_info and self._template_info.metadata and self._template_info.metadata.base_frequency) else 0.0,
                 "current_rate": current_rate,
