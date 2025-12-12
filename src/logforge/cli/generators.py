@@ -188,6 +188,8 @@ def generators_status(
             console.print(f"  [cyan]State:[/cyan] {data['state']}")
             console.print(f"  [cyan]Template:[/cyan] {data['template']}")
             console.print(f"  [cyan]Enabled:[/cyan] {'Yes' if data['enabled'] else 'No'}")
+            if 'timezone' in data and data['timezone']:
+                console.print(f"  [cyan]Timezone:[/cyan] {data['timezone']}")
             console.print(f"  [cyan]Base Rate:[/cyan] {data['frequency']['base_rate']} events/sec")
             console.print(f"  [cyan]Current Rate:[/cyan] {data['frequency']['current_rate']} events/sec")
             console.print(f"  [cyan]Outputs:[/cyan] {', '.join(data['outputs'])}")

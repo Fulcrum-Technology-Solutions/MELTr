@@ -542,17 +542,20 @@ def _edit_generators_section(config: Config) -> Config:
             table.add_column("Name", style="cyan")
             table.add_column("Template", style="green")
             table.add_column("Enabled", style="yellow")
+            table.add_column("Timezone", style="magenta")
             table.add_column("Rate", style="magenta")
             table.add_column("Outputs", style="blue")
             
             for gen in config.generators:
                 # Rate comes from template metadata
                 rate = "from template"
+                timezone_str = gen.timezone or "(org)"
                 outputs_str = ", ".join(gen.outputs) if gen.outputs else "none"
                 table.add_row(
                     gen.name,
                     gen.template,
                     "✓" if gen.enabled else "✗",
+                    timezone_str,
                     rate,
                     outputs_str,
                 )
@@ -634,6 +637,13 @@ def _create_generator_interactive(config: Config) -> Optional[GeneratorConfig]:
     console.print("[green]✓ Frequency will be read from template metadata (.meta.yaml)[/green]")
     console.print("[dim]To customize frequency, copy template to custom/ directory and edit .meta.yaml[/dim]")
     
+    # Timezone override (optional)
+    console.print("\n[bold]Timezone Configuration[/bold]\n")
+    console.print("[dim]Leave empty to use organization timezone from entities.yaml[/dim]")
+    console.print("[dim]Examples: America/New_York, Europe/London, Asia/Tokyo, UTC[/dim]")
+    timezone_input = Prompt.ask("Timezone override (optional)", default="")
+    timezone = timezone_input.strip() if timezone_input.strip() else None
+    
     enabled = Confirm.ask("\nEnable generator?", default=True)
     
     return GeneratorConfig(
@@ -641,6 +651,7 @@ def _create_generator_interactive(config: Config) -> Optional[GeneratorConfig]:
         template=template,
         enabled=enabled,
         outputs=selected_outputs,
+        timezone=timezone,
     )
 
 
@@ -725,6 +736,15 @@ def _edit_generator_interactive(config: Config) -> Config:
     # Frequency comes from template metadata
     console.print("\n[dim]Frequency is read from template metadata (.meta.yaml)[/dim]")
     console.print("[dim]To customize, copy template to custom/ directory and edit .meta.yaml[/dim]")
+    
+    # Edit timezone override
+    if Confirm.ask("\nEdit timezone override?", default=False):
+        current_tz = gen.timezone or "(using organization timezone)"
+        console.print(f"\n[bold]Current timezone:[/bold] {current_tz}")
+        console.print("[dim]Leave empty to use organization timezone from entities.yaml[/dim]")
+        console.print("[dim]Examples: America/New_York, Europe/London, Asia/Tokyo, UTC[/dim]")
+        timezone_input = Prompt.ask("Timezone override (optional)", default=gen.timezone or "")
+        gen.timezone = timezone_input.strip() if timezone_input.strip() else None
     
     # Edit outputs
     if Confirm.ask("Edit outputs?", default=False):
