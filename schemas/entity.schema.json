@@ -1,0 +1,415 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://logforge.dev/schemas/entity.schema.json",
+    "title": "Entity Registry Schema",
+    "description": "Schema for entity registry YAML files used by LogForge synthetic log generator",
+    "type": "object",
+    "required": ["organization", "users", "devices", "services"],
+    "properties": {
+        "version": {
+            "type": "string",
+            "description": "Schema version (defaults to '1.0')",
+            "pattern": "^\\d+\\.\\d+$",
+            "examples": ["1.0", "1.1"]
+        },
+        "organization": {
+            "type": "object",
+            "description": "Organization-wide configuration and metadata",
+            "required": ["name", "domain"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Organization name",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "examples": ["Acme Corporation", "Initech Corporation"]
+                },
+                "domain": {
+                    "type": "string",
+                    "description": "Primary domain name (RFC 1035 compliant FQDN)",
+                    "pattern": "^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$",
+                    "examples": ["acme.com", "initech.com"]
+                },
+                "netbios_domain": {
+                    "type": "string",
+                    "description": "NetBIOS domain name for Windows environments",
+                    "maxLength": 15,
+                    "pattern": "^[A-Z0-9]{1,15}$",
+                    "examples": ["ACME", "INITECH"]
+                },
+                "timezone": {
+                    "type": "string",
+                    "description": "Primary timezone (IANA timezone identifier)",
+                    "examples": ["America/New_York", "America/Chicago", "UTC"]
+                },
+                "industry": {
+                    "type": "string",
+                    "description": "Industry sector",
+                    "examples": ["Technology", "Finance", "Healthcare", "Software Development"]
+                },
+                "location": {
+                    "type": "object",
+                    "description": "Organization physical location",
+                    "properties": {
+                        "address": {
+                            "type": "string",
+                            "description": "Street address"
+                        },
+                        "city": {
+                            "type": "string",
+                            "description": "City name"
+                        },
+                        "state": {
+                            "type": "string",
+                            "description": "State or province"
+                        },
+                        "zip": {
+                            "type": "string",
+                            "description": "ZIP or postal code"
+                        },
+                        "country": {
+                            "type": "string",
+                            "description": "Country name or code"
+                        },
+                        "lat": {
+                            "type": "number",
+                            "description": "Latitude coordinate",
+                            "minimum": -90,
+                            "maximum": 90
+                        },
+                        "long": {
+                            "type": "number",
+                            "description": "Longitude coordinate",
+                            "minimum": -180,
+                            "maximum": 180
+                        }
+                    }
+                },
+                "contacts": {
+                    "type": "object",
+                    "description": "Organization contact information",
+                    "patternProperties": {
+                        "^[a-z_]+$": {
+                            "type": "string",
+                            "format": "email"
+                        }
+                    },
+                    "examples": [
+                        {
+                            "security": "security@acme.com",
+                            "it_support": "support@acme.com",
+                            "helpdesk": "helpdesk@acme.com",
+                            "hr": "hr@acme.com"
+                        }
+                    ]
+                },
+                "settings": {
+                    "type": "object",
+                    "description": "Organization-wide settings",
+                    "properties": {
+                        "password_expiry_days": {
+                            "type": "integer",
+                            "description": "Password expiry period in days",
+                            "minimum": 1
+                        },
+                        "account_lockout_threshold": {
+                            "type": "integer",
+                            "description": "Failed login attempts before account lockout",
+                            "minimum": 1
+                        },
+                        "session_timeout_minutes": {
+                            "type": "integer",
+                            "description": "Session timeout in minutes",
+                            "minimum": 1
+                        },
+                        "max_login_attempts": {
+                            "type": "integer",
+                            "description": "Maximum login attempts allowed",
+                            "minimum": 1
+                        },
+                        "min_password_length": {
+                            "type": "integer",
+                            "description": "Minimum password length",
+                            "minimum": 1
+                        },
+                        "require_mfa": {
+                            "type": "boolean",
+                            "description": "Whether multi-factor authentication is required"
+                        }
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "network_ranges": {
+            "type": "array",
+            "description": "Network ranges for internal IP address generation",
+            "items": {
+                "type": "object",
+                "oneOf": [
+                    {
+                        "required": ["cidr"],
+                        "properties": {
+                            "cidr": {
+                                "type": "string",
+                                "description": "CIDR notation network range",
+                                "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}/[0-9]{1,3}$"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Optional name for referencing this range",
+                                "minLength": 1
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of the network range"
+                            },
+                            "location": {
+                                "type": "string",
+                                "description": "Physical location of this network"
+                            },
+                            "security_level": {
+                                "type": "string",
+                                "description": "Security level classification",
+                                "examples": ["standard", "high", "maximum"]
+                            }
+                        }
+                    },
+                    {
+                        "required": ["start_ip", "end_ip"],
+                        "properties": {
+                            "start_ip": {
+                                "type": "string",
+                                "description": "Starting IP address",
+                                "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$"
+                            },
+                            "end_ip": {
+                                "type": "string",
+                                "description": "Ending IP address (must be greater than start_ip)",
+                                "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Optional name for referencing this range",
+                                "minLength": 1
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of the network range"
+                            },
+                            "location": {
+                                "type": "string",
+                                "description": "Physical location of this network"
+                            },
+                            "security_level": {
+                                "type": "string",
+                                "description": "Security level classification",
+                                "examples": ["standard", "high", "maximum"]
+                            }
+                        }
+                    }
+                ],
+                "additionalProperties": true
+            }
+        },
+        "users": {
+            "type": "array",
+            "description": "List of user entities",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["username", "email", "full_name"],
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "description": "Unique username (case-insensitive)",
+                        "minLength": 1,
+                        "maxLength": 100
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Unique email address (case-insensitive)",
+                        "format": "email",
+                        "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+                    },
+                    "full_name": {
+                        "type": "string",
+                        "description": "Full name of the user",
+                        "minLength": 1,
+                        "maxLength": 200
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "description": "Unique user identifier",
+                        "minLength": 1
+                    },
+                    "department": {
+                        "type": "string",
+                        "description": "Department name",
+                        "examples": ["IT", "Finance", "Sales", "Software Engineering"]
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Job title",
+                        "examples": ["System Administrator", "Accountant", "Sales Manager", "Programmer"]
+                    },
+                    "is_admin": {
+                        "type": "boolean",
+                        "description": "Whether user has administrative privileges"
+                    },
+                    "employee_type": {
+                        "type": "string",
+                        "description": "Type of employee",
+                        "examples": ["employee", "contractor", "contingent", "management", "consultant"]
+                    },
+                    "location": {
+                        "type": "object",
+                        "description": "User location",
+                        "properties": {
+                            "city": {
+                                "type": "string"
+                            },
+                            "state": {
+                                "type": "string"
+                            },
+                            "country": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "organization": {
+                        "type": "string",
+                        "description": "Organizational unit or division"
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "devices": {
+            "type": "array",
+            "description": "List of device entities",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["hostname", "ip_address", "mac_address"],
+                "properties": {
+                    "hostname": {
+                        "type": "string",
+                        "description": "Unique hostname",
+                        "minLength": 1,
+                        "maxLength": 255
+                    },
+                    "fqdn": {
+                        "type": "string",
+                        "description": "Fully qualified domain name",
+                        "pattern": "^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$"
+                    },
+                    "ip_address": {
+                        "type": "string",
+                        "description": "IP address (IPv4 or IPv6)",
+                        "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$"
+                    },
+                    "mac_address": {
+                        "type": "string",
+                        "description": "MAC address (format: XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX)",
+                        "pattern": "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+                    },
+                    "device_id": {
+                        "type": "string",
+                        "description": "Unique device identifier",
+                        "minLength": 1
+                    },
+                    "os_type": {
+                        "type": "string",
+                        "description": "Operating system type",
+                        "examples": ["Windows 10", "Windows Server", "Linux", "macOS", "Windows XP"]
+                    },
+                    "os_version": {
+                        "type": "string",
+                        "description": "Operating system version",
+                        "examples": ["10.0.19044", "2019", "Professional", "Ubuntu 22.04"]
+                    },
+                    "owner": {
+                        "type": "string",
+                        "description": "Username of device owner"
+                    },
+                    "device_type": {
+                        "type": "string",
+                        "description": "Type of device",
+                        "examples": ["desktop", "laptop", "server", "workstation", "mobile"]
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Device model",
+                        "examples": ["Dell OptiPlex 7090", "ThinkPad X1 Carbon", "Dell PowerEdge R740"]
+                    },
+                    "department": {
+                        "type": "string",
+                        "description": "Department that owns the device"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Device status",
+                        "examples": ["active", "inactive", "maintenance", "retired"]
+                    },
+                    "last_updated": {
+                        "type": "string",
+                        "description": "Last update date (ISO format or YYYY-MM-DD)",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "services": {
+            "type": "array",
+            "description": "List of service entities",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["name", "port", "protocol"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Unique service name",
+                        "minLength": 1,
+                        "maxLength": 100
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "Port number",
+                        "minimum": 1,
+                        "maximum": 65535,
+                        "examples": [80, 443, 25, 53, 1433]
+                    },
+                    "protocol": {
+                        "type": "string",
+                        "description": "Protocol name",
+                        "minLength": 1,
+                        "examples": ["HTTP", "HTTPS", "SMTP", "DNS", "SMB", "SQL", "TCP", "UDP"]
+                    },
+                    "service_id": {
+                        "type": "string",
+                        "description": "Unique service identifier",
+                        "minLength": 1
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Service description"
+                    },
+                    "owner": {
+                        "type": "string",
+                        "description": "Username of service owner"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Service URL",
+                        "format": "uri"
+                    }
+                },
+                "additionalProperties": true
+            }
+        }
+    },
+    "additionalProperties": false
+}

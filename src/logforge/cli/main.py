@@ -53,10 +53,11 @@ def status(
     api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
     api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
     output: str = typer.Option("table", "--output", help="Output format: table or json"),
+    timeout: int = typer.Option(30, "--timeout", help="Request timeout in seconds"),
 ) -> None:
     """Show status of all generators."""
     from logforge.cli.generators import generators_status
-    generators_status(None, api_url, api_key)
+    generators_status(None, api_url, api_key, timeout)
 
 
 @app.callback(invoke_without_command=True)

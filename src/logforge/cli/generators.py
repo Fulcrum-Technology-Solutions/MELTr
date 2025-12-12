@@ -103,22 +103,54 @@ def generators_stop(
 
 @app.command("restart")
 def generators_restart(
-    name: str = typer.Argument(..., help="Generator name"),
+    name: Optional[str] = typer.Argument(None, help="Generator name (optional if --all is used)"),
+    all_generators: bool = typer.Option(False, "--all", "-a", help="Restart all generators"),
     api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
     api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
 ) -> None:
-    """Restart a generator."""
+    """Restart a generator or all generators."""
     client = get_api_client(api_url, api_key)
     client.require_service_running()
     
     try:
-        response = client.post(f"/api/generators/{name}/restart", json={})
-        response.raise_for_status()
-        data = response.json()
-        
-        console.print(f"[green]✓ {data['message']}[/green]")
-        console.print(f"  Generator: {name}")
-        console.print(f"  State: {data['state']}")
+        if all_generators:
+            # Restart all generators
+            response = client.post("/api/generators/restart-all", json={})
+            response.raise_for_status()
+            data = response.json()
+            
+            console.print(f"[green]✓ {data['message']}[/green]")
+            console.print(f"  Restarted: {data['count']} generator(s)")
+            
+            # Show results table if available
+            if 'results' in data and data['results']:
+                table = Table(title="Restart Results")
+                table.add_column("Generator", style="cyan")
+                table.add_column("Status", style="green")
+                table.add_column("State", style="yellow")
+                
+                for result in data['results']:
+                    status_color = "green" if result.get('success') else "red"
+                    status_text = "✓ Success" if result.get('success') else f"✗ {result.get('error', 'Failed')}"
+                    table.add_row(
+                        result['name'],
+                        f"[{status_color}]{status_text}[/{status_color}]",
+                        result.get('state', 'N/A'),
+                    )
+                console.print(table)
+        else:
+            # Restart single generator
+            if not name:
+                console.print("[red]Error: Generator name required (or use --all)[/red]")
+                raise typer.Exit(code=1)
+            
+            response = client.post(f"/api/generators/{name}/restart", json={})
+            response.raise_for_status()
+            data = response.json()
+            
+            console.print(f"[green]✓ {data['message']}[/green]")
+            console.print(f"  Generator: {name}")
+            console.print(f"  State: {data['state']}")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
@@ -132,6 +164,10 @@ def generators_status(
     timeout: int = typer.Option(30, "--timeout", help="Request timeout in seconds"),
 ) -> None:
     """Show generator status."""
+    # Handle case where timeout might be a Typer OptionInfo object (when called directly)
+    if isinstance(timeout, typer.models.OptionInfo):
+        timeout = timeout.default if hasattr(timeout, 'default') else 30
+    
     client = get_api_client(api_url, api_key)
     client.timeout = timeout  # Override timeout for status commands
     client.require_service_running()
@@ -152,6 +188,8 @@ def generators_status(
             console.print(f"  [cyan]State:[/cyan] {data['state']}")
             console.print(f"  [cyan]Template:[/cyan] {data['template']}")
             console.print(f"  [cyan]Enabled:[/cyan] {'Yes' if data['enabled'] else 'No'}")
+            if 'timezone' in data and data['timezone']:
+                console.print(f"  [cyan]Timezone:[/cyan] {data['timezone']}")
             console.print(f"  [cyan]Base Rate:[/cyan] {data['frequency']['base_rate']} events/sec")
             console.print(f"  [cyan]Current Rate:[/cyan] {data['frequency']['current_rate']} events/sec")
             console.print(f"  [cyan]Outputs:[/cyan] {', '.join(data['outputs'])}")

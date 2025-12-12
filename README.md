@@ -140,6 +140,41 @@ Tests mirror this structure under `tests/`.
 
 The generated `config.yaml` controls API parameters, engine behavior, entity registry options, template paths, output definitions, and generator configurations. Paths are validated to stay under `LOGFORGE_HOME`.
 
+### Generator Timezone Override
+
+Generators support an optional `timezone` field that overrides the organization timezone from the entity registry. This is useful when generating events for different geographic regions or when you need timezone-specific behavior for frequency calculations (business hours, time patterns).
+
+**Configuration**:
+
+```yaml
+generators:
+  - name: us-east-generator
+    template: microsoft/azure-active-directory/authentication/signin_logs
+    timezone: America/New_York  # Overrides organization timezone
+    enabled: true
+    outputs:
+      - http-output
+  
+  - name: eu-west-generator
+    template: paloalto/pan-os/firewall/traffic
+    timezone: Europe/London  # Different timezone for this generator
+    enabled: true
+    outputs:
+      - http-output
+```
+
+**Timezone Resolution**:
+1. **Generator config timezone** (if set) - highest priority
+2. **Organization timezone** (from `entities.yaml`) - fallback
+
+**Impact**:
+- Template rendering: `now()`, `current_timestamp()` functions use generator timezone
+- Frequency calculations: Business hours, time patterns, multipliers calculated in generator timezone
+- Output handler metadata: `generated_at` timestamps use generator timezone
+- Statistics: `last_event` timestamps use generator timezone
+
+**Timezone Format**: Use IANA timezone names (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`, `UTC`).
+
 ### HTTP Output Metadata Wrapping
 
 HTTP outputs support an optional `include_metadata` setting that wraps events with routing metadata. This is useful when sending events to routing systems like Cribl that need to route based on vendor/product information.

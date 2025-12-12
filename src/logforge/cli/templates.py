@@ -213,45 +213,82 @@ def templates_info(
 
 @app.command("validate")
 def templates_validate(
-    template_path: Optional[Path] = typer.Option(None, "--path", help="Path to template directory"),
+    template_path: Optional[Path] = typer.Option(None, "--path", "--file", help="Path to template file or directory"),
 ) -> None:
     """Validate a template."""
     from logforge.core.paths import get_logforge_home
     
-    home = get_logforge_home()
-    
     if template_path is None:
-        console.print("[red]Error: --path required[/red]")
+        console.print("[red]Error: --path or --file required[/red]")
+        console.print("[dim]Example: logforge templates validate --file /path/to/template.j2[/dim]")
+        console.print("[dim]Example: logforge templates validate --path /path/to/template/directory[/dim]")
         raise typer.Exit(code=1)
     
-    # Validate path is within LOGFORGE_HOME
-    if not template_path.is_absolute():
-        template_path = home / template_path
+    # Convert to Path if it's a string
+    if isinstance(template_path, str):
+        template_path = Path(template_path)
+    
+    # Resolve path - try as-is first, then relative to current directory, then relative to LOGFORGE_HOME
+    resolved_path = None
+    if template_path.is_absolute() and template_path.exists():
+        resolved_path = template_path
+    elif template_path.exists():
+        resolved_path = template_path.resolve()
+    else:
+        # Try relative to current directory
+        current_dir_path = Path.cwd() / template_path
+        if current_dir_path.exists():
+            resolved_path = current_dir_path.resolve()
+        else:
+            # Try relative to LOGFORGE_HOME
+            home = get_logforge_home()
+            home_path = home / template_path
+            if home_path.exists():
+                resolved_path = home_path.resolve()
+            else:
+                # Use the original path (will show error below)
+                resolved_path = template_path.resolve() if template_path.is_absolute() else Path.cwd() / template_path
     
     # Find template.j2 and metadata.yaml
     template_j2 = None
     metadata_yaml = None
     
-    if template_path.is_file():
-        if template_path.suffix == '.j2':
-            template_j2 = template_path
-            metadata_yaml = template_path.parent / f"{template_path.stem}.meta.yaml"
-        elif template_path.name.endswith('.meta.yaml'):
-            metadata_yaml = template_path
-            template_j2 = template_path.parent / f"{template_path.stem.replace('.meta', '')}.j2"
-    elif template_path.is_dir():
+    if resolved_path.is_file():
+        if resolved_path.suffix == '.j2':
+            template_j2 = resolved_path
+            metadata_yaml = resolved_path.parent / f"{resolved_path.stem}.meta.yaml"
+        elif resolved_path.name.endswith('.meta.yaml'):
+            metadata_yaml = resolved_path
+            template_j2 = resolved_path.parent / f"{resolved_path.stem.replace('.meta', '')}.j2"
+        else:
+            console.print(f"[red]Error: File must be a .j2 template or .meta.yaml metadata file[/red]")
+            console.print(f"[dim]Provided: {resolved_path}[/dim]")
+            raise typer.Exit(code=1)
+    elif resolved_path.is_dir():
         # Look for .j2 and .meta.yaml files in directory
-        for file in template_path.glob('*.j2'):
+        for file in resolved_path.glob('*.j2'):
             template_j2 = file
-            metadata_yaml = template_path / f"{file.stem}.meta.yaml"
+            metadata_yaml = resolved_path / f"{file.stem}.meta.yaml"
             break
+    else:
+        console.print(f"[red]Error: Path does not exist: {resolved_path}[/red]")
+        raise typer.Exit(code=1)
     
-    if not template_j2 or not template_j2.exists():
+    if not template_j2:
+        console.print(f"[red]Error: Template file (.j2) not found in: {resolved_path}[/red]")
+        raise typer.Exit(code=1)
+    
+    if not template_j2.exists():
         console.print(f"[red]Error: Template file not found: {template_j2}[/red]")
         raise typer.Exit(code=1)
     
-    if not metadata_yaml or not metadata_yaml.exists():
+    if not metadata_yaml:
+        console.print(f"[red]Error: Metadata file (.meta.yaml) not found for: {template_j2}[/red]")
+        raise typer.Exit(code=1)
+    
+    if not metadata_yaml.exists():
         console.print(f"[red]Error: Metadata file not found: {metadata_yaml}[/red]")
+        console.print(f"[dim]Expected: {metadata_yaml}[/dim]")
         raise typer.Exit(code=1)
     
     # Validate
@@ -676,7 +713,8 @@ def templates_install(
                     vendor_dir,
                     default_path,
                     vendor_id=vendor_id,
-                    overwrite=overwrite
+                    overwrite=overwrite,
+                    backup_count=config.templates.backup_count,
                 )
                 
                 console.print(f"[green]✓ Package installed successfully[/green]")
@@ -724,6 +762,7 @@ def templates_install(
                     target_dir=default_path,
                     overwrite=overwrite,
                     progress_callback=lambda b, t: progress.update(task, completed=b, total=t),
+                    backup_count=config.templates.backup_count,
                 )
                 
                 progress.update(task, completed=True, description="[green]Complete")
@@ -940,6 +979,7 @@ def templates_update(
                     vendor_id=vendor_id,
                     target_dir=default_path,
                     overwrite=True,  # Always overwrite for updates
+                    backup_count=config.templates.backup_count,
                 )
                 
                 console.print(f"[green]✓ Updated {vendor_id}[/green]")

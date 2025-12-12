@@ -91,6 +91,17 @@ class Generator:
         with self._state_lock:
             return self._state
     
+    def get_timezone(self) -> str:
+        """Get timezone for this generator.
+        
+        Returns:
+            Timezone string (e.g., 'America/New_York'). Uses generator config
+            timezone if set, otherwise falls back to organization timezone.
+        """
+        if self.config.timezone:
+            return self.config.timezone
+        return self.registry.get_organization_timezone()
+    
     def _transition_to(self, new_state: GeneratorState) -> bool:
         """Transition to new state if valid.
         
@@ -134,11 +145,11 @@ class Generator:
             with template_info.template_path.open('r', encoding='utf-8') as f:
                 self._template_content = f.read()
             
-            # Create renderer
-            self._renderer = TemplateRenderer(self.registry)
+            # Get timezone for context (generator config takes precedence)
+            timezone = self.get_timezone()
             
-            # Get organization timezone for context
-            timezone = self.registry.get_organization_timezone()
+            # Create renderer with timezone
+            self._renderer = TemplateRenderer(self.registry, timezone=timezone)
             
             # Initialize output handlers with template context
             for handler in self.output_handlers:
@@ -240,7 +251,7 @@ class Generator:
                     rate = 0.0
                 else:
                     from logforge.core.frequency import calculate_rate_from_template_metadata
-                    timezone = self.registry.get_organization_timezone()
+                    timezone = self.get_timezone()
                     rate = calculate_rate_from_template_metadata(self._template_info.metadata, timezone)
                 logger.info(f"Generator {self.name}: Calculated rate: {rate} events/sec")
                 
@@ -320,7 +331,7 @@ class Generator:
                             from logforge.core.frequency import calculate_rate_from_template_metadata
                             new_rate = calculate_rate_from_template_metadata(
                                 self._template_info.metadata,
-                                self.registry.get_organization_timezone()
+                                self.get_timezone()
                             )
                             
                             # If rate changed significantly, recalculate remaining sleep
@@ -425,7 +436,7 @@ class Generator:
                 "errors": self._errors,
                 "uptime": uptime,
                 "last_event": (
-                    datetime.fromtimestamp(self._last_event_time, ZoneInfo(self.registry.get_organization_timezone())).isoformat()
+                    datetime.fromtimestamp(self._last_event_time, ZoneInfo(self.get_timezone())).isoformat()
                     if self._last_event_time else None
                 ),
                 "last_error": self._last_error,
@@ -441,7 +452,7 @@ class Generator:
         # Calculate current rate from template metadata
         if self.state == GeneratorState.RUNNING and self._template_info and self._template_info.metadata:
             from logforge.core.frequency import calculate_rate_from_template_metadata
-            timezone = self.registry.get_organization_timezone()
+            timezone = self.get_timezone()
             current_rate = calculate_rate_from_template_metadata(self._template_info.metadata, timezone)
         else:
             current_rate = 0.0
@@ -473,6 +484,7 @@ class Generator:
             "state": self.state.value,
             "template": self.config.template,
             "enabled": self.config.enabled,
+            "timezone": self.config.timezone,  # Include timezone in status
             "frequency": {
                 "base_rate": self._template_info.metadata.base_frequency / 3600.0 if (self._template_info and self._template_info.metadata and self._template_info.metadata.base_frequency) else 0.0,
                 "current_rate": current_rate,

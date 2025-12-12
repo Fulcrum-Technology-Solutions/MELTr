@@ -1,5 +1,6 @@
-"""HTTP output handler with batching."""
+"""HTTP output handler with batching and streaming."""
 
+import concurrent.futures
 import json
 import os
 import queue
@@ -20,7 +21,7 @@ logger = get_logger(__name__)
 
 
 class HTTPOutputHandler(OutputHandler):
-    """HTTP output handler with event batching."""
+    """HTTP output handler with event batching and streaming."""
     
     def __init__(
         self,
@@ -33,6 +34,7 @@ class HTTPOutputHandler(OutputHandler):
         timeout: int = 30,
         retry_config: Optional[RetryConfig] = None,
         buffer_size: int = 10000,
+        streaming: bool = True,
     ) -> None:
         """Initialize HTTP output handler.
         
@@ -41,11 +43,12 @@ class HTTPOutputHandler(OutputHandler):
             url: Target URL
             method: HTTP method (default: POST)
             headers: HTTP headers (supports ${VAR} substitution)
-            batch_size: Events per batch
-            batch_interval: Seconds between batch sends
+            batch_size: Events per batch (ignored if streaming=True)
+            batch_interval: Seconds between batch sends (ignored if streaming=True)
             timeout: Request timeout in seconds
             retry_config: Retry configuration from global config
             buffer_size: Buffer size from global config
+            streaming: If True, send events individually as generated. If False, batch events.
         """
         super().__init__(name, retry_config=retry_config, buffer_size=buffer_size)
         self.url = url
@@ -54,12 +57,21 @@ class HTTPOutputHandler(OutputHandler):
         self.batch_size = batch_size
         self.batch_interval = batch_interval
         self.timeout = timeout
+        self.streaming = streaming
         
         # Batch buffer - use thread-safe queue instead of list with lock to prevent deadlocks
         # Queue is thread-safe and non-blocking for single operations
         self._batch_buffer: queue.Queue = queue.Queue(maxsize=buffer_size)
         self._last_batch_time = time.time()
         self._batch_timer: Optional[threading.Timer] = None
+        
+        # Background thread pool for non-blocking HTTP requests (streaming mode)
+        self._executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+        if streaming:
+            self._executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=5,  # Configurable if needed
+                thread_name_prefix=f"http-{name}"
+            )
         
         # Substitute environment variables in headers
         self._substituted_headers = self._substitute_env_vars(self.headers)
@@ -137,20 +149,23 @@ class HTTPOutputHandler(OutputHandler):
             timeout=definition.timeout or 30,
             retry_config=retry_config,
             buffer_size=buffer_size,
+            streaming=definition.streaming if definition.streaming is not None else True,
         )
         handler.include_metadata = definition.include_metadata or False
         return handler
     
     def initialize(self) -> None:
         """Initialize handler and start batch timer."""
+        mode = "streaming" if self.streaming else "batching"
         logger.info(
             f"HTTP output '{self.name}' initialized: "
-            f"URL={self.url}, method={self.method}, "
+            f"URL={self.url}, method={self.method}, mode={mode}, "
             f"batch_size={self.batch_size}, batch_interval={self.batch_interval}s, "
             f"timeout={self.timeout}s"
         )
-        # Start periodic batch flush timer
-        self._start_batch_timer()
+        # Start periodic batch flush timer (only for batching mode)
+        if not self.streaming:
+            self._start_batch_timer()
     
     def _start_batch_timer(self) -> None:
         """Start timer for periodic batch sends."""
@@ -171,13 +186,31 @@ class HTTPOutputHandler(OutputHandler):
         self._start_batch_timer()
     
     def _do_write(self, event: str) -> None:
-        """Write event to batch buffer.
+        """Write event to batch buffer or send immediately if streaming.
         
         Args:
             event: Event string
         
         Note: Uses non-blocking queue operations to prevent deadlocks.
         """
+        # If streaming, send immediately in background thread (non-blocking)
+        if self.streaming:
+            if self._executor:
+                # Submit to thread pool - non-blocking
+                future = self._executor.submit(self._send_single_event, event)
+                # Errors are logged in _send_single_event, failures are buffered for retry
+            else:
+                # Fallback: send synchronously (blocks generator)
+                try:
+                    self._send_single_event(event)
+                except Exception as e:
+                    logger.debug(f"HTTP output '{self.name}': Failed to send event, buffering: {e}")
+                    try:
+                        self._batch_buffer.put_nowait(event)
+                    except queue.Full:
+                        logger.warning(f"HTTP output '{self.name}': Buffer full, dropping event")
+            return
+        
         # Non-blocking put - prevents deadlock from lock contention
         try:
             buffered_count = self._batch_buffer.qsize()
@@ -335,6 +368,219 @@ class HTTPOutputHandler(OutputHandler):
             return body
         return body[:max_length] + '...'
     
+    def _send_single_event(self, event: str) -> None:
+        """Send single event immediately via HTTP.
+        
+        Args:
+            event: Event string
+            
+        Raises:
+            Exception: On send failure
+        """
+        start_time = time.time()
+        
+        try:
+            logger.debug(
+                f"HTTP output '{self.name}': Sending single event to {self.url}"
+            )
+            
+            # Parse event as JSON (if it's a JSON string)
+            try:
+                json_event = json.loads(event)
+            except (json.JSONDecodeError, TypeError):
+                # Not JSON, send as string
+                json_event = event
+            
+            # Wrap event with metadata if enabled
+            if self.include_metadata:
+                payload = self._wrap_event_with_metadata(json_event)
+            else:
+                payload = json_event
+            
+            # Send request
+            response = requests.request(
+                method=self.method,
+                url=self.url,
+                json=payload,
+                headers=self._substituted_headers,
+                timeout=self.timeout,
+            )
+            
+            # Calculate response time
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            
+            # Check response status
+            try:
+                response.raise_for_status()
+                
+                # Success
+                bytes_sent = len(response.content) if hasattr(response, 'content') else 0
+                
+                with self._stats_lock:
+                    self._events_sent += 1
+                    self._batches_sent += 1  # Count as batch for stats
+                    self._total_bytes_sent += bytes_sent
+                    self._last_success_time = time.time()
+                    # Keep last 100 response times
+                    self._response_times.append(response_time)
+                    if len(self._response_times) > 100:
+                        self._response_times.pop(0)
+                
+                logger.debug(
+                    f"HTTP output '{self.name}': Successfully sent event "
+                    f"(status={response.status_code}, latency={response_time:.1f}ms)"
+                )
+                
+            except requests.HTTPError as e:
+                # HTTP error (4xx, 5xx)
+                response_time = (time.time() - start_time) * 1000
+                status_code = response.status_code
+                
+                # Get response body for context
+                try:
+                    response_body = response.text[:500]  # First 500 chars
+                except Exception:
+                    response_body = "Unable to read response body"
+                
+                error_type = "HTTP_ERROR"
+                is_auth_error = status_code in (401, 403)
+                
+                with self._stats_lock:
+                    self._events_failed += 1
+                    self._batches_failed += 1
+                    self._last_failure_time = time.time()
+                    self._last_error_message = f"HTTP {status_code}: {response.reason}"
+                    self._last_error_type = error_type
+                    self._http_errors += 1
+                    if is_auth_error:
+                        self._auth_errors += 1
+                
+                # Log based on status code
+                if is_auth_error:
+                    logger.error(
+                        f"HTTP output '{self.name}': Authentication failed: "
+                        f"HTTP {status_code} {response.reason} - "
+                        f"Response: {self._truncate_response_body(response_body)}"
+                    )
+                elif 400 <= status_code < 500:
+                    logger.warning(
+                        f"HTTP output '{self.name}': HTTP {status_code} client error: "
+                        f"{response.reason} - Response: {self._truncate_response_body(response_body)}"
+                    )
+                else:  # 5xx
+                    logger.warning(
+                        f"HTTP output '{self.name}': HTTP {status_code} server error: "
+                        f"{response.reason} - Response: {self._truncate_response_body(response_body)}"
+                    )
+                
+                # Buffer for retry
+                try:
+                    self._batch_buffer.put_nowait(event)
+                except queue.Full:
+                    logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+                
+                raise
+                
+        except requests.exceptions.Timeout as e:
+            # Timeout error
+            response_time = (time.time() - start_time) * 1000
+            error_msg = f"Request timeout after {self.timeout}s"
+            
+            with self._stats_lock:
+                self._events_failed += 1
+                self._batches_failed += 1
+                self._last_failure_time = time.time()
+                self._last_error_message = error_msg
+                self._last_error_type = "TIMEOUT"
+                self._timeout_errors += 1
+            
+            logger.error(
+                f"HTTP output '{self.name}': Request timeout after {self.timeout}s"
+            )
+            
+            # Buffer for retry
+            try:
+                self._batch_buffer.put_nowait(event)
+            except queue.Full:
+                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            
+            raise
+            
+        except requests.exceptions.ConnectionError as e:
+            # Connection error
+            error_msg = str(e)
+            
+            with self._stats_lock:
+                self._events_failed += 1
+                self._batches_failed += 1
+                self._last_failure_time = time.time()
+                self._last_error_message = f"Connection failed: {error_msg}"
+                self._last_error_type = "CONNECTION_ERROR"
+                self._connection_errors += 1
+            
+            logger.error(
+                f"HTTP output '{self.name}': Connection failed: {type(e).__name__} - "
+                f"{error_msg}"
+            )
+            
+            # Buffer for retry
+            try:
+                self._batch_buffer.put_nowait(event)
+            except queue.Full:
+                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            
+            raise
+            
+        except requests.exceptions.RequestException as e:
+            # Other request exceptions
+            error_type = type(e).__name__
+            error_msg = str(e)
+            
+            with self._stats_lock:
+                self._events_failed += 1
+                self._batches_failed += 1
+                self._last_failure_time = time.time()
+                self._last_error_message = f"{error_type}: {error_msg}"
+                self._last_error_type = error_type
+                self._connection_errors += 1
+            
+            logger.error(
+                f"HTTP output '{self.name}': Request failed: {error_type} - {error_msg}"
+            )
+            
+            # Buffer for retry
+            try:
+                self._batch_buffer.put_nowait(event)
+            except queue.Full:
+                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            
+            raise
+            
+        except Exception as e:
+            # Unexpected errors
+            error_type = type(e).__name__
+            error_msg = str(e)
+            
+            with self._stats_lock:
+                self._events_failed += 1
+                self._batches_failed += 1
+                self._last_failure_time = time.time()
+                self._last_error_message = f"{error_type}: {error_msg}"
+                self._last_error_type = error_type
+            
+            logger.error(
+                f"HTTP output '{self.name}': Unexpected error sending event: {error_type} - {error_msg}",
+                exc_info=True
+            )
+            
+            # Buffer for retry
+            try:
+                self._batch_buffer.put_nowait(event)
+            except queue.Full:
+                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            
+            raise
+    
     def _send_batch(self, events: List[str]) -> None:
         """Send batch of events via HTTP.
         
@@ -369,17 +615,11 @@ class HTTPOutputHandler(OutputHandler):
                     wrapped = self._wrap_event_with_metadata(event)
                     wrapped_events.append(wrapped)
                 
-                # Wrap in array if multiple events
-                if len(wrapped_events) > 1:
-                    payload = wrapped_events
-                else:
-                    payload = wrapped_events[0] if wrapped_events else {}
+                # Always send as array for batches
+                payload = wrapped_events
             else:
-                # Wrap in array if multiple events
-                if len(json_events) > 1:
-                    payload = json_events
-                else:
-                    payload = json_events[0] if json_events else {}
+                # Always send as array for batches
+                payload = json_events
             
             # Log request details at DEBUG level
             if logger.isEnabledFor(10):  # DEBUG level
@@ -766,3 +1006,9 @@ class HTTPOutputHandler(OutputHandler):
         
         # Flush any remaining events
         self._flush_batch_if_ready(force=True)
+        
+        # Shutdown thread pool if streaming
+        if self._executor:
+            logger.debug(f"HTTP output '{self.name}': Shutting down thread pool executor")
+            self._executor.shutdown(wait=True, timeout=30)
+            self._executor = None

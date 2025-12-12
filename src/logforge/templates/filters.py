@@ -3,35 +3,135 @@
 import random
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from zoneinfo import ZoneInfo
 
 from jinja2 import Environment
 
 
-def now(timezone: Optional[str] = None) -> datetime:
+class DateTimeWrapper:
+    """Wrapper for datetime that supports addition with integers (seconds).
+    
+    This allows templates to use: {{ now() + 30 }} instead of {{ now() | add_seconds(30) }}
+    """
+    
+    def __init__(self, dt: datetime) -> None:
+        """Initialize wrapper with datetime object.
+        
+        Args:
+            dt: Datetime object to wrap
+        """
+        self._dt = dt
+    
+    def __add__(self, other: Union[int, float, timedelta]) -> 'DateTimeWrapper':
+        """Add seconds (int/float) or timedelta to datetime.
+        
+        Args:
+            other: Integer/float (treated as seconds) or timedelta
+            
+        Returns:
+            New DateTimeWrapper with added time
+        """
+        if isinstance(other, (int, float)):
+            return DateTimeWrapper(self._dt + timedelta(seconds=other))
+        elif isinstance(other, timedelta):
+            return DateTimeWrapper(self._dt + other)
+        return NotImplemented
+    
+    def __sub__(self, other: Union[int, float, timedelta, datetime]) -> Union['DateTimeWrapper', timedelta]:
+        """Subtract seconds (int/float), timedelta, or datetime from datetime.
+        
+        Args:
+            other: Integer/float (treated as seconds), timedelta, or datetime
+        
+        Returns:
+            DateTimeWrapper if subtracting seconds/timedelta, timedelta if subtracting datetime
+        """
+        if isinstance(other, (int, float)):
+            return DateTimeWrapper(self._dt - timedelta(seconds=other))
+        elif isinstance(other, timedelta):
+            return DateTimeWrapper(self._dt - other)
+        elif isinstance(other, datetime):
+            return self._dt - other
+        elif isinstance(other, DateTimeWrapper):
+            return self._dt - other._dt
+        return NotImplemented
+    
+    def __mul__(self, other: Union[int, float]) -> 'DateTimeWrapper':
+        """Multiply datetime by integer/float (treats as seconds multiplier).
+        
+        Args:
+            other: Integer/float multiplier (multiplies 1 second)
+            
+        Returns:
+            New DateTimeWrapper with multiplied seconds added
+            
+        Example:
+            {{ now() * 60 }}  # Adds 60 seconds (1 second * 60)
+        """
+        if isinstance(other, (int, float)):
+            # Treat multiplication as: add (multiplier * 1 second)
+            return DateTimeWrapper(self._dt + timedelta(seconds=other))
+        return NotImplemented
+    
+    def __rmul__(self, other: Union[int, float]) -> 'DateTimeWrapper':
+        """Right multiplication (int * datetime).
+        
+        Args:
+            other: Integer/float multiplier
+            
+        Returns:
+            New DateTimeWrapper with multiplied seconds added
+        """
+        return self.__mul__(other)
+    
+    def __getattr__(self, name: str) -> Any:
+        """Delegate attribute access to wrapped datetime object."""
+        return getattr(self._dt, name)
+    
+    def __str__(self) -> str:
+        """Return string representation of datetime."""
+        return str(self._dt)
+    
+    def __repr__(self) -> str:
+        """Return representation of wrapper."""
+        return f"DateTimeWrapper({self._dt!r})"
+    
+    @property
+    def datetime(self) -> datetime:
+        """Get the wrapped datetime object."""
+        return self._dt
+
+
+def now(timezone: Optional[str] = None) -> DateTimeWrapper:
     """Get current timestamp in specified timezone.
     
     Args:
         timezone: Timezone string (e.g., 'America/New_York'). Defaults to UTC.
     
     Returns:
-        Current datetime object in specified timezone
+        DateTimeWrapper with current datetime in specified timezone
+        
+    Example:
+        {{ now() + 30 }}  # Add 30 seconds
+        {{ now() - 3600 }}  # Subtract 1 hour
     """
     tz = ZoneInfo(timezone) if timezone else ZoneInfo('UTC')
-    return datetime.now(tz)
+    return DateTimeWrapper(datetime.now(tz))
 
 
-def format_datetime(dt: datetime, format_str: str = '%Y-%m-%dT%H:%M:%S.%fZ') -> str:
+def format_datetime(dt: Union[datetime, DateTimeWrapper], format_str: str = '%Y-%m-%dT%H:%M:%S.%fZ') -> str:
     """Format datetime with strftime.
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         format_str: strftime format string
         
     Returns:
         Formatted datetime string
     """
+    if isinstance(dt, DateTimeWrapper):
+        dt = dt.datetime
     if isinstance(dt, datetime):
         return dt.strftime(format_str)
     return str(dt)
@@ -146,13 +246,26 @@ def random_private_ip() -> str:
         return f"192.168.{random.randint(0, 255)}.{random.randint(1, 254)}"
 
 
-def random_port() -> int:
+def random_port(min_port: Optional[int] = None, max_port: Optional[int] = None) -> int:
     """Generate random port number.
     
+    Args:
+        min_port: Minimum port number (default: 1024)
+        max_port: Maximum port number (default: 65535)
+    
     Returns:
-        Random port number (1024-65535)
+        Random port number in specified range
+        
+    Example:
+        {{ random_port() }}  # Random port 1024-65535
+        {{ random_port(1024, 65535) }}  # Explicit range
+        {{ random_port(8000, 9000) }}  # Custom range
     """
-    return random.randint(1024, 65535)
+    if min_port is None:
+        min_port = 1024
+    if max_port is None:
+        max_port = 65535
+    return random.randint(min_port, max_port)
 
 
 def random_guid() -> str:
@@ -164,15 +277,17 @@ def random_guid() -> str:
     return str(uuid.uuid4())
 
 
-def timestamp_to_iso(dt: datetime) -> str:
+def timestamp_to_iso(dt: Union[datetime, DateTimeWrapper]) -> str:
     """Convert datetime to ISO 8601 format.
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         
     Returns:
         ISO 8601 formatted string (e.g., '2025-11-28T20:37:35.123456')
     """
+    if isinstance(dt, DateTimeWrapper):
+        dt = dt.datetime
     if isinstance(dt, datetime):
         return dt.isoformat()
     return str(dt)
@@ -189,16 +304,18 @@ def random_hostname() -> str:
     return f"{prefix}-{suffix}"
 
 
-def iso8601(dt: datetime, include_microseconds: bool = True) -> str:
+def iso8601(dt: Union[datetime, DateTimeWrapper], include_microseconds: bool = True) -> str:
     """Format datetime as ISO 8601 (e.g., '2025-11-29T18:30:45.123456').
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         include_microseconds: Whether to include microseconds
         
     Returns:
         ISO 8601 formatted string
     """
+    if isinstance(dt, DateTimeWrapper):
+        dt = dt.datetime
     if isinstance(dt, datetime):
         if include_microseconds:
             return dt.isoformat()
@@ -206,16 +323,18 @@ def iso8601(dt: datetime, include_microseconds: bool = True) -> str:
     return str(dt)
 
 
-def iso8601_utc(dt: datetime, include_microseconds: bool = True) -> str:
+def iso8601_utc(dt: Union[datetime, DateTimeWrapper], include_microseconds: bool = True) -> str:
     """Format datetime as ISO 8601 with UTC Z suffix (e.g., '2025-11-29T18:30:45.123456Z').
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         include_microseconds: Whether to include microseconds
         
     Returns:
         ISO 8601 formatted string with Z suffix
     """
+    if isinstance(dt, DateTimeWrapper):
+        dt = dt.datetime
     if isinstance(dt, datetime):
         # Convert to UTC if timezone-aware
         if dt.tzinfo:
@@ -232,11 +351,11 @@ def iso8601_utc(dt: datetime, include_microseconds: bool = True) -> str:
     return str(dt)
 
 
-def rfc3339(dt: datetime) -> str:
+def rfc3339(dt: Union[datetime, DateTimeWrapper]) -> str:
     """Format datetime as RFC 3339 (ISO 8601 with timezone).
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         
     Returns:
         RFC 3339 formatted string
@@ -244,54 +363,77 @@ def rfc3339(dt: datetime) -> str:
     return iso8601(dt)
 
 
-def unix_timestamp(dt: datetime) -> float:
+def unix_timestamp(dt: Union[datetime, DateTimeWrapper]) -> float:
     """Convert datetime to Unix timestamp.
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         
     Returns:
         Unix timestamp (seconds since epoch)
     """
+    if isinstance(dt, DateTimeWrapper):
+        dt = dt.datetime
     if isinstance(dt, datetime):
         return dt.timestamp()
     return 0.0
 
 
-def add_seconds(dt: datetime, seconds: int) -> datetime:
+def add_seconds(dt: Union[datetime, DateTimeWrapper], seconds: int) -> Union[datetime, DateTimeWrapper]:
     """Add seconds to a datetime object.
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         seconds: Number of seconds to add (can be negative)
         
     Returns:
-        New datetime object with seconds added
+        New datetime object or DateTimeWrapper with seconds added
         
     Example:
         {{ timestamp | add_seconds(30) }}
     """
+    if isinstance(dt, DateTimeWrapper):
+        return dt + seconds
     if isinstance(dt, datetime):
         return dt + timedelta(seconds=seconds)
     return dt
 
 
-def subtract_seconds(dt: datetime, seconds: int) -> datetime:
+def subtract_seconds(dt: Union[datetime, DateTimeWrapper], seconds: int) -> Union[datetime, DateTimeWrapper]:
     """Subtract seconds from a datetime object.
     
     Args:
-        dt: Datetime object
+        dt: Datetime object or DateTimeWrapper
         seconds: Number of seconds to subtract
         
     Returns:
-        New datetime object with seconds subtracted
+        New datetime object or DateTimeWrapper with seconds subtracted
         
     Example:
         {{ timestamp | subtract_seconds(3600) }}
     """
+    if isinstance(dt, DateTimeWrapper):
+        return dt - seconds
     if isinstance(dt, datetime):
         return dt - timedelta(seconds=seconds)
     return dt
+
+
+def random_hex(min_val: int, max_val: int) -> str:
+    """Generate random hexadecimal value with '0x' prefix.
+    
+    Args:
+        min_val: Minimum integer value
+        max_val: Maximum integer value
+        
+    Returns:
+        Hexadecimal string with '0x' prefix (e.g., '0x1a2b3c')
+        
+    Example:
+        {{ random_hex(0, 67108864) }}  # Returns: "0x1a2b3c"
+    """
+    value = random.randint(min_val, max_val)
+    return f"0x{format(value, 'x')}"
 
 
 def register_filters(env: Environment) -> None:
@@ -329,4 +471,5 @@ def register_filters(env: Environment) -> None:
     env.globals['random_port'] = random_port
     env.globals['random_guid'] = random_guid
     env.globals['random_hostname'] = random_hostname
+    env.globals['random_hex'] = random_hex
 

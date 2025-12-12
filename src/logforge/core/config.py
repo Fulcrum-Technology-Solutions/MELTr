@@ -75,6 +75,7 @@ class TemplatesConfig(BaseModel):
     auto_update_check: bool = Field(default=True, description="Auto-check for updates")
     cache_ttl: int = Field(default=3600, description="Template cache TTL in seconds")
     auto_backup_on_customize: bool = Field(default=True, description="Backup on customize")
+    backup_count: int = Field(default=5, description="Number of template backups to keep")
     diff_tool: str = Field(default="auto", description="Diff tool for template comparison")
 
 
@@ -112,6 +113,7 @@ class OutputDefinition(BaseModel):
     headers: Optional[Dict[str, str]] = Field(default=None, description="HTTP headers")
     batch_size: Optional[int] = Field(default=None, description="Batch size (for http)")
     batch_interval: Optional[int] = Field(default=None, description="Batch interval in seconds")
+    streaming: Optional[bool] = Field(default=True, description="Stream events individually (True) or batch them (False) for HTTP output")
     protocol: Optional[str] = Field(default=None, description="Protocol (tcp/udp for syslog)")
     facility: Optional[str] = Field(default=None, description="Syslog facility")
     severity: Optional[str] = Field(default=None, description="Syslog severity")
@@ -156,6 +158,7 @@ class GeneratorConfig(BaseModel):
     template: str = Field(description="Template ID")
     enabled: bool = Field(default=True, description="Generator enabled")
     outputs: List[str] = Field(description="Output destination names")
+    timezone: Optional[str] = Field(default=None, description="Timezone override (e.g., 'America/New_York'). Takes precedence over organization timezone.")
 
 
 class Config(BaseModel):
