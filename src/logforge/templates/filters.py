@@ -466,6 +466,7 @@ def register_filters(env: Environment) -> None:
     env.globals['random_int'] = random_int
     env.globals['random_choice'] = random_choice
     env.globals['random_string'] = random_string
+    env.globals['random_weighted'] = random_weighted
     env.globals['random_public_ip'] = random_public_ip
     env.globals['random_private_ip'] = random_private_ip
     env.globals['random_port'] = random_port
