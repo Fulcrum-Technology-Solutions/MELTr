@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 
 from logforge import __version__
-from logforge.cli import api, api_client, config, entities, generators, service, templates
+from logforge.cli import api, api_client, config, dashboard, entities, generators, service, templates
 from logforge.cli.init import init
 
 console = Console()
@@ -35,6 +35,7 @@ app.add_typer(templates.app, name="templates")
 app.add_typer(generators.app, name="generators")
 app.add_typer(api.app, name="api")
 app.add_typer(service.app, name="service")
+app.add_typer(dashboard.app, name="dashboard")
 
 # Add start command (shortcut for api start)
 @app.command("start")
@@ -58,6 +59,17 @@ def status(
     """Show status of all generators."""
     from logforge.cli.generators import generators_status
     generators_status(None, api_url, api_key, timeout)
+
+# Add dashboard command (shortcut for dashboard show)
+@app.command("dashboard")
+def dashboard_command(
+    refresh_rate: float = typer.Option(1.0, "--refresh", "-r", help="Refresh rate in seconds"),
+    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
+) -> None:
+    """Display real-time performance dashboard."""
+    from logforge.cli.dashboard import dashboard_show
+    dashboard_show(refresh_rate=refresh_rate, api_url=api_url, api_key=api_key)
 
 
 @app.callback(invoke_without_command=True)
