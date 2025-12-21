@@ -12,8 +12,24 @@ from rich.table import Table
 
 from logforge.cli.api_client import get_api_client
 
-app = typer.Typer(name="dashboard", help="Performance dashboard")
+app = typer.Typer(name="dashboard", help="Performance dashboard", invoke_without_command=True)
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def dashboard_callback(
+    ctx: typer.Context,
+    refresh_rate: float = typer.Option(1.0, "--refresh", "-r", help="Refresh rate in seconds"),
+    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
+) -> None:
+    """Display real-time performance dashboard.
+    
+    Shows CPU, memory, thread count, and generator statistics in a live-updating dashboard.
+    Press Ctrl+C to exit.
+    """
+    if ctx.invoked_subcommand is None:
+        dashboard_show(refresh_rate=refresh_rate, api_url=api_url, api_key=api_key)
 
 
 def _format_uptime(seconds: int) -> str:
