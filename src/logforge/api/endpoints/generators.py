@@ -23,20 +23,40 @@ async def list_generators(
     """List all generators.
     
     Returns:
-        List of generators with basic info
+        List of generators with basic info including vendor, product, and data_source
     """
     generators = engine.get_all_generators()
     
+    generator_list = []
+    for gen in generators:
+        gen_data = {
+            "name": gen.name,
+            "enabled": gen.config.enabled,
+            "state": gen.state.value,
+            "template": gen.config.template,
+        }
+        
+        # Add template metadata if available
+        if gen._template_info:
+            gen_data["vendor"] = gen._template_info.vendor
+            gen_data["product"] = gen._template_info.product
+            gen_data["data_source"] = gen._template_info.data_source
+        else:
+            # Fallback: try to parse from template ID
+            template_parts = gen.config.template.split("/")
+            if len(template_parts) >= 3:
+                gen_data["vendor"] = template_parts[0]
+                gen_data["product"] = template_parts[1]
+                gen_data["data_source"] = template_parts[2]
+            else:
+                gen_data["vendor"] = None
+                gen_data["product"] = None
+                gen_data["data_source"] = None
+        
+        generator_list.append(gen_data)
+    
     return {
-        "generators": [
-            {
-                "name": gen.name,
-                "enabled": gen.config.enabled,
-                "state": gen.state.value,
-                "template": gen.config.template,
-            }
-            for gen in generators
-        ]
+        "generators": generator_list
     }
 
 
