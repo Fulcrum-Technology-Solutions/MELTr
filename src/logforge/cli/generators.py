@@ -14,10 +14,11 @@ console = Console()
 
 @app.command("list")
 def generators_list(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show additional columns (vendor, product, data_source)"),
     api_url: Optional[str] = typer.Option(None, "--api-url", envvar="LOGFORGE_API_URL"),
     api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
 ) -> None:
-    """List all generators."""
+    """List all generators in alphabetical order."""
     client = get_api_client(api_url, api_key)
     client.require_service_running()
     
@@ -26,13 +27,22 @@ def generators_list(
         response.raise_for_status()
         data = response.json()
         
+        # Sort generators alphabetically by name
+        generators = sorted(data["generators"], key=lambda x: x["name"].lower())
+        
         table = Table(title="Generators")
         table.add_column("Name", style="cyan")
         table.add_column("State", style="green")
         table.add_column("Template", style="yellow")
         table.add_column("Enabled", style="magenta")
         
-        for gen in data["generators"]:
+        # Add verbose columns if requested
+        if verbose:
+            table.add_column("Vendor", style="blue")
+            table.add_column("Product", style="blue")
+            table.add_column("Data Source", style="blue")
+        
+        for gen in generators:
             state_style = {
                 "RUNNING": "green",
                 "STOPPED": "dim",
@@ -42,12 +52,22 @@ def generators_list(
                 "STOPPING": "yellow",
             }.get(gen["state"], "white")
             
-            table.add_row(
+            row_data = [
                 gen["name"],
                 f"[{state_style}]{gen['state']}[/{state_style}]",
                 gen["template"],
                 "✓" if gen["enabled"] else "✗",
-            )
+            ]
+            
+            # Add verbose columns if requested
+            if verbose:
+                row_data.extend([
+                    gen.get("vendor", "N/A") or "N/A",
+                    gen.get("product", "N/A") or "N/A",
+                    gen.get("data_source", "N/A") or "N/A",
+                ])
+            
+            table.add_row(*row_data)
         
         console.print(table)
     except Exception as e:
