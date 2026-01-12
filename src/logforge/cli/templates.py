@@ -331,7 +331,7 @@ def _browse_templates_interactive() -> None:
                     vendor_part = parts[0]
                     product_part = parts[1] if len(parts) > 1 else None
                     if product_part:
-                        templates_install(f"{vendor_part}/{product_part}", product=True)
+                        _do_install_template(f"{vendor_part}/{product_part}", product=True)
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -414,7 +414,7 @@ def _search_templates_interactive() -> None:
                     vendor_part = parts[0]
                     product_part = parts[1] if len(parts) > 1 else None
                     if product_part:
-                        templates_install(f"{vendor_part}/{product_part}", product=True)
+                        _do_install_template(f"{vendor_part}/{product_part}", product=True)
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -521,10 +521,10 @@ def _install_templates_interactive() -> None:
                 is_vendor_installed = _is_vendor_installed(config, selected_vendor_id)
                 if is_vendor_installed:
                     if Confirm.ask(f"\n[yellow]Upgrade all products from {vendor_data.get('vendor', selected_vendor_id)}?[/yellow]", default=False):
-                        templates_install(selected_vendor_id, vendor=True, overwrite=True)
+                        _do_install_template(selected_vendor_id, vendor=True, overwrite=True)
                 else:
                     if Confirm.ask(f"\n[yellow]Install all products from {vendor_data.get('vendor', selected_vendor_id)}?[/yellow]", default=False):
-                        templates_install(selected_vendor_id, vendor=True)
+                        _do_install_template(selected_vendor_id, vendor=True)
             elif install_choice == "2":
                 # Select specific product
                 items = []
@@ -562,22 +562,22 @@ def _install_templates_interactive() -> None:
                             # Update available
                             status_text = format_version_status(local_version, remote_version)
                             if Confirm.ask(f"\n[yellow]Upgrade {product_path}? {status_text}[/yellow]", default=False):
-                                templates_install(product_path, product=True, overwrite=True)
+                                _do_install_template(product_path, product=True, overwrite=True)
                         else:
                             # Already up to date or can't compare
                             if local_version:
                                 if Confirm.ask(f"\n[yellow]Reinstall {product_path} (v{local_version})?[/yellow]", default=False):
-                                    templates_install(product_path, product=True, overwrite=True)
+                                    _do_install_template(product_path, product=True, overwrite=True)
                             else:
                                 if Confirm.ask(f"\n[yellow]Reinstall {product_path}?[/yellow]", default=False):
-                                    templates_install(product_path, product=True, overwrite=True)
+                                    _do_install_template(product_path, product=True, overwrite=True)
                     except Exception as e:
                         # If version check fails, just offer reinstall
                         if Confirm.ask(f"\n[yellow]Reinstall {product_path}?[/yellow]", default=False):
-                            templates_install(product_path, product=True, overwrite=True)
+                            _do_install_template(product_path, product=True, overwrite=True)
                 else:
                     if Confirm.ask(f"\n[yellow]Install {product_path}?[/yellow]", default=False):
-                        templates_install(product_path, product=True)
+                        _do_install_template(product_path, product=True)
         
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
@@ -1189,80 +1189,35 @@ def templates_browse(
         raise typer.Exit(code=1)
 
 
-@app.command("install")
-def templates_install(
-    vendor_or_product: Optional[str] = typer.Argument(None, help="Vendor ID (e.g., 'microsoft') or Product ID (e.g., 'microsoft/windows')"),
-    vendor: bool = typer.Option(False, "--vendor", help="Install all products from vendor"),
-    product: bool = typer.Option(False, "--product", help="Install specific product (use vendor/product format)"),
-    list_vendors: bool = typer.Option(False, "--list-vendors", help="List available vendors to install"),
-    api_url: Optional[str] = typer.Option(
-        None,
-        "--api-url",
-        envvar="LOGFORGE_COMMUNITY_API_URL",
-        help="Community API URL"
-    ),
-    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing installation"),
-    local_file: Optional[Path] = typer.Option(None, "--local-file", help="Install from local .forge file"),
+def _do_install_template(
+    vendor_or_product: str,
+    vendor: bool = False,
+    product: bool = False,
+    api_url: Optional[str] = None,
+    overwrite: bool = False,
+    local_file: Optional[Path] = None,
 ) -> None:
-    """Install template packages from community registry or local package.
+    """Core template installation logic (called by both CLI and interactive menu).
     
-    Installation levels:
-      - Vendor: Install all products for a vendor
-        Example: logforge templates install microsoft --vendor
-      
-      - Product: Install a specific product (maintains collection.json integrity)
-        Example: logforge templates install microsoft/windows --product
-        Example: logforge templates install aws/cloudtrail --product
-    
-    Individual templates are enabled/disabled via generator configuration in config.yaml.
+    Args:
+        vendor_or_product: Vendor ID or Product ID (vendor/product format)
+        vendor: If True, install all products from vendor
+        product: If True, install specific product
+        api_url: Community API URL (None = use config)
+        overwrite: Whether to overwrite existing installation
+        local_file: Path to local .forge file (if installing from file)
     """
     try:
         # Get API URL from config or parameter
         if api_url is None:
             config = load_config()
             api_url = config.templates.community_api_url
+        else:
+            config = load_config()
         
         client = CommunityAPIClient(base_url=api_url)
         
-        # Handle --list-vendors option
-        if list_vendors:
-            console.print("[cyan]Available Vendors:[/cyan]\n")
-            
-            try:
-                # Use search_templates to get full hierarchy with product counts
-                result = client.search_templates(page=1, page_size=100)
-                vendors = result.get('vendors', [])
-                
-                if not vendors:
-                    console.print("[yellow]No vendors found in registry[/yellow]")
-                    return
-                
-                for vendor_data in vendors:
-                    vendor_id = vendor_data.get('id', 'unknown')
-                    vendor_name = vendor_data.get('vendor', vendor_id)
-                    products = vendor_data.get('products', [])
-                    product_count = len(products)
-                    
-                    console.print(f"[bold cyan]{vendor_name}[/bold cyan] ([dim]{vendor_id}[/dim])")
-                    console.print(f"  [green]{product_count} product(s)[/green]")
-                    console.print(f"  [dim]Install: logforge templates install {vendor_id} --vendor[/dim]\n")
-                
-                return
-            except CommunityAPIError as e:
-                console.print(f"[red]Error listing vendors: {e}[/red]")
-                raise typer.Exit(code=1)
-        
-        # Require vendor_or_product if not listing
-        if not vendor_or_product:
-            console.print("[red]Error: Must specify vendor or product ID, or use --list-vendors[/red]")
-            console.print("[dim]Hint: Use 'logforge templates install --list-vendors' to see available vendors[/dim]")
-            console.print("[dim]Examples:[/dim]")
-            console.print("[dim]  Vendor:  logforge templates install microsoft --vendor[/dim]")
-            console.print("[dim]  Product: logforge templates install microsoft/windows --product[/dim]")
-            raise typer.Exit(code=1)
-        
         # Load config for paths
-        config = load_config()
         templates_path = Path(config.templates.local_path)
         default_path = templates_path / 'default'
         default_path.mkdir(parents=True, exist_ok=True)
@@ -1423,6 +1378,93 @@ def templates_install(
     except CommunityAPIError as e:
         console.print(f"[red]API error: {e}[/red]")
         raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("install")
+def templates_install(
+    vendor_or_product: Optional[str] = typer.Argument(None, help="Vendor ID (e.g., 'microsoft') or Product ID (e.g., 'microsoft/windows')"),
+    vendor: bool = typer.Option(False, "--vendor", help="Install all products from vendor"),
+    product: bool = typer.Option(False, "--product", help="Install specific product (use vendor/product format)"),
+    list_vendors: bool = typer.Option(False, "--list-vendors", help="List available vendors to install"),
+    api_url: Optional[str] = typer.Option(
+        None,
+        "--api-url",
+        envvar="LOGFORGE_COMMUNITY_API_URL",
+        help="Community API URL"
+    ),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing installation"),
+    local_file: Optional[Path] = typer.Option(None, "--local-file", help="Install from local .forge file"),
+) -> None:
+    """Install template packages from community registry or local package.
+    
+    Installation levels:
+      - Vendor: Install all products for a vendor
+        Example: logforge templates install microsoft --vendor
+      
+      - Product: Install a specific product (maintains collection.json integrity)
+        Example: logforge templates install microsoft/windows --product
+        Example: logforge templates install aws/cloudtrail --product
+    
+    Individual templates are enabled/disabled via generator configuration in config.yaml.
+    """
+    try:
+        # Get API URL from config or parameter
+        if api_url is None:
+            config = load_config()
+            api_url = config.templates.community_api_url
+        
+        client = CommunityAPIClient(base_url=api_url)
+        
+        # Handle --list-vendors option
+        if list_vendors:
+            console.print("[cyan]Available Vendors:[/cyan]\n")
+            
+            try:
+                # Use search_templates to get full hierarchy with product counts
+                result = client.search_templates(page=1, page_size=100)
+                vendors = result.get('vendors', [])
+                
+                if not vendors:
+                    console.print("[yellow]No vendors found in registry[/yellow]")
+                    return
+                
+                for vendor_data in vendors:
+                    vendor_id = vendor_data.get('id', 'unknown')
+                    vendor_name = vendor_data.get('vendor', vendor_id)
+                    products = vendor_data.get('products', [])
+                    product_count = len(products)
+                    
+                    console.print(f"[bold cyan]{vendor_name}[/bold cyan] ([dim]{vendor_id}[/dim])")
+                    console.print(f"  [green]{product_count} product(s)[/green]")
+                    console.print(f"  [dim]Install: logforge templates install {vendor_id} --vendor[/dim]\n")
+                
+                return
+            except CommunityAPIError as e:
+                console.print(f"[red]Error listing vendors: {e}[/red]")
+                raise typer.Exit(code=1)
+        
+        # Require vendor_or_product if not listing
+        if not vendor_or_product:
+            console.print("[red]Error: Must specify vendor or product ID, or use --list-vendors[/red]")
+            console.print("[dim]Hint: Use 'logforge templates install --list-vendors' to see available vendors[/dim]")
+            console.print("[dim]Examples:[/dim]")
+            console.print("[dim]  Vendor:  logforge templates install microsoft --vendor[/dim]")
+            console.print("[dim]  Product: logforge templates install microsoft/windows --product[/dim]")
+            raise typer.Exit(code=1)
+        
+        # Call core installation logic
+        _do_install_template(
+            vendor_or_product=vendor_or_product,
+            vendor=vendor,
+            product=product,
+            api_url=api_url,
+            overwrite=overwrite,
+            local_file=local_file,
+        )
+    
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
