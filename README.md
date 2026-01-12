@@ -80,11 +80,14 @@ logforge entities add users
 logforge entities import ./samples/entities.yaml
 
 # Template operations
-logforge templates list
-logforge templates info vendor/product/datasource/name
-logforge templates customize vendor/product/datasource/name
-logforge templates diff vendor/product/datasource/name
-logforge templates install vendor/product/datasource/name
+logforge templates                    # Interactive menu (browse, search, install, view)
+logforge templates list               # List local templates (paginated)
+logforge templates browse             # Browse remote templates (hierarchical, paginated)
+logforge templates search <query>     # Search templates (interactive, paginated)
+logforge templates install <id>      # Install template package
+logforge templates info <id>         # View template details
+logforge templates customize <id>    # Create custom template override
+logforge templates diff <id>         # Compare local vs remote template
 
 # Generator operations
 logforge generators list
@@ -233,6 +236,29 @@ Events are wrapped with routing metadata:
 - **Multi-Destination**: Fork events to different destinations based on metadata
 
 **Configuration via CLI**:
+
+**Quick Operations**:
+```bash
+# Quick-add generator with auto-naming
+logforge config edit --add-generator microsoft/azure/signin --name my-gen --outputs http-out
+
+# Quick-edit generator
+logforge config edit --edit-generator my-gen --enable
+logforge config edit --edit-generator my-gen --outputs http-out,file-out
+logforge config edit --edit-generator my-gen --timezone America/New_York
+```
+
+**Interactive Mode** (full-featured editor):
+```bash
+logforge config edit                 # Interactive editor with:
+                                      # - Hierarchical template selection (vendor → product → template)
+                                      # - Auto-naming generators based on template metadata
+                                      # - Batch creation (all/remaining templates)
+                                      # - Filter existing generators
+                                      # - Pagination for large lists
+```
+
+**Output Configuration**:
 - When creating HTTP outputs: `logforge config edit` → Manage Outputs → Add new output → HTTP
 - When editing generators: `logforge config edit` → Manage Generators → Edit generator → Edit outputs → Configure metadata for HTTP outputs
 
@@ -259,9 +285,20 @@ pytest
 
 ## CLI Usage
 
+**Entity Management**:
 - `logforge entities list` — show registry summary or `--type users|devices|services` for detailed listings.
+- `logforge entities show <type> <name>` — view specific entity details.
+- `logforge entities add <type>` — interactively add new entity.
+- `logforge entities import <file>` — import entities from YAML file.
+
+**Generator Management**:
 - `logforge generators list` — fetch generator status from the management API.
 - `logforge generators start <name>` / `stop <name>` — control generator lifecycles.
+
+**Template Management**:
+- `logforge templates` — interactive menu for browsing, searching, and installing templates.
+- All template commands support pagination for large result sets.
+- Hierarchical browsing: vendor → product → template selection.
 
 ## API Quick Start
 
