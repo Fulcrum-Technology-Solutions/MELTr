@@ -301,7 +301,8 @@ def _browse_templates_interactive() -> None:
             for template in templates:
                 template_id = template.get('event_type_id') or template.get('id')
                 if template_id:
-                    all_templates.append((template_id, template, ds_data.get('data_source_id')))
+                    # Store full template info including vendor/product for installation
+                    all_templates.append((template_id, template, ds_data.get('data_source_id'), selected_vendor_id, selected_product_id))
         
         if not all_templates:
             console.print("[yellow]No templates found[/yellow]")
@@ -309,32 +310,36 @@ def _browse_templates_interactive() -> None:
         
         # Display templates with status
         items = []
-        for template_id, template, ds_id in all_templates:
+        for template_id, template, ds_id, vendor_id, product_id in all_templates:
             template_name = template.get('name', template_id)
             is_installed = template_id in local_template_ids
             status = "[green]✓[/green]" if is_installed else "[dim]○[/dim]"
-            items.append((f"{status} {template_name} ({ds_id})", template_id))
+            items.append((f"{status} {template_name} ({ds_id})", (template_id, vendor_id, product_id)))
         
         selection = _paginate_templates(items, title=f"Templates: {product_data.get('product', selected_product_id)}")
         if selection is None:
             return
         
-        selected_template_id = items[selection][1]
+        selected_template_id, vendor_id, product_id = items[selection][1]
         console.print(f"\n[green]Selected: {selected_template_id}[/green]")
         
         # Offer to install if not installed
         if selected_template_id not in local_template_ids:
             if Confirm.ask("\n[yellow]Install this template?", default=False):
-                # Extract vendor/product from template_id
-                parts = selected_template_id.split('/')
-                if len(parts) >= 2:
-                    vendor_part = parts[0]
-                    product_part = parts[1] if len(parts) > 1 else None
-                    if product_part:
-                        _do_install_template(f"{vendor_part}/{product_part}", product=True)
+                product_path = f"{vendor_id}/{product_id}"
+                console.print(f"[cyan]Installing product: {product_path}[/cyan]")
+                try:
+                    _do_install_template(product_path, product=True, api_url=api_url)
+                    console.print(f"[green]✓ Installation completed successfully[/green]")
+                except Exception as e:
+                    console.print(f"[red]Installation failed: {e}[/red]")
+                    import traceback
+                    console.print_exception()
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        console.print_exception()
         raise typer.Exit(code=1)
 
 
@@ -397,27 +402,33 @@ def _search_templates_interactive() -> None:
             template_name = template.get('name', template_id)
             is_installed = template_id in local_template_ids
             status = "[green]✓[/green]" if is_installed else "[dim]○[/dim]"
-            items.append((f"{status} {template_name} ({vendor_id}/{product_id})", template_id))
+            # Store vendor/product with template_id for installation
+            items.append((f"{status} {template_name} ({vendor_id}/{product_id})", (template_id, vendor_id, product_id)))
         
         selection = _paginate_templates(items, title=f"Search Results ({len(items)} templates)")
         if selection is None:
             return
         
-        selected_template_id = items[selection][1]
+        selected_template_id, vendor_id, product_id = items[selection][1]
         console.print(f"\n[green]Selected: {selected_template_id}[/green]")
         
         # Offer to install if not installed
         if selected_template_id not in local_template_ids:
             if Confirm.ask("\n[yellow]Install this template?", default=False):
-                parts = selected_template_id.split('/')
-                if len(parts) >= 2:
-                    vendor_part = parts[0]
-                    product_part = parts[1] if len(parts) > 1 else None
-                    if product_part:
-                        _do_install_template(f"{vendor_part}/{product_part}", product=True)
+                product_path = f"{vendor_id}/{product_id}"
+                console.print(f"[cyan]Installing product: {product_path}[/cyan]")
+                try:
+                    _do_install_template(product_path, product=True, api_url=api_url)
+                    console.print(f"[green]✓ Installation completed successfully[/green]")
+                except Exception as e:
+                    console.print(f"[red]Installation failed: {e}[/red]")
+                    import traceback
+                    console.print_exception()
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        console.print_exception()
         raise typer.Exit(code=1)
 
 
