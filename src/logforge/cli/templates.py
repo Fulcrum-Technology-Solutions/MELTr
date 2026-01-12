@@ -377,15 +377,79 @@ def _install_templates_interactive() -> None:
     elif choice == "2":
         _search_templates_interactive()
     elif choice == "3":
-        vendor = Prompt.ask("Vendor ID (e.g., 'microsoft')")
-        if vendor:
-            install_vendor = Confirm.ask("Install all products from vendor?", default=False)
-            if install_vendor:
-                templates_install(vendor, vendor=True)
-            else:
-                product = Prompt.ask("Product ID (e.g., 'microsoft/windows')")
-                if product:
-                    templates_install(product, product=True)
+        try:
+            config = load_config()
+            api_url = config.templates.community_api_url
+            client = CommunityAPIClient(base_url=api_url)
+            
+            # Step 1: Select vendor
+            result = client.search_templates(page=1, page_size=100)
+            vendors = result.get('vendors', [])
+            
+            if not vendors:
+                console.print("[yellow]No vendors found[/yellow]")
+                return
+            
+            items = []
+            for vendor_data in vendors:
+                vendor_id = vendor_data.get('id', 'unknown')
+                vendor_name = vendor_data.get('vendor', vendor_id)
+                products = vendor_data.get('products', [])
+                items.append((f"{vendor_name} ({len(products)} products)", vendor_id))
+            
+            selection = _paginate_templates(items, title="Select Vendor")
+            if selection is None:
+                return
+            
+            selected_vendor_id = items[selection][1]
+            
+            # Step 2: Choose install level
+            vendor_result = client.search_templates(vendor_id=selected_vendor_id, page=1, page_size=100)
+            vendor_data = vendor_result.get('vendors', [0])[0] if vendor_result.get('vendors') else None
+            
+            if not vendor_data:
+                console.print("[yellow]Vendor not found[/yellow]")
+                return
+            
+            products = vendor_data.get('products', [])
+            if not products:
+                console.print("[yellow]No products found for this vendor[/yellow]")
+                return
+            
+            console.print(f"\n[bold]Install Options for {vendor_data.get('vendor', selected_vendor_id)}[/bold]\n")
+            console.print("  [1] Install all products from vendor")
+            console.print("  [2] Select specific product")
+            console.print("  [3] Cancel")
+            
+            install_choice = Prompt.ask("\nSelect option", choices=["1", "2", "3"], default="3")
+            
+            if install_choice == "1":
+                # Install all products from vendor
+                if Confirm.ask(f"\n[yellow]Install all products from {vendor_data.get('vendor', selected_vendor_id)}?[/yellow]", default=False):
+                    templates_install(selected_vendor_id, vendor=True)
+            elif install_choice == "2":
+                # Select specific product
+                items = []
+                for product_data in products:
+                    product_id = product_data.get('product_id', 'unknown')
+                    product_name = product_data.get('product', product_id)
+                    data_sources = product_data.get('data_sources', [])
+                    total_templates = sum(len(ds.get('event_types', [])) for ds in data_sources)
+                    items.append((f"{product_name} ({total_templates} templates)", product_id))
+                
+                selection = _paginate_templates(items, title="Select Product")
+                if selection is None:
+                    return
+                
+                selected_product_id = items[selection][1]
+                product_path = f"{selected_vendor_id}/{selected_product_id}"
+                
+                if Confirm.ask(f"\n[yellow]Install {product_path}?[/yellow]", default=False):
+                    templates_install(product_path, product=True)
+        
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise typer.Exit(code=1)
 
 
 def _view_template_info_interactive() -> None:
