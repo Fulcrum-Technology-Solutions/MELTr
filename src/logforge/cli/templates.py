@@ -143,6 +143,95 @@ def _paginate_templates(
             console.print("[red]Invalid input. Please enter a number, 'n', 'p', or 'q'[/red]")
 
 
+def _get_installed_vendors(config) -> set[str]:
+    """Get set of installed vendor IDs.
+    
+    Args:
+        config: Configuration object
+        
+    Returns:
+        Set of vendor ID strings
+    """
+    templates_path = Path(config.templates.local_path)
+    default_path = templates_path / 'default'
+    
+    if not default_path.exists():
+        return set()
+    
+    vendors = set()
+    for vendor_dir in default_path.iterdir():
+        if vendor_dir.is_dir() and not vendor_dir.name.startswith('.'):
+            vendors.add(vendor_dir.name)
+    
+    return vendors
+
+
+def _get_installed_products(config, vendor_id: str) -> set[str]:
+    """Get set of installed product IDs for a vendor.
+    
+    Args:
+        config: Configuration object
+        vendor_id: Vendor identifier
+        
+    Returns:
+        Set of product ID strings
+    """
+    templates_path = Path(config.templates.local_path)
+    default_path = templates_path / 'default'
+    vendor_dir = default_path / vendor_id
+    
+    if not vendor_dir.exists() or not vendor_dir.is_dir():
+        return set()
+    
+    products = set()
+    for product_dir in vendor_dir.iterdir():
+        if product_dir.is_dir() and not product_dir.name.startswith('.'):
+            # Check if it's a product (has collection.json)
+            collection_json = product_dir / 'collection.json'
+            if collection_json.exists():
+                products.add(product_dir.name)
+    
+    return products
+
+
+def _is_vendor_installed(config, vendor_id: str) -> bool:
+    """Check if vendor is installed.
+    
+    Args:
+        config: Configuration object
+        vendor_id: Vendor identifier
+        
+    Returns:
+        True if vendor directory exists
+    """
+    templates_path = Path(config.templates.local_path)
+    default_path = templates_path / 'default'
+    vendor_dir = default_path / vendor_id
+    return vendor_dir.exists() and vendor_dir.is_dir()
+
+
+def _is_product_installed(config, vendor_id: str, product_id: str) -> bool:
+    """Check if product is installed.
+    
+    Args:
+        config: Configuration object
+        vendor_id: Vendor identifier
+        product_id: Product identifier
+        
+    Returns:
+        True if product directory exists with collection.json
+    """
+    templates_path = Path(config.templates.local_path)
+    default_path = templates_path / 'default'
+    product_dir = default_path / vendor_id / product_id
+    
+    if not product_dir.exists() or not product_dir.is_dir():
+        return False
+    
+    collection_json = product_dir / 'collection.json'
+    return collection_json.exists()
+
+
 def _browse_templates_interactive() -> None:
     """Interactive hierarchical template browsing."""
     try:
@@ -391,11 +480,15 @@ def _install_templates_interactive() -> None:
                 return
             
             items = []
+            installed_vendors = _get_installed_vendors(config)
             for vendor_data in vendors:
                 vendor_id = vendor_data.get('id', 'unknown')
                 vendor_name = vendor_data.get('vendor', vendor_id)
                 products = vendor_data.get('products', [])
-                items.append((f"{vendor_name} ({len(products)} products)", vendor_id))
+                is_installed = vendor_id in installed_vendors
+                status = "[green]✓[/green]" if is_installed else "[dim]○[/dim]"
+                installed_text = " [installed]" if is_installed else ""
+                items.append((f"{status} {vendor_name} ({len(products)} products){installed_text}", vendor_id))
             
             selection = _paginate_templates(items, title="Select Vendor")
             if selection is None:
@@ -425,17 +518,28 @@ def _install_templates_interactive() -> None:
             
             if install_choice == "1":
                 # Install all products from vendor
-                if Confirm.ask(f"\n[yellow]Install all products from {vendor_data.get('vendor', selected_vendor_id)}?[/yellow]", default=False):
-                    templates_install(selected_vendor_id, vendor=True)
+                is_vendor_installed = _is_vendor_installed(config, selected_vendor_id)
+                if is_vendor_installed:
+                    if Confirm.ask(f"\n[yellow]Upgrade all products from {vendor_data.get('vendor', selected_vendor_id)}?[/yellow]", default=False):
+                        templates_install(selected_vendor_id, vendor=True, overwrite=True)
+                else:
+                    if Confirm.ask(f"\n[yellow]Install all products from {vendor_data.get('vendor', selected_vendor_id)}?[/yellow]", default=False):
+                        templates_install(selected_vendor_id, vendor=True)
             elif install_choice == "2":
                 # Select specific product
                 items = []
+                installed_products = _get_installed_products(config, selected_vendor_id)
+                templates_path = Path(config.templates.local_path)
+                
                 for product_data in products:
                     product_id = product_data.get('product_id', 'unknown')
                     product_name = product_data.get('product', product_id)
                     data_sources = product_data.get('data_sources', [])
                     total_templates = sum(len(ds.get('event_types', [])) for ds in data_sources)
-                    items.append((f"{product_name} ({total_templates} templates)", product_id))
+                    is_installed = product_id in installed_products
+                    status = "[green]✓[/green]" if is_installed else "[dim]○[/dim]"
+                    installed_text = " [installed]" if is_installed else ""
+                    items.append((f"{status} {product_name} ({total_templates} templates){installed_text}", product_id))
                 
                 selection = _paginate_templates(items, title="Select Product")
                 if selection is None:
@@ -444,8 +548,36 @@ def _install_templates_interactive() -> None:
                 selected_product_id = items[selection][1]
                 product_path = f"{selected_vendor_id}/{selected_product_id}"
                 
-                if Confirm.ask(f"\n[yellow]Install {product_path}?[/yellow]", default=False):
-                    templates_install(product_path, product=True)
+                # Check if product is installed and get version info
+                is_product_installed = _is_product_installed(config, selected_vendor_id, selected_product_id)
+                
+                if is_product_installed:
+                    # Get version info for upgrade
+                    try:
+                        local_version = get_local_collection_version(selected_vendor_id, selected_product_id, templates_path)
+                        product_info = client.get_product_detail(selected_vendor_id, selected_product_id)
+                        remote_version = product_info.get('collection_version', 'N/A')
+                        
+                        if local_version and remote_version and compare_versions(local_version, remote_version) < 0:
+                            # Update available
+                            status_text = format_version_status(local_version, remote_version)
+                            if Confirm.ask(f"\n[yellow]Upgrade {product_path}? {status_text}[/yellow]", default=False):
+                                templates_install(product_path, product=True, overwrite=True)
+                        else:
+                            # Already up to date or can't compare
+                            if local_version:
+                                if Confirm.ask(f"\n[yellow]Reinstall {product_path} (v{local_version})?[/yellow]", default=False):
+                                    templates_install(product_path, product=True, overwrite=True)
+                            else:
+                                if Confirm.ask(f"\n[yellow]Reinstall {product_path}?[/yellow]", default=False):
+                                    templates_install(product_path, product=True, overwrite=True)
+                    except Exception as e:
+                        # If version check fails, just offer reinstall
+                        if Confirm.ask(f"\n[yellow]Reinstall {product_path}?[/yellow]", default=False):
+                            templates_install(product_path, product=True, overwrite=True)
+                else:
+                    if Confirm.ask(f"\n[yellow]Install {product_path}?[/yellow]", default=False):
+                        templates_install(product_path, product=True)
         
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
@@ -935,7 +1067,7 @@ def templates_search(
         console.print(f"[red]API error: {e}[/red]")
         raise typer.Exit(code=1)
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]", exc_info=True)
+        console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
 
 
@@ -1053,7 +1185,7 @@ def templates_browse(
         console.print(f"[red]API error: {e}[/red]")
         raise typer.Exit(code=1)
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]", exc_info=True)
+        console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
 
 
@@ -1292,7 +1424,7 @@ def templates_install(
         console.print(f"[red]API error: {e}[/red]")
         raise typer.Exit(code=1)
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]", exc_info=True)
+        console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
 
 
@@ -1441,7 +1573,7 @@ def templates_update(
         console.print(f"[red]API error: {e}[/red]")
         raise typer.Exit(code=1)
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]", exc_info=True)
+        console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
 
 
@@ -1545,7 +1677,7 @@ def templates_compare(
         console.print(f"\n[dim]Use 'logforge templates update' to check for updates[/dim]")
     
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]", exc_info=True)
+        console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
 
 
