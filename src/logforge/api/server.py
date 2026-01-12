@@ -24,9 +24,10 @@ class APIServer:
             config: Configuration object
         """
         self.config = config
+        from logforge import __version__
         self.app = FastAPI(
             title="LogForge Management API",
-            version="1.0.0",
+            version=__version__,
             description="API for managing LogForge synthetic event log generation",
         )
         self.server_thread: Optional[threading.Thread] = None

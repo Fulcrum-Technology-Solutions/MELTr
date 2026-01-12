@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "logforge"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Synthetic event log generator with template-based architecture"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -63,6 +63,9 @@ Issues = "https://github.com/yourusername/logforge/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "logforge.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
