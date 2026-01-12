@@ -1,11 +1,13 @@
 """Template management CLI commands."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, List, Tuple
 
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.panel import Panel
+from rich.prompt import Prompt, Confirm, IntPrompt
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, DownloadColumn
 from logforge.community.client import (
     CommunityAPIClient,
@@ -26,8 +28,371 @@ from logforge.templates.loader import TemplateLoader
 from logforge.templates.validator import validate_template
 from logforge.templates.metadata import parse_metadata
 
-app = typer.Typer(name="templates", help="Template management")
+app = typer.Typer(name="templates", help="Template management", invoke_without_command=True)
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def templates_callback(ctx: typer.Context) -> None:
+    """Template management - interactive menu or use subcommands."""
+    if ctx.invoked_subcommand is None:
+        _templates_interactive_menu()
+
+
+def _templates_interactive_menu() -> None:
+    """Interactive templates menu."""
+    while True:
+        console.print("\n[bold]Template Management[/bold]\n")
+        
+        menu = Panel(
+            "[cyan]1.[/cyan] Browse templates (hierarchical)\n"
+            "[cyan]2.[/cyan] Search templates\n"
+            "[cyan]3.[/cyan] List local templates\n"
+            "[cyan]4.[/cyan] Compare local vs remote\n"
+            "[cyan]5.[/cyan] Install templates\n"
+            "[cyan]6.[/cyan] View template info\n"
+            "[cyan]7.[/cyan] Exit",
+            title="Main Menu",
+            border_style="blue",
+        )
+        console.print(menu)
+        
+        choice = Prompt.ask("\nSelect option", choices=["1", "2", "3", "4", "5", "6", "7"], default="7")
+        
+        if choice == "1":
+            _browse_templates_interactive()
+        elif choice == "2":
+            _search_templates_interactive()
+        elif choice == "3":
+            _list_local_templates_interactive()
+        elif choice == "4":
+            templates_compare()
+        elif choice == "5":
+            _install_templates_interactive()
+        elif choice == "6":
+            _view_template_info_interactive()
+        elif choice == "7":
+            break
+
+
+def _paginate_templates(
+    items: List[Tuple[str, Any]],
+    page_size: int = 20,
+    title: str = "",
+    show_index: bool = True,
+) -> Optional[int]:
+    """Display paginated template list and get user selection.
+    
+    Args:
+        items: List of (display_text, value) tuples
+        page_size: Number of items per page
+        title: Title to display
+        show_index: Whether to show index numbers
+        
+    Returns:
+        Selected index (0-based) or None if cancelled
+    """
+    if not items:
+        return None
+    
+    total_pages = (len(items) + page_size - 1) // page_size
+    current_page = 0
+    
+    while True:
+        start_idx = current_page * page_size
+        end_idx = min(start_idx + page_size, len(items))
+        page_items = items[start_idx:end_idx]
+        
+        if title:
+            console.print(f"\n[bold]{title}[/bold]\n")
+        
+        # Display items for current page
+        for i, (display_text, value) in enumerate(page_items):
+            idx = start_idx + i
+            if show_index:
+                console.print(f"  [{idx + 1}] {display_text}")
+            else:
+                console.print(f"  {display_text}")
+        
+        # Show pagination info
+        if total_pages > 1:
+            console.print(f"\n[dim]Page {current_page + 1} of {total_pages} (n=next, p=prev, q=quit)[/dim]")
+        else:
+            console.print("\n[dim](q=quit)[/dim]")
+        
+        # Get user input
+        user_input = Prompt.ask("\nSelect option", default="1").strip().lower()
+        
+        if user_input == 'q':
+            return None
+        elif user_input == 'n' and current_page < total_pages - 1:
+            current_page += 1
+            continue
+        elif user_input == 'p' and current_page > 0:
+            current_page -= 1
+            continue
+        
+        # Try to parse as number
+        try:
+            choice = int(user_input)
+            if 1 <= choice <= len(items):
+                return choice - 1
+            else:
+                console.print(f"[red]Invalid selection. Please choose 1-{len(items)}[/red]")
+        except ValueError:
+            console.print("[red]Invalid input. Please enter a number, 'n', 'p', or 'q'[/red]")
+
+
+def _browse_templates_interactive() -> None:
+    """Interactive hierarchical template browsing."""
+    try:
+        config = load_config()
+        api_url = config.templates.community_api_url
+        client = CommunityAPIClient(base_url=api_url)
+        
+        loader = TemplateLoader(config)
+        local_templates = loader.discover_templates()
+        local_template_ids = set(local_templates.keys())
+        
+        # Step 1: Select vendor
+        result = client.search_templates(page=1, page_size=100)
+        vendors = result.get('vendors', [])
+        
+        if not vendors:
+            console.print("[yellow]No vendors found[/yellow]")
+            return
+        
+        items = []
+        for vendor_data in vendors:
+            vendor_id = vendor_data.get('id', 'unknown')
+            vendor_name = vendor_data.get('vendor', vendor_id)
+            products = vendor_data.get('products', [])
+            items.append((f"{vendor_name} ({len(products)} products)", vendor_id))
+        
+        selection = _paginate_templates(items, title="Select Vendor")
+        if selection is None:
+            return
+        
+        selected_vendor_id = items[selection][1]
+        
+        # Step 2: Select product
+        vendor_result = client.search_templates(vendor_id=selected_vendor_id, page=1, page_size=100)
+        vendor_data = vendor_result.get('vendors', [0])[0] if vendor_result.get('vendors') else None
+        
+        if not vendor_data:
+            console.print("[yellow]Vendor not found[/yellow]")
+            return
+        
+        products = vendor_data.get('products', [])
+        if not products:
+            console.print("[yellow]No products found for this vendor[/yellow]")
+            return
+        
+        items = []
+        for product_data in products:
+            product_id = product_data.get('product_id', 'unknown')
+            product_name = product_data.get('product', product_id)
+            data_sources = product_data.get('data_sources', [])
+            total_templates = sum(len(ds.get('templates', [])) for ds in data_sources)
+            items.append((f"{product_name} ({total_templates} templates)", product_id))
+        
+        selection = _paginate_templates(items, title=f"Products: {vendor_data.get('vendor', selected_vendor_id)}")
+        if selection is None:
+            return
+        
+        selected_product_id = items[selection][1]
+        
+        # Step 3: Show templates for product
+        product_data = products[selection]
+        data_sources = product_data.get('data_sources', [])
+        
+        all_templates = []
+        for ds_data in data_sources:
+            templates = ds_data.get('templates', [])
+            for template in templates:
+                template_id = template.get('event_type_id') or template.get('id')
+                if template_id:
+                    all_templates.append((template_id, template, ds_data.get('data_source_id')))
+        
+        if not all_templates:
+            console.print("[yellow]No templates found[/yellow]")
+            return
+        
+        # Display templates with status
+        items = []
+        for template_id, template, ds_id in all_templates:
+            template_name = template.get('name', template_id)
+            is_installed = template_id in local_template_ids
+            status = "[green]✓[/green]" if is_installed else "[dim]○[/dim]"
+            items.append((f"{status} {template_name} ({ds_id})", template_id))
+        
+        selection = _paginate_templates(items, title=f"Templates: {product_data.get('product', selected_product_id)}")
+        if selection is None:
+            return
+        
+        selected_template_id = items[selection][1]
+        console.print(f"\n[green]Selected: {selected_template_id}[/green]")
+        
+        # Offer to install if not installed
+        if selected_template_id not in local_template_ids:
+            if Confirm.ask("\n[yellow]Install this template?", default=False):
+                # Extract vendor/product from template_id
+                parts = selected_template_id.split('/')
+                if len(parts) >= 2:
+                    vendor_part = parts[0]
+                    product_part = parts[1] if len(parts) > 1 else None
+                    if product_part:
+                        templates_install(f"{vendor_part}/{product_part}", product=True)
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+def _search_templates_interactive() -> None:
+    """Interactive template search."""
+    try:
+        config = load_config()
+        api_url = config.templates.community_api_url
+        client = CommunityAPIClient(base_url=api_url)
+        
+        loader = TemplateLoader(config)
+        local_templates = loader.discover_templates()
+        local_template_ids = set(local_templates.keys())
+        
+        # Get search query
+        query = Prompt.ask("\nSearch query (leave empty to browse all)", default="")
+        query = query.strip() if query else None
+        
+        # Optional filters
+        vendor = Prompt.ask("Filter by vendor (optional)", default="")
+        vendor = vendor.strip() if vendor else None
+        
+        product = Prompt.ask("Filter by product (optional)", default="")
+        product = product.strip() if product else None
+        
+        # Search
+        result = client.search_templates(
+            query=query,
+            vendor_id=vendor,
+            product_id=product,
+            page=1,
+            page_size=100,
+        )
+        
+        vendors = result.get('vendors', [])
+        if not vendors:
+            console.print("[yellow]No templates found[/yellow]")
+            return
+        
+        # Flatten templates for display
+        all_templates = []
+        for vendor_data in vendors:
+            vendor_id = vendor_data.get('id', 'unknown')
+            for product_data in vendor_data.get('products', []):
+                product_id = product_data.get('product_id', 'unknown')
+                for ds_data in product_data.get('data_sources', []):
+                    templates = ds_data.get('templates', [])
+                    for template in templates:
+                        template_id = template.get('event_type_id') or template.get('id')
+                        if template_id:
+                            all_templates.append((template_id, template, vendor_id, product_id))
+        
+        if not all_templates:
+            console.print("[yellow]No templates found[/yellow]")
+            return
+        
+        # Display with pagination
+        items = []
+        for template_id, template, vendor_id, product_id in all_templates:
+            template_name = template.get('name', template_id)
+            is_installed = template_id in local_template_ids
+            status = "[green]✓[/green]" if is_installed else "[dim]○[/dim]"
+            items.append((f"{status} {template_name} ({vendor_id}/{product_id})", template_id))
+        
+        selection = _paginate_templates(items, title=f"Search Results ({len(items)} templates)")
+        if selection is None:
+            return
+        
+        selected_template_id = items[selection][1]
+        console.print(f"\n[green]Selected: {selected_template_id}[/green]")
+        
+        # Offer to install if not installed
+        if selected_template_id not in local_template_ids:
+            if Confirm.ask("\n[yellow]Install this template?", default=False):
+                parts = selected_template_id.split('/')
+                if len(parts) >= 2:
+                    vendor_part = parts[0]
+                    product_part = parts[1] if len(parts) > 1 else None
+                    if product_part:
+                        templates_install(f"{vendor_part}/{product_part}", product=True)
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+def _list_local_templates_interactive() -> None:
+    """Interactive local templates list with pagination."""
+    try:
+        config = load_config()
+        loader = TemplateLoader(config)
+        local_templates = loader.discover_templates()
+        
+        if not local_templates:
+            console.print("[yellow]No local templates found[/yellow]")
+            return
+        
+        # Build display items
+        items = []
+        for template_id, template_info in sorted(local_templates.items()):
+            location = template_info.location
+            location_mark = "[yellow]⚠[/yellow]" if location == 'custom' else "[green]✓[/green]"
+            items.append((f"{location_mark} {template_id} ({location})", template_id))
+        
+        selection = _paginate_templates(items, title=f"Local Templates ({len(items)} total)")
+        if selection is None:
+            return
+        
+        selected_template_id = items[selection][1]
+        templates_info(selected_template_id)
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+def _install_templates_interactive() -> None:
+    """Interactive template installation."""
+    console.print("\n[bold]Install Templates[/bold]\n")
+    console.print("[cyan]Options:[/cyan]")
+    console.print("  [1] Browse and install")
+    console.print("  [2] Search and install")
+    console.print("  [3] Install by vendor/product")
+    
+    choice = Prompt.ask("\nSelect option", choices=["1", "2", "3"], default="1")
+    
+    if choice == "1":
+        _browse_templates_interactive()
+    elif choice == "2":
+        _search_templates_interactive()
+    elif choice == "3":
+        vendor = Prompt.ask("Vendor ID (e.g., 'microsoft')")
+        if vendor:
+            install_vendor = Confirm.ask("Install all products from vendor?", default=False)
+            if install_vendor:
+                templates_install(vendor, vendor=True)
+            else:
+                product = Prompt.ask("Product ID (e.g., 'microsoft/windows')")
+                if product:
+                    templates_install(product, product=True)
+
+
+def _view_template_info_interactive() -> None:
+    """Interactive template info viewer."""
+    template_id = Prompt.ask("\nTemplate ID")
+    if template_id:
+        templates_info(template_id)
 
 
 @app.command("list")
@@ -42,6 +407,8 @@ def templates_list(
         envvar="LOGFORGE_COMMUNITY_API_URL",
         help="Community API URL"
     ),
+    page: int = typer.Option(1, "--page", help="Page number (for paginated output)"),
+    page_size: int = typer.Option(20, "--page-size", help="Results per page"),
 ) -> None:
     """List available templates (local and/or remote)."""
     from logforge.core.config import load_config
@@ -122,8 +489,18 @@ def templates_list(
                         'location': 'remote',
                     }
         
+        # Sort templates
+        sorted_template_ids = sorted(unified_templates.keys())
+        total_templates = len(sorted_template_ids)
+        
+        # Pagination
+        total_pages = (total_templates + page_size - 1) // page_size
+        start_idx = (page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_templates)
+        page_template_ids = sorted_template_ids[start_idx:end_idx]
+        
         # Display as table
-        table = Table(title="Templates")
+        table = Table(title=f"Templates (Page {page} of {total_pages})")
         table.add_column("ID", style="cyan")
         table.add_column("Installed", style="green")
         table.add_column("Location", style="dim")
@@ -131,7 +508,7 @@ def templates_list(
         table.add_column("Vendor", style="magenta")
         table.add_column("Product", style="blue")
         
-        for template_id in sorted(unified_templates.keys()):
+        for template_id in page_template_ids:
             template_info = unified_templates[template_id]
             
             # Determine installed status
@@ -152,11 +529,14 @@ def templates_list(
         local_count = len([t for t in unified_templates.keys() if t in local_template_ids])
         remote_count = len([t for t in unified_templates.keys() if t not in local_template_ids])
         
-        summary = f"\n[dim]Total: {len(unified_templates)} templates"
+        summary = f"\n[dim]Showing {len(page_template_ids)} of {total_templates} templates"
         if show_remote or remote_only:
             summary += f" ({local_count} installed, {remote_count} available remotely)"
         summary += "[/dim]"
         console.print(summary)
+        
+        if total_pages > 1:
+            console.print(f"[dim]Use --page to navigate (1-{total_pages})[/dim]")
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -1009,6 +1389,8 @@ def templates_compare(
         envvar="LOGFORGE_COMMUNITY_API_URL",
         help="Community API URL"
     ),
+    page: int = typer.Option(1, "--page", help="Page number (for paginated output)"),
+    page_size: int = typer.Option(20, "--page-size", help="Results per page"),
 ) -> None:
     """Compare local templates with remote registry (show installed, available, updates)."""
     try:
@@ -1071,11 +1453,20 @@ def templates_compare(
         console.print(f"  [yellow]Installed & up to date:[/yellow] {len(both)} templates")
         
         if only_local:
-            console.print(f"\n[dim]Templates installed locally but not in registry ({len(only_local)}):[/dim]")
-            for tid in sorted(list(only_local))[:10]:
+            sorted_local = sorted(list(only_local))
+            total_pages = (len(sorted_local) + page_size - 1) // page_size
+            start_idx = (page - 1) * page_size
+            end_idx = min(start_idx + page_size, len(sorted_local))
+            page_items = sorted_local[start_idx:end_idx]
+            
+            console.print(f"\n[dim]Templates installed locally but not in registry ({len(only_local)} total):[/dim]")
+            for tid in page_items:
                 console.print(f"  • {tid}")
-            if len(only_local) > 10:
-                console.print(f"  ... and {len(only_local) - 10} more")
+            
+            if total_pages > 1:
+                console.print(f"\n[dim]Page {page} of {total_pages} (showing {len(page_items)} of {len(sorted_local)})[/dim]")
+                if page < total_pages:
+                    console.print(f"[dim]Use --page {page + 1} to see more[/dim]")
         
         if only_remote:
             console.print(f"\n[dim]Templates available remotely but not installed ({len(only_remote)}):[/dim]")

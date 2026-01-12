@@ -242,7 +242,7 @@ Apache 2.0. See `LICENSE` for details.
 
 # LogForge OSS
 
-LogForge is a synthetic event log generator tailored for security engineering teams. This repository tracks the open-source implementation described in `LogForge-OSS-Requirements.md`.
+LogForge is a synthetic event log generator tailored for security engineering teams.
 
 ## Development Status
 
