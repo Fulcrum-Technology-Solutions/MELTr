@@ -85,3 +85,7 @@ dmypy.json
 .env
 .env.local
 
+# Internal documentation (not for public repo)
+LogForge-OSS-Requirements.md
+LogForge-UserStory.md
+
