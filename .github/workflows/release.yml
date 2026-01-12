@@ -29,7 +29,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install build wheel twine
       
-      - name: Extract version and update pyproject.toml
+      - name: Extract version and update __init__.py
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -43,10 +43,10 @@ jobs:
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           
-          # Update pyproject.toml with the extracted version to ensure consistency
-          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-          rm pyproject.toml.bak
-          echo "Updated pyproject.toml version to $VERSION"
+          # Update __init__.py with the extracted version (single source of truth)
+          sed -i.bak "s/^__version__ = \".*\"/__version__ = \"$VERSION\"/" src/logforge/__init__.py
+          rm src/logforge/__init__.py.bak
+          echo "Updated src/logforge/__init__.py version to $VERSION"
       
       - name: Build package
         run: |
