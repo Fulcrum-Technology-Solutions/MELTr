@@ -40,10 +40,11 @@ def init(
     create_user: bool = True,
 ) -> None:
     """Initialize LogForge configuration and directory structure.
-    
-    Creates a local LogForge installation directory (like Splunk/Cribl).
-    By default creates ./logforge in the current directory. With --create-user
-    and root, creates the service user/group (default: logmgr) and sets ownership.
+
+    Uses LOGFORGE_HOME (default: ./.logforge or ./logforge when present, else
+    ~/.logforge for interactive users or /var/lib/logforge for service accounts).
+    With --create-user and root, creates the service user/group (default: logmgr)
+    and sets ownership.
     """
     if directory and directory is not None:
         home = Path(directory).expanduser().resolve()
@@ -94,8 +95,13 @@ def init(
                 for d in [templates_path, templates_path / 'default', templates_path / 'custom', home / 'outputs']:
                     if d.exists():
                         os.chown(d, service_uid, service_gid)
-                if home.parent.name == 'logforge' and home.parent.exists():
-                    os.chown(home.parent, service_uid, service_gid)
+                # Chown install root when home is under /opt/.../data or .../logforge
+                parent = home.parent
+                if parent.exists():
+                    if parent.name.lower() == 'logforge':
+                        os.chown(parent, service_uid, service_gid)
+                    elif parent.name == 'data' and parent.parent.name.lower() == 'logforge' and parent.parent.exists():
+                        os.chown(parent.parent, service_uid, service_gid)
             except OSError as e:
                 console.print(f"[yellow]⚠ Could not set ownership: {e}[/yellow]")
     

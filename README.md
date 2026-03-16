@@ -34,15 +34,21 @@ pip install -e ".[dev]"
 
 After installing the wheel (or from source), run init to create the directory layout, default configuration, sample entities, and template scaffolding. Optionally create the `logmgr` service user and set ownership (requires root).
 
+**Where config/data lives (LOGFORGE_HOME):**
+- **Repo / dev:** To use a local data dir in the repo, set `LOGFORGE_HOME=./.logforge` or run `logforge init --directory ./.logforge`; that creates `./.logforge` (or use an existing `./logforge`). Otherwise init uses `~/.logforge` (interactive) or `/var/lib/logforge` (service).
+- **Installed (system):** Set `LOGFORGE_HOME` to a path the process can write (e.g. `/var/lib/logforge` for the service, or `/opt/LogForge/data` if you keep data next to the install). Service accounts (e.g. `logmgr`) default to `/var/lib/logforge` when `LOGFORGE_HOME` is not set; have root create and chown that dir first if needed.
+
 ```bash
-# Optional: set where config and data live (defaults to ./logforge or detected path)
-export LOGFORGE_HOME=/opt/logforge/logforge
+# Repo/dev: init in current dir (creates ./.logforge or uses existing ./logforge)
+logforge init --force
 
-# Create layout and sample entities (no root required)
+# Installed + service user: use /var/lib/logforge (create once as root)
+sudo mkdir -p /var/lib/logforge && sudo chown logmgr:logmgr /var/lib/logforge
+sudo logforge init --directory /var/lib/logforge --user logmgr --group logmgr --force
+
+# Or set LOGFORGE_HOME and init (no root required for layout)
+export LOGFORGE_HOME=/var/lib/logforge
 logforge init --directory $LOGFORGE_HOME --no-create-user --force
-
-# Or with root: create logmgr user/group and set ownership
-sudo logforge init --directory /opt/logforge/logforge --user logmgr --group logmgr --force
 ```
 
 Init creates `config.yaml`, `entities.yaml` (with sample organization, users, devices, services), and `templates/default`, `templates/custom`, `outputs`. Use `--user logmgr --create-user` (with sudo) to create the service user and set directory ownership.
@@ -57,7 +63,7 @@ logforge start
 **As a systemd service (production):**
 ```bash
 # Install systemd service (runs as logmgr by default; use --no-create-user if user exists)
-sudo logforge service install --user logmgr --home /opt/logforge/logforge
+sudo logforge service install --user logmgr --home /var/lib/logforge
 
 # Start the service
 sudo systemctl start logforge

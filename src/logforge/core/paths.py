@@ -7,82 +7,74 @@ from typing import Optional
 
 
 def get_logforge_home() -> Path:
-    """Resolve LOGFORGE_HOME directory.
-    
-    Resolution order (like Splunk/Cribl):
+    """Resolve LOGFORGE_HOME directory (config/data root, not the app install path).
+
+    Resolution order:
     1. LOGFORGE_HOME environment variable
-    2. ./logforge in current working directory
-    3. ../logforge (parent directory)
-    4. Installation directory detection (from binary location)
+    2. ./.logforge or ./logforge in current working directory (.logforge preferred)
+    3. ../.logforge or ../logforge (parent directory)
+    4. Installation directory: when binary is under /opt/LogForge or /opt/logforge, use <install>/data
     5. ~/.logforge for interactive users (uid >= 1000)
     6. /var/lib/logforge for service accounts (uid < 1000)
-    
+
     Returns:
         Path to LOGFORGE_HOME directory
     """
-    # Check environment variable first
+    # 1. Environment variable
     env_home = os.getenv('LOGFORGE_HOME')
     if env_home:
         home_path = Path(env_home).expanduser().resolve()
         _ensure_directory(home_path)
         return home_path
-    
-    # Check for local logforge directory (current directory)
+
     cwd = Path.cwd()
-    local_home = cwd / 'logforge'
-    if local_home.exists() and local_home.is_dir():
-        return local_home.resolve()
-    
-    # Check parent directory (common for project layouts)
-    parent_home = cwd.parent / 'logforge'
-    if parent_home.exists() and parent_home.is_dir():
-        return parent_home.resolve()
-    
-    # Try to detect installation directory from binary location
+    # 2. Local: prefer .logforge (repo/dev), then logforge (backward compat)
+    for name in ('.logforge', 'logforge'):
+        local_home = cwd / name
+        if local_home.exists() and local_home.is_dir():
+            return local_home.resolve()
+    for name in ('.logforge', 'logforge'):
+        parent_home = cwd.parent / name
+        if parent_home.exists() and parent_home.is_dir():
+            return parent_home.resolve()
+
+    # 3. Install dir: /opt/LogForge or /opt/logforge → <install>/data (no duplicative .../logforge)
     try:
         import shutil
         bin_path = shutil.which('logforge')
         if bin_path:
             bin_path = Path(bin_path).resolve()
-            # If binary is in /opt/logforge/.venv/bin/logforge, use /opt/logforge/logforge
-            if '/opt/logforge' in str(bin_path):
-                install_dir = Path('/opt/logforge')
-                home = install_dir / 'logforge'
-                if home.exists() or install_dir.exists():
-                    return home.resolve()
-            # If binary is in something like /path/to/logforge/.venv/bin/logforge
-            elif bin_path.parent.parent.name == 'logforge':
+            bin_str = str(bin_path).lower()
+            if '/opt/logforge' in bin_str:
+                opt = Path('/opt')
+                if opt.exists():
+                    install_dir = next((opt / p.name for p in opt.iterdir() if p.name.lower() == 'logforge'), Path('/opt/logforge'))
+                    if install_dir.exists():
+                        return (install_dir / 'data').resolve()
+            # Repo-style: .../LogForge/.venv/bin/logforge or .../logforge/.venv/bin/logforge
+            if bin_path.parent.parent.name.lower() == 'logforge':
                 install_dir = bin_path.parent.parent
-                home = install_dir / 'logforge'
-                if home.exists() or install_dir.exists():
-                    return home.resolve()
+                if install_dir.exists():
+                    return (install_dir / 'data').resolve()
     except Exception:
         pass
-    
-    # Fall back to traditional locations
-    # Determine if running as service account
+
+    # 4 & 5. Fallback: user or service
     try:
         uid = os.getuid()
         is_service_account = uid < 1000
     except (AttributeError, OSError):
-        # Windows or other platform without getuid
-        # Check for specific service user names
         try:
             username = pwd.getpwuid(os.getuid()).pw_name
-            is_service_account = username in ('logforge', 'daemon', 'nobody')
+            is_service_account = username in ('logforge', 'logmgr', 'daemon', 'nobody')
         except (KeyError, AttributeError):
-            # Default to user home if can't determine
             is_service_account = False
-    
+
     if is_service_account:
-        # For service accounts, try /opt/logforge/logforge first (common installation)
-        opt_home = Path('/opt/logforge/logforge')
-        if opt_home.parent.exists():
-            return opt_home.resolve()
         home_path = Path('/var/lib/logforge')
     else:
         home_path = Path.home() / '.logforge'
-    
+
     _ensure_directory(home_path)
     return home_path
 

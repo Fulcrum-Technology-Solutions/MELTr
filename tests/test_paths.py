@@ -27,17 +27,37 @@ def test_get_logforge_home_from_env():
 
 
 def test_get_logforge_home_local_directory(tmp_path, monkeypatch):
-    """Test LOGFORGE_HOME resolution from local ./logforge directory."""
-    # Create a logforge directory in temp path
+    """Test LOGFORGE_HOME resolution from local ./logforge directory (backward compat)."""
     logforge_dir = tmp_path / 'logforge'
     logforge_dir.mkdir()
-    
-    # Change to temp directory
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv('LOGFORGE_HOME', raising=False)
-    
     home = get_logforge_home()
     assert home == logforge_dir.resolve()
+
+
+def test_get_logforge_home_prefers_dot_logforge(tmp_path, monkeypatch):
+    """Test that ./.logforge is preferred over ./logforge when both exist."""
+    dot_logforge = tmp_path / '.logforge'
+    logforge_dir = tmp_path / 'logforge'
+    dot_logforge.mkdir()
+    logforge_dir.mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv('LOGFORGE_HOME', raising=False)
+    home = get_logforge_home()
+    assert home == dot_logforge.resolve()
+
+
+def test_get_logforge_home_service_account_uses_var_lib(tmp_path, monkeypatch):
+    """Test that service account (uid < 1000) gets /var/lib/logforge, not /opt/.../logforge."""
+    from logforge.core import paths as paths_module
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv('LOGFORGE_HOME', raising=False)
+    with patch("os.getuid", return_value=999):
+        with patch.object(shutil, "which", return_value=None):
+            with patch.object(paths_module, "_ensure_directory"):
+                home = get_logforge_home()
+    assert home == Path('/var/lib/logforge')
 
 
 def test_get_logforge_home_default(monkeypatch):
