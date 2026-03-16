@@ -25,9 +25,12 @@ def init_command(
     directory: Optional[str] = typer.Option(None, "--directory", "-d", help="Installation directory (default: ./logforge)"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Run interactive wizard"),
     force: bool = typer.Option(False, "--force", help="Overwrite existing configuration"),
+    user: Optional[str] = typer.Option(None, "--user", "-u", help="Service user to create or use (default: logmgr)"),
+    group: Optional[str] = typer.Option(None, "--group", "-g", help="Service group (default: same as user)"),
+    create_user: bool = typer.Option(True, "--create-user/--no-create-user", help="Create service user/group if they don't exist (requires root)"),
 ) -> None:
     """Initialize LogForge configuration and directory structure."""
-    init(directory=directory, interactive=interactive, force=force)
+    init(directory=directory, interactive=interactive, force=force, user=user, group=group, create_user=create_user)
 
 app.add_typer(config.app, name="config")
 app.add_typer(entities.app, name="entities")

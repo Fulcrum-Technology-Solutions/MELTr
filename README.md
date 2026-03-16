@@ -32,14 +32,22 @@ pip install -e ".[dev]"
 
 ### Initialize
 
+After installing the wheel (or from source), run init to create the directory layout, default configuration, sample entities, and template scaffolding. Optionally create the `logmgr` service user and set ownership (requires root).
+
 ```bash
-export LOGFORGE_HOME=/opt/logforge
-logforge init --force
+# Optional: set where config and data live (defaults to ./logforge or detected path)
+export LOGFORGE_HOME=/opt/logforge/logforge
+
+# Create layout and sample entities (no root required)
+logforge init --directory $LOGFORGE_HOME --no-create-user --force
+
+# Or with root: create logmgr user/group and set ownership
+sudo logforge init --directory /opt/logforge/logforge --user logmgr --group logmgr --force
 ```
 
-This creates the directory layout, default configuration, entity registry, and template scaffolding under `LOGFORGE_HOME`.
+Init creates `config.yaml`, `entities.yaml` (with sample organization, users, devices, services), and `templates/default`, `templates/custom`, `outputs`. Use `--user logmgr --create-user` (with sudo) to create the service user and set directory ownership.
 
-### Start the Service) 
+### Start the Service 
 
 **Foreground mode (development/testing):**
 ```bash
@@ -48,8 +56,8 @@ logforge start
 
 **As a systemd service (production):**
 ```bash
-# Install systemd service (creates user, directories, service file)
-sudo logforge service install
+# Install systemd service (runs as logmgr by default; use --no-create-user if user exists)
+sudo logforge service install --user logmgr --home /opt/logforge/logforge
 
 # Start the service
 sudo systemctl start logforge
@@ -142,6 +150,18 @@ Tests mirror this structure under `tests/`.
 ## Configuration
 
 The generated `config.yaml` controls API parameters, engine behavior, entity registry options, template paths, output definitions, and generator configurations. Paths are validated to stay under `LOGFORGE_HOME`.
+
+### Internal log generator
+
+A built-in generator named `internal-logs` forwards application logs (the `logforge.*` logger) to the same output destinations as synthetic events. Enable it in `config.yaml` and start it like any other generator:
+
+```yaml
+internal_logs:
+  enabled: true
+  outputs: [stdout]  # or file, http, etc.
+```
+
+Then `logforge generators start internal-logs` (or let the service start it automatically when `internal_logs.enabled` is true). The name `internal-logs` is reserved.
 
 ### Generator Timezone Override
 

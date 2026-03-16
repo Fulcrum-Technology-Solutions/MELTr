@@ -1,6 +1,7 @@
 """Tests for path resolution."""
 
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -40,15 +41,15 @@ def test_get_logforge_home_local_directory(tmp_path, monkeypatch):
 
 
 def test_get_logforge_home_default(monkeypatch):
-    """Test default LOGFORGE_HOME resolution."""
-    # Set HOME environment variable
+    """Test default LOGFORGE_HOME resolution when no env or local dir."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        monkeypatch.setenv('HOME', tmpdir)
-        monkeypatch.delenv('LOGFORGE_HOME', raising=False)
-        
-        with patch('os.getuid', return_value=1000):  # Regular user
-            home = get_logforge_home()
-            assert home == Path(tmpdir) / '.logforge'
+        monkeypatch.setenv("HOME", tmpdir)
+        monkeypatch.delenv("LOGFORGE_HOME", raising=False)
+        monkeypatch.chdir(tmpdir)
+        with patch("os.getuid", return_value=1000):
+            with patch.object(shutil, "which", return_value=None):
+                home = get_logforge_home()
+        assert home == Path(tmpdir) / ".logforge"
 
 
 def test_get_config_path():

@@ -1,12 +1,45 @@
 """Logging setup and configuration."""
 
+import json
 import logging
 import logging.handlers
 import os
+import queue
 from pathlib import Path
 from typing import Optional
 
 from logforge.core.config import Config
+
+
+class InternalLogForwardingHandler(logging.Handler):
+    """Logging handler that forwards log records to a queue for the internal log generator.
+    
+    Formats each record as a JSON line and puts it on the queue (non-blocking).
+    If the queue is full, the record is dropped to avoid blocking the application.
+    """
+
+    def __init__(self, log_queue: "queue.Queue[str]", max_queue_size: int = 10000) -> None:
+        super().__init__()
+        self._queue = log_queue
+        self._max_queue_size = max_queue_size
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            obj = {
+                "timestamp": self.formatTime(record, self.datefmt or "%Y-%m-%dT%H:%M:%S"),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": record.getMessage(),
+            }
+            if record.exc_info:
+                obj["exc_info"] = self.formatter.formatException(record.exc_info) if self.formatter else None
+            line = json.dumps(obj, default=str) + "\n"
+            try:
+                self._queue.put_nowait(line)
+            except queue.Full:
+                pass
+        except Exception:
+            self.handleError(record)
 
 
 def setup_logging(config: Optional[Config] = None, log_level: Optional[str] = None) -> None:

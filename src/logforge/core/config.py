@@ -161,6 +161,13 @@ class GeneratorConfig(BaseModel):
     timezone: Optional[str] = Field(default=None, description="Timezone override (e.g., 'America/New_York'). Takes precedence over organization timezone.")
 
 
+class InternalLogsConfig(BaseModel):
+    """Configuration for forwarding application logs to output destinations."""
+
+    enabled: bool = Field(default=False, description="Enable internal log forwarding")
+    outputs: List[str] = Field(default_factory=list, description="Output definition names to forward logs to")
+
+
 class Config(BaseModel):
     """Main configuration model."""
     
@@ -172,6 +179,7 @@ class Config(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging settings")
     outputs: OutputsConfig = Field(default_factory=OutputsConfig, description="Output settings")
     generators: List[GeneratorConfig] = Field(default_factory=list, description="Generator definitions")
+    internal_logs: InternalLogsConfig = Field(default_factory=lambda: InternalLogsConfig(enabled=False, outputs=[]), description="Forward application logs to outputs (built-in generator)")
 
 
 def substitute_env_vars(value: Any, home: Path) -> Any:
@@ -383,4 +391,5 @@ def create_default_config(home: Optional[Path] = None) -> Config:
         ),
         outputs=OutputsConfig(),
         generators=[],
+        internal_logs=InternalLogsConfig(enabled=False, outputs=[]),
     )

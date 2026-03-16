@@ -3,10 +3,14 @@
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from logforge.core.config import Config
 from logforge.core.generator import Generator, GeneratorState
+from logforge.core.internal_log_generator import (
+    INTERNAL_LOGS_GENERATOR_NAME,
+    InternalLogGenerator,
+)
 from logforge.entities.registry import EntityRegistry
 from logforge.outputs.factory import create_output_handlers
 from logforge.templates.cache import TemplateCache
@@ -33,8 +37,8 @@ class Engine:
         template_loader = TemplateLoader(config)
         self.template_cache = TemplateCache(template_loader, config.templates.cache_ttl)
         
-        # Generators
-        self._generators: Dict[str, Generator] = {}
+        # Generators (template-based and internal log generator)
+        self._generators: Dict[str, Union[Generator, InternalLogGenerator]] = {}
         self._generators_lock = threading.Lock()
         
         # Thread pool
@@ -104,8 +108,24 @@ class Engine:
                     
                 except Exception as e:
                     logger.error(f"Failed to load generator {gen_config.name}: {e}", exc_info=True)
+
+            # Add internal log generator if configured
+            il_config = getattr(self.config, "internal_logs", None)
+            if il_config and il_config.enabled and il_config.outputs:
+                try:
+                    output_handlers = create_output_handlers(
+                        il_config.outputs,
+                        self.config.outputs.definitions,
+                        retry_config=self.config.outputs.retry,
+                        buffer_size=self.config.outputs.buffer_size,
+                    )
+                    internal_gen = InternalLogGenerator(output_handlers=output_handlers)
+                    self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
+                    logger.info(f"Loaded generator: {INTERNAL_LOGS_GENERATOR_NAME}")
+                except Exception as e:
+                    logger.error(f"Failed to load {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True)
     
-    def reload_config(self, new_config: Config) -> Dict[str, any]:
+    def reload_config(self, new_config: Config) -> Dict[str, Any]:
         """Reload configuration and apply changes dynamically.
         
         Detects added/removed generators and starts/stops them accordingly.
@@ -257,6 +277,64 @@ class Engine:
                 logger.error(f"Error updating generator {name}: {e}", exc_info=True)
                 results["errors"].append(f"Failed to update {name}: {e}")
         
+        # Sync internal log generator with new_config.internal_logs
+        il = getattr(new_config, "internal_logs", None)
+        il_enabled = il and il.enabled and len(il.outputs) > 0
+        with self._generators_lock:
+            has_internal = INTERNAL_LOGS_GENERATOR_NAME in self._generators
+        if has_internal and not il_enabled:
+            try:
+                self.stop_generator(INTERNAL_LOGS_GENERATOR_NAME)
+                with self._generators_lock:
+                    self._generators.pop(INTERNAL_LOGS_GENERATOR_NAME, None)
+                    self._generator_futures.pop(INTERNAL_LOGS_GENERATOR_NAME, None)
+                results["removed"].append(INTERNAL_LOGS_GENERATOR_NAME)
+            except Exception as e:
+                results["errors"].append(f"Failed to remove {INTERNAL_LOGS_GENERATOR_NAME}: {e}")
+        elif il_enabled:
+            with self._generators_lock:
+                has_internal = INTERNAL_LOGS_GENERATOR_NAME in self._generators
+            if not has_internal:
+                try:
+                    output_handlers = create_output_handlers(
+                        il.outputs,
+                        new_config.outputs.definitions,
+                        retry_config=new_config.outputs.retry,
+                        buffer_size=new_config.outputs.buffer_size,
+                    )
+                    internal_gen = InternalLogGenerator(output_handlers=output_handlers)
+                    with self._generators_lock:
+                        self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
+                    self.start_generator(INTERNAL_LOGS_GENERATOR_NAME)
+                    results["added"].append(INTERNAL_LOGS_GENERATOR_NAME)
+                except Exception as e:
+                    logger.error(f"Error adding {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True)
+                    results["errors"].append(f"Failed to add {INTERNAL_LOGS_GENERATOR_NAME}: {e}")
+            else:
+                # Recreate if outputs changed
+                with self._generators_lock:
+                    existing = self._generators.get(INTERNAL_LOGS_GENERATOR_NAME)
+                if existing and getattr(existing, "output_handlers", None):
+                    existing_outputs = [getattr(h, "name", "") for h in existing.output_handlers]
+                    if sorted(existing_outputs) != sorted(il.outputs):
+                        try:
+                            self.stop_generator(INTERNAL_LOGS_GENERATOR_NAME)
+                            with self._generators_lock:
+                                self._generators.pop(INTERNAL_LOGS_GENERATOR_NAME, None)
+                            output_handlers = create_output_handlers(
+                                il.outputs,
+                                new_config.outputs.definitions,
+                                retry_config=new_config.outputs.retry,
+                                buffer_size=new_config.outputs.buffer_size,
+                            )
+                            internal_gen = InternalLogGenerator(output_handlers=output_handlers)
+                            with self._generators_lock:
+                                self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
+                            self.start_generator(INTERNAL_LOGS_GENERATOR_NAME)
+                            results["updated"].append(INTERNAL_LOGS_GENERATOR_NAME)
+                        except Exception as e:
+                            results["errors"].append(f"Failed to update {INTERNAL_LOGS_GENERATOR_NAME}: {e}")
+        
         logger.info(
             f"Config reloaded: {len(results['added'])} added, "
             f"{len(results['removed'])} removed, {len(results['updated'])} updated"
@@ -285,6 +363,15 @@ class Engine:
                 logger.warning(f"Generator {name} is already running")
                 return
             
+            # Internal log generator runs its own loop in start(); no thread pool
+            if name == INTERNAL_LOGS_GENERATOR_NAME:
+                try:
+                    generator.start()
+                except Exception as e:
+                    logger.error(f"Failed to start generator {name}: {e}", exc_info=True)
+                    raise
+                return
+            
             # Ensure thread pool exists
             if self._thread_pool is None:
                 pool_size = self._calculate_thread_pool_size()
@@ -299,17 +386,14 @@ class Engine:
                 generator.start()
                 
                 # Submit generation loop to thread pool
-                # The generator's start() initializes everything, then we run the loop
                 future = self._thread_pool.submit(generator._generate_loop)
                 self._generator_futures[name] = future
                 
-                # Check for immediate exceptions (generator loop crashes on startup)
-                # Use a small delay to catch initialization errors
                 import time
-                time.sleep(0.1)  # Brief delay to catch immediate crashes
+                time.sleep(0.1)
                 if future.done():
                     try:
-                        future.result()  # Will raise exception if one occurred
+                        future.result()
                     except Exception as e:
                         logger.error(
                             f"Generator {name} loop crashed immediately: {e}",
@@ -440,7 +524,7 @@ class Engine:
                 ]
             }
     
-    def get_all_generators(self) -> List[Generator]:
+    def get_all_generators(self) -> List[Union[Generator, InternalLogGenerator]]:
         """Get all generator instances.
         
         Returns:

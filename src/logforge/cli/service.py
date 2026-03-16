@@ -10,12 +10,13 @@ try:
     import grp
     import pwd
 except ImportError:
-    # Windows or other platforms without pwd/grp
     grp = None
     pwd = None
 
 import typer
 from rich.console import Console
+
+from logforge.cli.user_utils import ensure_service_user_and_group
 
 app = typer.Typer(name="service", help="Systemd service management")
 console = Console()
@@ -127,24 +128,23 @@ def _check_root() -> None:
 def service_install(
     logforge_home: Optional[str] = typer.Option(None, "--home", help="LOGFORGE_HOME directory"),
     logforge_bin: Optional[str] = typer.Option(None, "--binary", help="Path to logforge binary"),
-    user: Optional[str] = typer.Option(None, "--user", "-u", help="User to run service as (default: logforge)"),
+    user: Optional[str] = typer.Option(None, "--user", "-u", help="User to run service as (default: logmgr)"),
     group: Optional[str] = typer.Option(None, "--group", "-g", help="Group to run service as (default: same as user)"),
     create_user: bool = typer.Option(True, "--create-user/--no-create-user", help="Create service user if it doesn't exist"),
 ) -> None:
     """Install LogForge as a systemd service.
     
-    Similar to Splunk/Cribl installation, allows specifying the service user.
+    Similar to Splunk/Cribl installation. Init creates logmgr by default; use
+    --user logmgr --no-create-user when the user already exists.
     Example:
         sudo logforge service install --user logmgr --group logmgr --home /opt/logforge/logforge
     """
     _check_root()
     
     try:
-        # Determine service user and group
-        service_user = user or 'logforge'
+        service_user = user or 'logmgr'
         service_group = group or service_user
         
-        # Determine paths
         if logforge_home:
             home_path = Path(logforge_home).expanduser().resolve()
         else:
@@ -164,86 +164,36 @@ def service_install(
         console.print(f"  Service group: {service_group}")
         console.print(f"  LOGFORGE_HOME: {home_path}")
         
-        # Create directories first
         home_path.mkdir(parents=True, exist_ok=True)
         
-        # Create service user if requested and it doesn't exist
-        service_uid = None
-        service_gid = None
+        service_uid, service_gid = ensure_service_user_and_group(
+            service_user,
+            service_group,
+            home_path,
+            create_user,
+            on_user_created=lambda msg: console.print(f"[green]✓ {msg}[/green]"),
+            on_group_created=lambda msg: console.print(f"[green]✓ {msg}[/green]"),
+            on_user_exists=lambda msg: console.print(f"[yellow]⚠ {msg}[/yellow]"),
+            on_no_pwd_grp=lambda: console.print("[yellow]⚠ pwd/grp modules not available, skipping user/group creation[/yellow]"),
+            on_useradd_missing=lambda: console.print("[yellow]⚠ useradd/groupadd not found, skipping user/group creation[/yellow]"),
+        )
         
-        if create_user:
-            if pwd is None or grp is None:
-                console.print("[yellow]⚠ pwd/grp modules not available, skipping user/group creation[/yellow]")
-            else:
-                try:
-                    # Check if user exists
-                    try:
-                        pwd.getpwnam(service_user)
-                        console.print(f"[yellow]⚠ User {service_user} already exists[/yellow]")
-                    except KeyError:
-                        # User doesn't exist, create it
-                        try:
-                            subprocess.run(
-                                ['useradd', '-r', '-s', '/bin/false', '-d', str(home_path), 
-                                 '-c', 'LogForge Service', service_user],
-                                check=True,
-                                capture_output=True,
-                            )
-                            console.print(f"[green]✓ Created service user: {service_user}[/green]")
-                        except subprocess.CalledProcessError as e:
-                            console.print(f"[yellow]⚠ Could not create user {service_user}: {e}[/yellow]")
-                    
-                    # Check if group exists
-                    try:
-                        grp.getgrnam(service_group)
-                    except KeyError:
-                        # Group doesn't exist, create it
-                        try:
-                            subprocess.run(
-                                ['groupadd', '-r', service_group],
-                                check=True,
-                                capture_output=True,
-                            )
-                            console.print(f"[green]✓ Created service group: {service_group}[/green]")
-                        except subprocess.CalledProcessError:
-                            # Group might already exist or creation failed, that's okay
-                            pass
-                            
-                except FileNotFoundError:
-                    console.print("[yellow]⚠ useradd/groupadd not found, skipping user/group creation[/yellow]")
-        
-        # Get service user UID/GID
-        if pwd is None or grp is None:
+        if service_uid == 0 and service_gid == 0 and (pwd is None or grp is None):
             console.print("[yellow]⚠ pwd/grp modules not available, using root ownership[/yellow]")
             console.print("[yellow]⚠ Service may not start correctly[/yellow]")
-            service_uid = 0
-            service_gid = 0
-        else:
-            try:
-                service_uid = pwd.getpwnam(service_user).pw_uid
-                try:
-                    service_gid = grp.getgrnam(service_group).gr_gid
-                except KeyError:
-                    # If group doesn't exist, use user's primary group
-                    service_gid = pwd.getpwnam(service_user).pw_gid
-            except KeyError as e:
-                console.print(f"[yellow]⚠ Could not get {service_user} user info: {e}[/yellow]")
-                console.print("[yellow]⚠ Using root ownership - service may not start correctly[/yellow]")
-                service_uid = 0
-                service_gid = 0
+        elif service_uid == 0 and service_gid == 0:
+            console.print(f"[yellow]⚠ Could not get {service_user} user info - using root ownership[/yellow]")
+            console.print("[yellow]⚠ Service may not start correctly[/yellow]")
         
         # Set ownership to service user so service can write
-        if service_uid is not None:
+        if service_uid is not None and (service_uid, service_gid) != (0, 0):
             os.chown(home_path, service_uid, service_gid)
-            # Also set ownership on parent if it's the installation directory
             if home_path.parent.name == 'logforge' and home_path.parent.exists():
                 os.chown(home_path.parent, service_uid, service_gid)
         
         log_dir = Path('/var/log/logforge')
         log_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Set ownership on log directory
-        if service_uid is not None:
+        if service_uid is not None and (service_uid, service_gid) != (0, 0):
             os.chown(log_dir, service_uid, service_gid)
         
         # Create service file

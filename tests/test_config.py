@@ -53,3 +53,12 @@ def test_config_validation():
         assert config.api.port > 0
         assert config.entity_registry.auto_save is True
 
+
+def test_default_config_includes_internal_logs():
+    """Test that default config has internal_logs section (disabled by default)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = create_default_config(Path(tmpdir))
+        assert hasattr(config, "internal_logs")
+        assert config.internal_logs.enabled is False
+        assert config.internal_logs.outputs == []
+

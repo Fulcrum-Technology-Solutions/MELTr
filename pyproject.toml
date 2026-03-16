@@ -70,6 +70,9 @@ version = {attr = "logforge.__version__"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+logforge = ["data/*.yaml"]
+
 [tool.black]
 line-length = 100
 target-version = ['py39', 'py310', 'py311', 'py312']

@@ -9,33 +9,35 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from logforge.cli.init import app, init
+from logforge.cli.main import app
+from logforge.cli.init import init
+
+
+def _run_init(runner: CliRunner, tmp_path: Path):
+    args = ["init", "--force", "--directory", str(tmp_path), "--no-create-user"]
+    return runner.invoke(app, args)
 
 
 def test_init_creates_directory_structure(tmp_path, monkeypatch):
     """Test that init creates required directory structure."""
-    # Set LOGFORGE_HOME to temp directory
-    monkeypatch.setenv('LOGFORGE_HOME', str(tmp_path))
-    
+    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
     runner = CliRunner()
-    result = runner.invoke(app, ['--force'])
-    
-    assert result.exit_code == 0
-    assert (tmp_path / 'config.yaml').exists()
-    assert (tmp_path / 'entities.yaml').exists()
-    assert (tmp_path / 'templates').exists()
-    assert (tmp_path / 'templates' / 'default').exists()
-    assert (tmp_path / 'templates' / 'custom').exists()
+    result = _run_init(runner, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "config.yaml").exists()
+    assert (tmp_path / "entities.yaml").exists()
+    assert (tmp_path / "templates").exists()
+    assert (tmp_path / "templates" / "default").exists()
+    assert (tmp_path / "templates" / "custom").exists()
+    assert (tmp_path / "outputs").exists()
 
 
 def test_init_creates_config_file(tmp_path, monkeypatch):
     """Test that init creates config.yaml."""
-    monkeypatch.setenv('LOGFORGE_HOME', str(tmp_path))
-    
+    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
     runner = CliRunner()
-    result = runner.invoke(app, ['--force'])
-    
-    assert result.exit_code == 0
+    result = _run_init(runner, tmp_path)
+    assert result.exit_code == 0, result.output
     config_path = tmp_path / 'config.yaml'
     assert config_path.exists()
     
@@ -48,12 +50,10 @@ def test_init_creates_config_file(tmp_path, monkeypatch):
 
 def test_init_creates_entities_file(tmp_path, monkeypatch):
     """Test that init creates entities.yaml."""
-    monkeypatch.setenv('LOGFORGE_HOME', str(tmp_path))
-    
+    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
     runner = CliRunner()
-    result = runner.invoke(app, ['--force'])
-    
-    assert result.exit_code == 0
+    result = _run_init(runner, tmp_path)
+    assert result.exit_code == 0, result.output
     entities_path = tmp_path / 'entities.yaml'
     assert entities_path.exists()
     
@@ -68,16 +68,13 @@ def test_init_creates_entities_file(tmp_path, monkeypatch):
 
 def test_init_respects_force_flag(tmp_path, monkeypatch):
     """Test that --force overwrites existing config."""
-    monkeypatch.setenv('LOGFORGE_HOME', str(tmp_path))
-    
-    # Create existing config
-    config_path = tmp_path / 'config.yaml'
-    config_path.write_text('existing: config')
-    
+    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    config_path = tmp_path / "config.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text("existing: config")
     runner = CliRunner()
-    result = runner.invoke(app, ['--force'])
-    
-    assert result.exit_code == 0
+    result = _run_init(runner, tmp_path)
+    assert result.exit_code == 0, result.output
     # Config should be overwritten
     with config_path.open() as f:
         config_data = yaml.safe_load(f)
@@ -86,12 +83,10 @@ def test_init_respects_force_flag(tmp_path, monkeypatch):
 
 def test_init_sets_file_permissions(tmp_path, monkeypatch):
     """Test that init sets secure file permissions."""
-    monkeypatch.setenv('LOGFORGE_HOME', str(tmp_path))
-    
+    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
     runner = CliRunner()
-    result = runner.invoke(app, ['--force'])
-    
-    assert result.exit_code == 0
+    result = _run_init(runner, tmp_path)
+    assert result.exit_code == 0, result.output
     
     # Check permissions (600 = rw-------)
     config_path = tmp_path / 'config.yaml'

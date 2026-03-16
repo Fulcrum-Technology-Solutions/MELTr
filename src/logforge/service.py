@@ -116,6 +116,14 @@ class LogForgeService:
                     logger.info(f"Started generator: {gen_config.name}")
                 except Exception as e:
                     logger.error(f"Failed to start generator {gen_config.name}: {e}", exc_info=True)
+        # Start internal log generator if configured
+        il = getattr(self.config, "internal_logs", None)
+        if il and il.enabled and il.outputs:
+            try:
+                self.engine.start_generator("internal-logs")
+                logger.info("Started internal log generator")
+            except Exception as e:
+                logger.error(f"Failed to start internal log generator: {e}", exc_info=True)
     
     def stop(self) -> None:
         """Stop the service."""

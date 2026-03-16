@@ -2,17 +2,15 @@
 
 from typer.testing import CliRunner
 
-from logforge.cli.init import app
+from logforge.cli.main import app
 
 
 def test_init_command_exists():
     """Test that init command is accessible."""
     runner = CliRunner()
-    result = runner.invoke(app, ['--help'])
-    
-    # Should show help without error
+    result = runner.invoke(app, ["init", "--help"])
     assert result.exit_code == 0
-    assert 'init' in result.stdout.lower() or 'Initialize' in result.stdout
+    assert "init" in result.stdout.lower() or "Initialize" in result.stdout or "directory" in result.stdout
 
 
 
