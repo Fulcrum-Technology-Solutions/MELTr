@@ -11,7 +11,7 @@ from rich.prompt import Confirm, Prompt
 
 from logforge.core.config import Config, create_default_config
 from logforge.core.paths import get_logforge_home, get_templates_path
-from logforge.cli.user_utils import check_root, ensure_service_user_and_group
+from logforge.cli.user_utils import check_root, ensure_service_user_and_group, service_user_and_group_exist
 
 if TYPE_CHECKING:
     pass
@@ -61,12 +61,12 @@ def init(
         ):
             console.print("[yellow]Initialization cancelled[/yellow]")
             return
-    
-    if create_user:
-        _check_root_for_init()
-    
+
     service_user = user or DEFAULT_SERVICE_USER
     service_group = group or service_user
+    # Require root only when we must create the user/group; if both exist, proceed without root
+    if create_user and not service_user_and_group_exist(service_user, service_group):
+        _check_root_for_init()
     service_uid, service_gid = None, None
     
     console.print(f"[green]Initializing LogForge in {home}[/green]")

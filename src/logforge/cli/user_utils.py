@@ -106,6 +106,18 @@ def ensure_service_user_and_group(
         return (0, 0)
 
 
+def service_user_and_group_exist(service_user: str, service_group: str) -> bool:
+    """Return True if both the service user and group exist (no root needed to init)."""
+    if pwd is None or grp is None:
+        return False
+    try:
+        pwd.getpwnam(service_user)
+        grp.getgrnam(service_group)
+        return True
+    except KeyError:
+        return False
+
+
 def check_root() -> bool:
     """Return True if running as root (euid 0)."""
     try:
