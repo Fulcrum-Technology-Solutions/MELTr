@@ -32,7 +32,7 @@ logforge start
 ### Development / from source
 
 ```bash
-git clone https://github.com/your-org/logforge.git
+git clone https://github.com/Fulcrum-Technology-Solutions/LogForge.git
 cd logforge
 python -m venv .venv
 source .venv/bin/activate

@@ -85,6 +85,9 @@ chmod 755 "$APP_PREFIX/bin/logforge"
 
 # License files
 cp -f "$ROOT/LICENSE" "$OUT_ROOT/LICENSE"
+if [[ -f "$ROOT/NOTICE" ]]; then
+  cp -f "$ROOT/NOTICE" "$OUT_ROOT/NOTICE"
+fi
 
 if [[ -f "$OUT_ROOT/python/LICENSE.txt" ]]; then
   cp -f "$OUT_ROOT/python/LICENSE.txt" "$OUT_ROOT/PYTHON_PSF_LICENSE.txt"
@@ -115,7 +118,7 @@ cat > "$OUT_ROOT/README-TARBALL.md" << EOF
 This archive contains an embedded CPython build (see PYTHON_PSF_LICENSE.txt), LogForge application
 code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/logforge\` launcher.
 
-**Source:** Build from https://github.com/yourusername/logforge at tag v${VERSION} (update URL in release).
+**Source:** https://github.com/Fulcrum-Technology-Solutions/LogForge — build from tag \`v${VERSION}\`.
 
 ## Quick use
 
@@ -132,6 +135,7 @@ See \`docs/deployment/linux-tarball.md\` in the source tree for full operator do
 ## Open source
 
 - Apache-2.0: LICENSE
+- Project attribution: NOTICE (if present in this bundle)
 - Python: PYTHON_PSF_LICENSE.txt (and files under \`python/\`)
 - Dependencies: THIRD_PARTY_NOTICES.txt
 EOF

@@ -57,10 +57,10 @@ dev = [
 logforge = "logforge.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/logforge"
+Homepage = "https://github.com/Fulcrum-Technology-Solutions/LogForge"
 Documentation = "https://docs.logforge.io"
-Repository = "https://github.com/yourusername/logforge.git"
-Issues = "https://github.com/yourusername/logforge/issues"
+Repository = "https://github.com/Fulcrum-Technology-Solutions/LogForge.git"
+Issues = "https://github.com/Fulcrum-Technology-Solutions/LogForge/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

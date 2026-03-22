@@ -27,7 +27,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build wheel twine
+          pip install build wheel
       
       - name: Extract version and update __init__.py
         id: version

@@ -44,7 +44,7 @@ sudo ln -sf /opt/logforge/.venv/bin/logforge /usr/local/bin/logforge
 
 The [systemd install](../../src/logforge/cli/service.py) logic also discovers `/opt/logforge/.venv/bin/logforge` when installing the unit.
 
-**Artifact note:** LogForge is distributed as a **wheel** installed into a venv under `/opt/logforge`, not as a vendor tarball. The mental model matches “software tree under `/opt` + state directory,” not the exact packaging format.
+**Artifact note (pip path):** This section uses a **wheel** installed into a venv under `/opt/logforge`. For the **official `.tar.gz`** (embedded Python, no `pip` on the host), use [linux-tarball.md](linux-tarball.md). In both cases the mental model is “software tree under `/opt` + `LOGFORGE_HOME` state directory.”
 
 ## Filesystem layout
 

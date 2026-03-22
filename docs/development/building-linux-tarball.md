@@ -7,6 +7,7 @@ Releases are built on **Linux x86_64** (e.g. GitHub Actions `ubuntu-latest`) by 
 - **`app/bin/logforge`** — Shell script (not an ELF). It sets `PYTHONPATH` to the bundled `app/lib/python3.11/site-packages` and runs `python/bin/python3.11 -m logforge`. The ELF is the **embedded CPython interpreter** under `python/bin/`.
 - **`python/`** — Pinned [python-build-standalone](https://github.com/astral-sh/python-build-standalone) `install_only` tarball (see `PBS_*` variables in [`scripts/build_linux_tgz.sh`](../../scripts/build_linux_tgz.sh)).
 - **`app/lib/python3.11/site-packages/`** — From `pip install --prefix app` of the LogForge wheel and dependencies (no relocatable venv; avoids broken shebangs after moving the tree).
+- **`LICENSE`**, **`NOTICE`** (from the repo root when present), **`PYTHON_PSF_LICENSE.txt`**, **`THIRD_PARTY_NOTICES.txt`** — See [linux-tarball.md](../deployment/linux-tarball.md).
 
 ## Backend
 

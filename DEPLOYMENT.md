@@ -4,6 +4,25 @@
 
 **Installation:** Most users install from a wheel (`pip install logforge` or `pip install logforge-*.whl`). Config and data live under **LOGFORGE_HOME** (default `/var/lib/logforge` for the systemd service). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
 
+## Updating the official Linux `.tar.gz` (GitHub Releases)
+
+Use this when LogForge was installed from **`logforge-{version}-linux-x86_64.tar.gz`** (embedded Python under e.g. `/opt/logforge`). Details: [docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md).
+
+1. **Stop** the service: `sudo systemctl stop logforge`
+2. **Back up** `LOGFORGE_HOME` (e.g. `/opt/logforge/data` or `/var/lib/logforge`), for example:  
+   `sudo tar czf ~/logforge-home-backup.tgz -C /var/lib logforge`  
+   (adjust `-C` and the final path component to match your data directory).
+3. **Download** the new `logforge-{version}-linux-x86_64.tar.gz` and verify checksums from [Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases).
+4. **Replace the install tree** (`python/`, `app/`) without deleting your data directory:
+   - If **`LOGFORGE_HOME`** is **outside** the unpacked bundle, remove the old `python` and `app` directories (or the whole previous bundle folder) and unpack the new tarball into the same install root.
+   - If **`LOGFORGE_HOME`** is **`/opt/logforge/data`**, move it aside before replacing the tree:  
+     `sudo mv /opt/logforge/data /tmp/logforge-data.PRESERVE`  
+     remove the old bundle under `/opt/logforge`, unpack the new tarball, then  
+     `sudo mv /tmp/logforge-data.PRESERVE /opt/logforge/data`.
+5. Ensure **`PATH`** includes `/opt/logforge/app/bin` and that **systemd** still uses the bundled binary if you installed with  
+   `logforge service install --binary /opt/logforge/app/bin/logforge ...`.
+6. **Start** the service: `sudo systemctl start logforge`
+
 ## Update Process for Test Machines
 
 ### Scenario: You've made code changes and need to update a test machine

@@ -8,7 +8,7 @@ For **pip/venv install** from PyPI or a wheel, see [linux-single-instance.md](li
 
 | Requirement | Notes |
 |-------------|--------|
-| **OS** | **Linux x86_64**, glibc-based (typical RHEL / Debian / Ubuntu family). Portability is primarily **glibc version** and **CPU architecture**; kernel 4.x / 5.x / 6.x is a common test matrix, not a hard gate. |
+| **OS** | **Linux x86_64**, **glibc**-based (typical RHEL / Debian / Ubuntu family). **musl** (e.g. Alpine Linux) is **not** supported for this bundle. Portability is primarily **glibc version** and **CPU architecture**; kernel 4.x / 5.x / 6.x is a common test matrix, not a hard gate. |
 | **CPU** | x86_64 only for this artifact (aarch64 may be added later). |
 | **Disk** | Unpacked size is larger than a wheel-only install (embedded Python + dependencies). |
 | **Filesystem** | Keep the unpacked product tree on **one mount** (same idea as [Cribl single-instance](https://docs.cribl.io/stream/deploy-single-instance/)); put large file outputs outside `LOGFORGE_HOME` via `config.yaml` if needed. |
@@ -57,6 +57,7 @@ Or install data under `/opt/logforge/data` and run as a non-`logmgr` user if you
 ## Open source artifacts in the bundle
 
 - **`LICENSE`** — LogForge (Apache-2.0).
+- **`NOTICE`** — Project attribution (Apache-style; when present in the bundle).
 - **`PYTHON_PSF_LICENSE.txt`** — CPython / PSF (embedded runtime under `python/`).
 - **`THIRD_PARTY_NOTICES.txt`** — Python dependency licenses (generated at build time).
 - **`README-TARBALL.md`** — Short copy inside the archive.
