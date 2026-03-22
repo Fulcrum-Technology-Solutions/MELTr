@@ -387,6 +387,11 @@ class Engine:
                 
                 # Submit generation loop to thread pool
                 future = self._thread_pool.submit(generator._generate_loop)
+                future.add_done_callback(
+                    lambda done_future, generator_name=name: self._handle_generator_future_done(
+                        generator_name, done_future
+                    )
+                )
                 self._generator_futures[name] = future
                 
                 import time
@@ -405,6 +410,27 @@ class Engine:
             except Exception as e:
                 logger.error(f"Failed to start generator {name}: {e}", exc_info=True)
                 raise
+
+    def _handle_generator_future_done(self, name: str, future: Future) -> None:
+        """Handle completed generator future and mark failures immediately."""
+        try:
+            future.result()
+        except Exception as e:
+            logger.error(f"Generator {name} loop crashed: {e}", exc_info=True)
+            with self._generators_lock:
+                generator = self._generators.get(name)
+                if generator:
+                    try:
+                        generator._transition_to(GeneratorState.ERROR)
+                    except Exception as transition_error:
+                        logger.error(
+                            f"Failed to transition generator {name} to ERROR: {transition_error}"
+                        )
+                self._generator_futures.pop(name, None)
+            return
+
+        with self._generators_lock:
+            self._generator_futures.pop(name, None)
     
     def stop_generator(self, name: str) -> None:
         """Stop a generator.

@@ -1,9 +1,15 @@
 """Template management CLI commands."""
 
+import difflib
+import json
+import logging
+import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any, List, Tuple
 
 import typer
+import yaml
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -22,14 +28,41 @@ from logforge.community.package import (
     PackageError,
 )
 from logforge.community.version import compare_versions, format_version_status
+from logforge.cli.menu import paginate_choose
 from logforge.core.config import load_config
 from logforge.core.paths import get_logforge_home, get_templates_path
 from logforge.templates.loader import TemplateLoader
 from logforge.templates.validator import validate_template
-from logforge.templates.metadata import parse_metadata
+from logforge.templates.metadata import TemplateMetadata, parse_metadata
 
 app = typer.Typer(name="templates", help="Template management", invoke_without_command=True)
 console = Console()
+_log = logging.getLogger(__name__)
+
+
+def _backup_custom_template_files(home: Path, template_id: str, j2: Path, meta: Path) -> Path:
+    """Copy existing custom .j2 / .meta.yaml into backups/templates/. Returns backup directory."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    safe = template_id.replace("/", "__")
+    backup_dir = home / "backups" / "templates" / stamp / safe
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    if j2.is_file():
+        shutil.copy2(j2, backup_dir / j2.name)
+    if meta.is_file():
+        shutil.copy2(meta, backup_dir / meta.name)
+    return backup_dir
+
+
+def _print_unified_diff_file(a: Path, b: Path, from_name: str, to_name: str) -> bool:
+    """Print unified diff from ``a`` (reference) to ``b``. Returns True if there are differences."""
+    a_lines = a.read_text(encoding="utf-8").splitlines(keepends=True)
+    b_lines = b.read_text(encoding="utf-8").splitlines(keepends=True)
+    diff = list(difflib.unified_diff(a_lines, b_lines, fromfile=from_name, tofile=to_name, lineterm=""))
+    if not diff:
+        return False
+    for line in diff:
+        console.print(line)
+    return True
 
 
 @app.callback(invoke_without_command=True)
@@ -57,7 +90,7 @@ def _templates_interactive_menu() -> None:
         )
         console.print(menu)
         
-        choice = Prompt.ask("\nSelect option", choices=["1", "2", "3", "4", "5", "6", "7"], default="7")
+        choice = Prompt.ask("\nSelect option", choices=["1", "2", "3", "4", "5", "6", "7"], default="1")
         
         if choice == "1":
             _browse_templates_interactive()
@@ -81,66 +114,23 @@ def _paginate_templates(
     title: str = "",
     show_index: bool = True,
 ) -> Optional[int]:
-    """Display paginated template list and get user selection.
-    
-    Args:
-        items: List of (display_text, value) tuples
-        page_size: Number of items per page
-        title: Title to display
-        show_index: Whether to show index numbers
-        
-    Returns:
-        Selected index (0-based) or None if cancelled
-    """
-    if not items:
-        return None
-    
-    total_pages = (len(items) + page_size - 1) // page_size
-    current_page = 0
-    
-    while True:
-        start_idx = current_page * page_size
-        end_idx = min(start_idx + page_size, len(items))
-        page_items = items[start_idx:end_idx]
-        
-        if title:
-            console.print(f"\n[bold]{title}[/bold]\n")
-        
-        # Display items for current page
-        for i, (display_text, value) in enumerate(page_items):
-            idx = start_idx + i
-            if show_index:
-                console.print(f"  [{idx + 1}] {display_text}")
-            else:
-                console.print(f"  {display_text}")
-        
-        # Show pagination info
-        if total_pages > 1:
-            console.print(f"\n[dim]Page {current_page + 1} of {total_pages} (n=next, p=prev, q=quit)[/dim]")
-        else:
-            console.print("\n[dim](q=quit)[/dim]")
-        
-        # Get user input
-        user_input = Prompt.ask("\nSelect option", default="1").strip().lower()
-        
-        if user_input == 'q':
-            return None
-        elif user_input == 'n' and current_page < total_pages - 1:
-            current_page += 1
-            continue
-        elif user_input == 'p' and current_page > 0:
-            current_page -= 1
-            continue
-        
-        # Try to parse as number
-        try:
-            choice = int(user_input)
-            if 1 <= choice <= len(items):
-                return choice - 1
-            else:
-                console.print(f"[red]Invalid selection. Please choose 1-{len(items)}[/red]")
-        except ValueError:
-            console.print("[red]Invalid input. Please enter a number, 'n', 'p', or 'q'[/red]")
+    """Display paginated template list and get user selection."""
+    return paginate_choose(
+        items,
+        console=console,
+        page_size=page_size,
+        title=title,
+        show_index=show_index,
+    )
+
+
+def _count_data_source_templates(data_sources: List[dict]) -> int:
+    """Count templates across data source payload variants."""
+    total = 0
+    for data_source in data_sources:
+        total += len(data_source.get('templates', []))
+        total += len(data_source.get('event_types', []))
+    return total
 
 
 def _get_installed_vendors(config) -> set[str]:
@@ -259,7 +249,7 @@ def _browse_templates_interactive() -> None:
             items.append((f"{vendor_name} ({len(products)} products)", vendor_id))
         
         selection = _paginate_templates(items, title="Select Vendor")
-        if selection is None:
+        if selection is None or selection < 0:
             return
         
         selected_vendor_id = items[selection][1]
@@ -282,11 +272,11 @@ def _browse_templates_interactive() -> None:
             product_id = product_data.get('product_id', 'unknown')
             product_name = product_data.get('product', product_id)
             data_sources = product_data.get('data_sources', [])
-            total_templates = sum(len(ds.get('templates', [])) for ds in data_sources)
+            total_templates = _count_data_source_templates(data_sources)
             items.append((f"{product_name} ({total_templates} templates)", product_id))
         
         selection = _paginate_templates(items, title=f"Products: {vendor_data.get('vendor', selected_vendor_id)}")
-        if selection is None:
+        if selection is None or selection < 0:
             return
         
         selected_product_id = items[selection][1]
@@ -317,7 +307,7 @@ def _browse_templates_interactive() -> None:
             items.append((f"{status} {template_name} ({ds_id})", (template_id, vendor_id, product_id)))
         
         selection = _paginate_templates(items, title=f"Templates: {product_data.get('product', selected_product_id)}")
-        if selection is None:
+        if selection is None or selection < 0:
             return
         
         selected_template_id, vendor_id, product_id = items[selection][1]
@@ -332,14 +322,12 @@ def _browse_templates_interactive() -> None:
                     _do_install_template(product_path, product=True, api_url=api_url)
                     console.print(f"[green]✓ Installation completed successfully[/green]")
                 except Exception as e:
+                    _log.debug("Install from browse failed", exc_info=True)
                     console.print(f"[red]Installation failed: {e}[/red]")
-                    import traceback
-                    console.print_exception()
         
     except Exception as e:
+        _log.debug("Browse templates interactive failed", exc_info=True)
         console.print(f"[red]Error: {e}[/red]")
-        import traceback
-        console.print_exception()
         raise typer.Exit(code=1)
 
 
@@ -406,7 +394,7 @@ def _search_templates_interactive() -> None:
             items.append((f"{status} {template_name} ({vendor_id}/{product_id})", (template_id, vendor_id, product_id)))
         
         selection = _paginate_templates(items, title=f"Search Results ({len(items)} templates)")
-        if selection is None:
+        if selection is None or selection < 0:
             return
         
         selected_template_id, vendor_id, product_id = items[selection][1]
@@ -421,14 +409,12 @@ def _search_templates_interactive() -> None:
                     _do_install_template(product_path, product=True, api_url=api_url)
                     console.print(f"[green]✓ Installation completed successfully[/green]")
                 except Exception as e:
+                    _log.debug("Install from search failed", exc_info=True)
                     console.print(f"[red]Installation failed: {e}[/red]")
-                    import traceback
-                    console.print_exception()
         
     except Exception as e:
+        _log.debug("Search templates interactive failed", exc_info=True)
         console.print(f"[red]Error: {e}[/red]")
-        import traceback
-        console.print_exception()
         raise typer.Exit(code=1)
 
 
@@ -451,7 +437,7 @@ def _list_local_templates_interactive() -> None:
             items.append((f"{location_mark} {template_id} ({location})", template_id))
         
         selection = _paginate_templates(items, title=f"Local Templates ({len(items)} total)")
-        if selection is None:
+        if selection is None or selection < 0:
             return
         
         selected_template_id = items[selection][1]
@@ -502,7 +488,7 @@ def _install_templates_interactive() -> None:
                 items.append((f"{status} {vendor_name} ({len(products)} products){installed_text}", vendor_id))
             
             selection = _paginate_templates(items, title="Select Vendor")
-            if selection is None:
+            if selection is None or selection < 0:
                 return
             
             selected_vendor_id = items[selection][1]
@@ -546,14 +532,14 @@ def _install_templates_interactive() -> None:
                     product_id = product_data.get('product_id', 'unknown')
                     product_name = product_data.get('product', product_id)
                     data_sources = product_data.get('data_sources', [])
-                    total_templates = sum(len(ds.get('event_types', [])) for ds in data_sources)
+                    total_templates = _count_data_source_templates(data_sources)
                     is_installed = product_id in installed_products
                     status = "[green]✓[/green]" if is_installed else "[dim]○[/dim]"
                     installed_text = " [installed]" if is_installed else ""
                     items.append((f"{status} {product_name} ({total_templates} templates){installed_text}", product_id))
                 
                 selection = _paginate_templates(items, title="Select Product")
-                if selection is None:
+                if selection is None or selection < 0:
                     return
                 
                 selected_product_id = items[selection][1]
@@ -1325,7 +1311,7 @@ def _do_install_template(
                 product_name = product_info.get('product', product_id)
                 collection_version = product_info.get('collection_version', 'N/A')
                 data_sources = product_info.get('data_sources', [])
-                total_templates = sum(len(ds.get('event_types', [])) for ds in data_sources)
+                total_templates = _count_data_source_templates(data_sources)
                 console.print(f"[dim]Product: {product_name} (v{collection_version}, {total_templates} templates)[/dim]")
             except CommunityAPINotFoundError:
                 console.print(f"[red]Error: Product '{vendor_id}/{product_id}' not found[/red]")
@@ -1400,6 +1386,17 @@ def templates_install(
     vendor: bool = typer.Option(False, "--vendor", help="Install all products from vendor"),
     product: bool = typer.Option(False, "--product", help="Install specific product (use vendor/product format)"),
     list_vendors: bool = typer.Option(False, "--list-vendors", help="List available vendors to install"),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="With --list-vendors, print vendors as JSON (for scripts)",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Non-interactive: reserved for future confirmation skips (install is non-interactive)",
+    ),
     api_url: Optional[str] = typer.Option(
         None,
         "--api-url",
@@ -1421,6 +1418,7 @@ def templates_install(
     
     Individual templates are enabled/disabled via generator configuration in config.yaml.
     """
+    _ = yes  # Reserved for scripted parity; this command path does not prompt today.
     try:
         # Get API URL from config or parameter
         if api_url is None:
@@ -1431,17 +1429,35 @@ def templates_install(
         
         # Handle --list-vendors option
         if list_vendors:
-            console.print("[cyan]Available Vendors:[/cyan]\n")
-            
             try:
                 # Use search_templates to get full hierarchy with product counts
                 result = client.search_templates(page=1, page_size=100)
                 vendors = result.get('vendors', [])
                 
                 if not vendors:
-                    console.print("[yellow]No vendors found in registry[/yellow]")
+                    if json_output:
+                        console.print(json.dumps({"vendors": []}))
+                    else:
+                        console.print("[yellow]No vendors found in registry[/yellow]")
                     return
                 
+                if json_output:
+                    rows = []
+                    for vendor_data in vendors:
+                        vendor_id = vendor_data.get("id", "unknown")
+                        products = vendor_data.get("products", [])
+                        rows.append(
+                            {
+                                "id": vendor_id,
+                                "vendor": vendor_data.get("vendor", vendor_id),
+                                "product_count": len(products),
+                                "install_vendor_cmd": f"logforge templates install {vendor_id} --vendor",
+                            }
+                        )
+                    console.print(json.dumps({"vendors": rows}, indent=2))
+                    return
+                
+                console.print("[cyan]Available Vendors:[/cyan]\n")
                 for vendor_data in vendors:
                     vendor_id = vendor_data.get('id', 'unknown')
                     vendor_name = vendor_data.get('vendor', vendor_id)
@@ -1491,8 +1507,15 @@ def templates_update(
         help="Community API URL"
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Check for updates without installing"),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Non-interactive: reserved for future confirmation skips (update does not prompt today)",
+    ),
 ) -> None:
     """Update templates from community registry."""
+    _ = yes
     try:
         config = load_config()
         templates_path = Path(config.templates.local_path)
@@ -1679,7 +1702,7 @@ def templates_compare(
                     data_sources = product_info.get('data_sources', [])
                     
                     for ds_data in data_sources:
-                        templates = ds_data.get('event_types', [])
+                        templates = ds_data.get('templates', []) or ds_data.get('event_types', [])
                         for template in templates:
                             template_id = template.get('id')
                             if template_id:
@@ -1736,26 +1759,227 @@ def templates_compare(
 
 @app.command("diff")
 def templates_diff(
-    template_id: str = typer.Argument(..., help="Template ID to diff"),
+    template_id: str = typer.Argument(
+        ...,
+        help="Template ID: vendor/product/data_source/template_name",
+    ),
+    include_meta: bool = typer.Option(
+        True,
+        "--meta/--no-meta",
+        help="Include .meta.yaml when both default and custom metadata files exist",
+    ),
 ) -> None:
-    """Show differences between custom and default versions."""
-    console.print("[yellow]Template diff not yet implemented[/yellow]")
-    console.print(f"[dim]Would show diff for: {template_id}[/dim]")
+    """Unified diff: installed default copy vs your custom copy (requires customized template)."""
+    try:
+        config = load_config()
+        loader = TemplateLoader(config)
+        default_pair = loader.resolve_paths_under(loader.default_path, template_id)
+        if not default_pair:
+            console.print(f"[red]Template not found under default:[/red] [cyan]{template_id}[/cyan]")
+            raise typer.Exit(code=1)
+        custom_pair = loader.resolve_paths_under(loader.custom_path, template_id)
+        if not custom_pair:
+            console.print(
+                "[yellow]No custom template on disk.[/yellow] Run "
+                f"[cyan]logforge templates customize {template_id}[/cyan] first."
+            )
+            raise typer.Exit(code=1)
+
+        d_j2, d_meta = default_pair
+        c_j2, c_meta = custom_pair
+        any_diff = False
+        label_base = template_id
+        if _print_unified_diff_file(
+            d_j2,
+            c_j2,
+            f"default/{label_base}.j2",
+            f"custom/{label_base}.j2",
+        ):
+            any_diff = True
+        else:
+            console.print(f"[green].j2 identical[/green] [dim]({label_base}.j2)[/dim]")
+
+        if include_meta and d_meta.is_file() and c_meta.is_file():
+            if _print_unified_diff_file(
+                d_meta,
+                c_meta,
+                f"default/{label_base}.meta.yaml",
+                f"custom/{label_base}.meta.yaml",
+            ):
+                any_diff = True
+            else:
+                console.print(f"[green].meta.yaml identical[/green] [dim]({label_base})[/dim]")
+        elif include_meta and (d_meta.is_file() ^ c_meta.is_file()):
+            console.print(
+                "[yellow]Metadata present on only one side; skipping .meta.yaml diff "
+                "(use templates merge to sync from default).[/yellow]"
+            )
+
+        if not any_diff:
+            console.print("\n[bold green]No differences[/bold green] between default and custom.")
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("merge")
 def templates_merge(
-    template_id: str = typer.Argument(..., help="Template ID to merge"),
+    template_id: str = typer.Argument(
+        ...,
+        help="Template ID: vendor/product/data_source/template_name",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Non-interactive: overwrite custom from default without confirming",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="If no custom template exists, create it by copying from default (like customize)",
+    ),
 ) -> None:
-    """Merge default changes into custom version."""
-    console.print("[yellow]Template merge not yet implemented[/yellow]")
-    console.print(f"[dim]Would merge: {template_id}[/dim]")
+    """Copy default .j2 (+ .meta.yaml when present) over custom; backs up prior custom files."""
+    try:
+        config = load_config()
+        loader = TemplateLoader(config)
+        default_pair = loader.resolve_paths_under(loader.default_path, template_id)
+        if not default_pair:
+            console.print(f"[red]Template not found under default:[/red] [cyan]{template_id}[/cyan]")
+            raise typer.Exit(code=1)
+        d_j2, d_meta = default_pair
+
+        custom_pair = loader.resolve_paths_under(loader.custom_path, template_id)
+        parts = [p for p in template_id.strip().strip("/").split("/") if p]
+        if len(parts) != 4:
+            console.print("[red]Template ID must have four segments: vendor/product/data_source/name[/red]")
+            raise typer.Exit(code=1)
+        v, prod, ds, name = parts
+
+        if custom_pair:
+            c_j2, c_meta = custom_pair
+        elif force:
+            c_dir = loader.custom_path / v / prod / ds
+            c_dir.mkdir(parents=True, exist_ok=True)
+            c_j2 = c_dir / f"{name}.j2"
+            c_meta = c_dir / f"{name}.meta.yaml"
+        else:
+            console.print(
+                "[yellow]No custom template.[/yellow] Run "
+                f"[cyan]logforge templates customize {template_id}[/cyan] "
+                "or pass [cyan]--force[/cyan]."
+            )
+            raise typer.Exit(code=1)
+
+        had_custom = c_j2.is_file()
+        if had_custom and not yes:
+            if not Confirm.ask(
+                f"Overwrite custom files for [cyan]{template_id}[/cyan] from default? "
+                "(Previous custom files will be backed up.)",
+                default=False,
+            ):
+                console.print("[yellow]Cancelled[/yellow]")
+                raise typer.Exit(code=0)
+
+        home = get_logforge_home()
+        if had_custom:
+            bdir = _backup_custom_template_files(home, template_id, c_j2, c_meta)
+            console.print(f"[dim]Backed up prior custom files to {bdir}[/dim]")
+
+        shutil.copy2(d_j2, c_j2)
+        if d_meta.is_file():
+            shutil.copy2(d_meta, c_meta)
+        console.print(f"[green]✓ Custom template synced from default:[/green] [cyan]{template_id}[/cyan]")
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("create")
 def templates_create(
-    template_path: str = typer.Argument(..., help="Template path (e.g., custom/acme/myapp)"),
+    template_id: str = typer.Argument(
+        ...,
+        help="Four-part ID: vendor/product/data_source/template_name (files go under templates/custom/)",
+    ),
+    description: str = typer.Option(
+        "Custom LogForge template",
+        "--description",
+        "-d",
+        help="Metadata description",
+    ),
+    output_format: str = typer.Option(
+        "JSON",
+        "--format",
+        "-f",
+        help="Metadata output format (JSON, XML, CSV, … — same as metadata schema)",
+    ),
+    force: bool = typer.Option(False, "--force", help="Replace existing custom .j2 / .meta.yaml"),
 ) -> None:
-    """Create a new custom template (interactive wizard)."""
-    console.print("[yellow]Template creation wizard not yet implemented[/yellow]")
-    console.print(f"[dim]Would create template at: {template_path}[/dim]")
+    """Create a minimal custom template (.j2 + .meta.yaml) under templates/custom/."""
+    try:
+        parts = [p for p in template_id.strip().strip("/").split("/") if p]
+        if len(parts) != 4:
+            console.print("[red]Template ID must have four segments: vendor/product/data_source/name[/red]")
+            raise typer.Exit(code=1)
+        v, prod, data_source, t_name = parts
+
+        try:
+            meta_model = TemplateMetadata(
+                vendor=v,
+                product=prod,
+                data_source=data_source,
+                description=description,
+                format=output_format,
+                is_generator=True,
+            )
+        except Exception as e:
+            console.print(f"[red]Invalid metadata: {e}[/red]")
+            raise typer.Exit(code=1)
+
+        config = load_config()
+        loader = TemplateLoader(config)
+        c_dir = loader.custom_path / v / prod / data_source
+        c_j2 = c_dir / f"{t_name}.j2"
+        c_meta = c_dir / f"{t_name}.meta.yaml"
+
+        if (c_j2.is_file() or c_meta.is_file()) and not force:
+            console.print(
+                f"[red]Already exists:[/red] [cyan]{template_id}[/cyan]. "
+                "Use [cyan]--force[/cyan] to overwrite."
+            )
+            raise typer.Exit(code=1)
+
+        c_dir.mkdir(parents=True, exist_ok=True)
+        skel = (
+            f"{{# LogForge: {template_id} #}}\n"
+            '{{ {"message": "example"} | tojson }}\n'
+        )
+        c_j2.write_text(skel, encoding="utf-8")
+        with c_meta.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                meta_model.model_dump(mode="json", exclude_none=True),
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+            )
+
+        val = validate_template(c_j2, c_meta)
+        if val.errors:
+            for err in val.errors:
+                console.print(f"[yellow]Validation: {err}[/yellow]")
+        if val.warnings:
+            for warn in val.warnings:
+                console.print(f"[dim]Validation warning: {warn}[/dim]")
+
+        console.print(f"[green]✓ Created custom template[/green] [cyan]{template_id}[/cyan]")
+        console.print(f"  [dim]{c_j2}[/dim]")
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)

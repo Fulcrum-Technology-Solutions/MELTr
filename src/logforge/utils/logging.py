@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from logforge.core.config import Config
+from logforge.core.paths import get_logforge_home
 
 
 class InternalLogForwardingHandler(logging.Handler):
@@ -22,11 +23,14 @@ class InternalLogForwardingHandler(logging.Handler):
         super().__init__()
         self._queue = log_queue
         self._max_queue_size = max_queue_size
+        self._time_formatter = logging.Formatter()
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
+            tf = self.formatter if self.formatter is not None else self._time_formatter
+            datefmt = getattr(tf, "datefmt", None) or "%Y-%m-%dT%H:%M:%S"
             obj = {
-                "timestamp": self.formatTime(record, self.datefmt or "%Y-%m-%dT%H:%M:%S"),
+                "timestamp": tf.formatTime(record, datefmt),
                 "level": record.levelname,
                 "logger": record.name,
                 "message": record.getMessage(),
@@ -51,15 +55,24 @@ def setup_logging(config: Optional[Config] = None, log_level: Optional[str] = No
     """
     if config and hasattr(config, 'logging'):
         level = log_level or getattr(config.logging, 'level', 'INFO')
-        log_file = getattr(config.logging, 'file', None)
+        log_file = getattr(config.logging, 'file', None) or None
+        if not log_file or not str(log_file).strip():
+            log_file = str(get_logforge_home() / 'logs' / 'logforge.log')
         rotation_config = getattr(config.logging, 'rotation', None)
-        format_str = getattr(config.logging, 'format', 
+        if rotation_config is None and config and hasattr(config, 'logging'):
+            from logforge.core.config import RotationConfig
+            rotation_config = RotationConfig()
+        format_str = getattr(config.logging, 'format',
                            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     else:
         level = log_level or os.getenv('LOGFORGE_LOG_LEVEL', 'INFO')
         log_file = os.getenv('LOGFORGE_LOG_FILE', None)
         rotation_config = None
         format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        if not log_file:
+            log_file = str(get_logforge_home() / 'logs' / 'logforge.log')
+            from logforge.core.config import RotationConfig
+            rotation_config = RotationConfig()
     
     # Convert string level to logging constant
     numeric_level = getattr(logging, level.upper(), logging.INFO)

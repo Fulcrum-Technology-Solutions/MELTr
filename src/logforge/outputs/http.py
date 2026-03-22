@@ -35,6 +35,7 @@ class HTTPOutputHandler(OutputHandler):
         retry_config: Optional[RetryConfig] = None,
         buffer_size: int = 10000,
         streaming: bool = True,
+        overflow_policy: str = "drop_newest",
     ) -> None:
         """Initialize HTTP output handler.
         
@@ -49,8 +50,10 @@ class HTTPOutputHandler(OutputHandler):
             retry_config: Retry configuration from global config
             buffer_size: Buffer size from global config
             streaming: If True, send events individually as generated. If False, batch events.
+            overflow_policy: When retry queue is full, drop_newest or drop_oldest.
         """
         super().__init__(name, retry_config=retry_config, buffer_size=buffer_size)
+        self.overflow_policy = overflow_policy
         self.url = url
         self.method = method.upper()
         self.headers = headers or {}
@@ -93,6 +96,7 @@ class HTTPOutputHandler(OutputHandler):
         self._last_error_message: Optional[str] = None
         self._last_error_type: Optional[str] = None
         self._periodic_stats_time = time.time()
+        self._batch_buffer_dropped = 0
         self.timezone: str = 'UTC'  # Default timezone, can be set via set_template_context
         self.include_metadata: bool = False  # Whether to wrap events in metadata
         self.template_metadata: Optional[Dict[str, Any]] = None  # Template metadata for wrapping
@@ -150,6 +154,7 @@ class HTTPOutputHandler(OutputHandler):
             retry_config=retry_config,
             buffer_size=buffer_size,
             streaming=definition.streaming if definition.streaming is not None else True,
+            overflow_policy=definition.buffer_overflow_policy,
         )
         handler.include_metadata = definition.include_metadata or False
         return handler
@@ -184,6 +189,38 @@ class HTTPOutputHandler(OutputHandler):
         self._flush_batch_if_ready(force=True)
         # Restart timer
         self._start_batch_timer()
+
+    def _enqueue_batch_buffer(self, event: str) -> None:
+        """Put event on retry queue with explicit overflow policy."""
+        try:
+            self._batch_buffer.put_nowait(event)
+            return
+        except queue.Full:
+            pass
+
+        if self.overflow_policy == "drop_newest":
+            with self._stats_lock:
+                self._batch_buffer_dropped += 1
+            logger.warning(
+                f"HTTP output '{self.name}': Retry queue full ({self.buffer_size}), "
+                f"dropping newest event (policy=drop_newest)"
+            )
+            return
+
+        # drop_oldest: make room then enqueue
+        try:
+            self._batch_buffer.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            self._batch_buffer.put_nowait(event)
+        except queue.Full:
+            with self._stats_lock:
+                self._batch_buffer_dropped += 1
+            logger.warning(
+                f"HTTP output '{self.name}': Retry queue full after eviction attempt, "
+                f"dropping event (policy=drop_oldest)"
+            )
     
     def _do_write(self, event: str) -> None:
         """Write event to batch buffer or send immediately if streaming.
@@ -197,7 +234,7 @@ class HTTPOutputHandler(OutputHandler):
         if self.streaming:
             if self._executor:
                 # Submit to thread pool - non-blocking
-                future = self._executor.submit(self._send_single_event, event)
+                self._executor.submit(self._send_single_event, event)
                 # Errors are logged in _send_single_event, failures are buffered for retry
             else:
                 # Fallback: send synchronously (blocks generator)
@@ -205,40 +242,26 @@ class HTTPOutputHandler(OutputHandler):
                     self._send_single_event(event)
                 except Exception as e:
                     logger.debug(f"HTTP output '{self.name}': Failed to send event, buffering: {e}")
-                    try:
-                        self._batch_buffer.put_nowait(event)
-                    except queue.Full:
-                        logger.warning(f"HTTP output '{self.name}': Buffer full, dropping event")
+                    self._enqueue_batch_buffer(event)
             return
         
         # Non-blocking put - prevents deadlock from lock contention
-        try:
-            buffered_count = self._batch_buffer.qsize()
-            
-            # Log warning if buffer is getting full
-            if buffered_count > self.buffer_size * 0.8:
-                logger.warning(
-                    f"HTTP output '{self.name}': Buffer is {buffered_count}/{self.buffer_size} "
-                    f"({buffered_count/self.buffer_size*100:.1f}% full). "
-                    f"Consider increasing batch_size or checking connection status."
-                )
-            
-            # Non-blocking put - will raise queue.Full if buffer is full
-            self._batch_buffer.put_nowait(event)
-            
-            # Check if batch is full
-            if buffered_count + 1 >= self.batch_size:
-                self._flush_batch_if_ready(force=True)
-            else:
-                # Check if interval elapsed
-                self._flush_batch_if_ready(force=False)
-                
-        except queue.Full:
-            # Buffer full - log and drop event (non-blocking path)
+        buffered_count = self._batch_buffer.qsize()
+
+        # Log warning if buffer is getting full
+        if buffered_count > self.buffer_size * 0.8:
             logger.warning(
-                f"HTTP output '{self.name}': Batch buffer full ({self.buffer_size} events), "
-                f"dropping event. Consider increasing buffer_size or checking connection status."
+                f"HTTP output '{self.name}': Buffer is {buffered_count}/{self.buffer_size} "
+                f"({buffered_count/self.buffer_size*100:.1f}% full). "
+                f"Consider increasing batch_size or checking connection status."
             )
+
+        self._enqueue_batch_buffer(event)
+
+        if self._batch_buffer.qsize() >= self.batch_size:
+            self._flush_batch_if_ready(force=True)
+        else:
+            self._flush_batch_if_ready(force=False)
     
     def _flush_batch_if_ready(self, force: bool = False) -> None:
         """Flush batch if ready (size or interval).
@@ -289,10 +312,7 @@ class HTTPOutputHandler(OutputHandler):
                 logger.error(f"HTTP output '{self.name}': Error draining batch buffer: {e}", exc_info=True)
                 # Re-buffer events that were drained
                 for event in events_to_send:
-                    try:
-                        self._batch_buffer.put_nowait(event)
-                    except queue.Full:
-                        logger.warning(f"HTTP output '{self.name}': Failed to re-buffer event, dropping")
+                    self._enqueue_batch_buffer(event)
     
     def _wrap_event_with_metadata(self, event: Any) -> Dict[str, Any]:
         """Wrap event with logforge_metadata.
@@ -474,10 +494,7 @@ class HTTPOutputHandler(OutputHandler):
                     )
                 
                 # Buffer for retry
-                try:
-                    self._batch_buffer.put_nowait(event)
-                except queue.Full:
-                    logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+                self._enqueue_batch_buffer(event)
                 
                 raise
                 
@@ -499,10 +516,7 @@ class HTTPOutputHandler(OutputHandler):
             )
             
             # Buffer for retry
-            try:
-                self._batch_buffer.put_nowait(event)
-            except queue.Full:
-                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            self._enqueue_batch_buffer(event)
             
             raise
             
@@ -524,10 +538,7 @@ class HTTPOutputHandler(OutputHandler):
             )
             
             # Buffer for retry
-            try:
-                self._batch_buffer.put_nowait(event)
-            except queue.Full:
-                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            self._enqueue_batch_buffer(event)
             
             raise
             
@@ -549,10 +560,7 @@ class HTTPOutputHandler(OutputHandler):
             )
             
             # Buffer for retry
-            try:
-                self._batch_buffer.put_nowait(event)
-            except queue.Full:
-                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            self._enqueue_batch_buffer(event)
             
             raise
             
@@ -574,10 +582,7 @@ class HTTPOutputHandler(OutputHandler):
             )
             
             # Buffer for retry
-            try:
-                self._batch_buffer.put_nowait(event)
-            except queue.Full:
-                logger.warning(f"HTTP output '{self.name}': Failed to buffer event for retry, dropping")
+            self._enqueue_batch_buffer(event)
             
             raise
     
@@ -710,10 +715,7 @@ class HTTPOutputHandler(OutputHandler):
                 
                 # Re-buffer events for retry (non-blocking)
                 for event in events:
-                    try:
-                        self._batch_buffer.put_nowait(event)
-                    except queue.Full:
-                        logger.warning(f"HTTP output '{self.name}': Failed to re-buffer event after HTTP error, dropping")
+                    self._enqueue_batch_buffer(event)
                 
                 raise
             
@@ -737,10 +739,7 @@ class HTTPOutputHandler(OutputHandler):
             
             # Re-buffer events for retry (non-blocking)
             for event in events:
-                try:
-                    self._batch_buffer.put_nowait(event)
-                except queue.Full:
-                    logger.warning(f"HTTP output '{self.name}': Failed to re-buffer event after timeout, dropping")
+                self._enqueue_batch_buffer(event)
             
             raise
             
@@ -763,10 +762,7 @@ class HTTPOutputHandler(OutputHandler):
             
             # Re-buffer events for retry (non-blocking)
             for event in events:
-                try:
-                    self._batch_buffer.put_nowait(event)
-                except queue.Full:
-                    logger.warning(f"HTTP output '{self.name}': Failed to re-buffer event after connection error, dropping")
+                self._enqueue_batch_buffer(event)
             
             raise
             
@@ -790,10 +786,7 @@ class HTTPOutputHandler(OutputHandler):
             
             # Re-buffer events for retry (non-blocking)
             for event in events:
-                try:
-                    self._batch_buffer.put_nowait(event)
-                except queue.Full:
-                    logger.warning(f"HTTP output '{self.name}': Failed to re-buffer event after request exception, dropping")
+                self._enqueue_batch_buffer(event)
             
             raise
         
@@ -817,10 +810,7 @@ class HTTPOutputHandler(OutputHandler):
             
             # Re-buffer events for retry (non-blocking)
             for event in events:
-                try:
-                    self._batch_buffer.put_nowait(event)
-                except queue.Full:
-                    logger.warning(f"HTTP output '{self.name}': Failed to re-buffer event after unexpected error, dropping")
+                self._enqueue_batch_buffer(event)
             
             raise
     
@@ -875,13 +865,15 @@ class HTTPOutputHandler(OutputHandler):
     
     def get_statistics(self) -> Dict:
         """Get output handler statistics.
-        
+
         Returns:
-            Dictionary with statistics and health information
+            Dictionary with statistics and health information (includes base backlog/dropped/healthy).
         """
+        base_stats = super().get_statistics()
         # Get buffered count (queue is thread-safe, no lock needed)
         buffered_count = self._batch_buffer.qsize()
-        
+        base_stats["backlog_size"] = base_stats["backlog_size"] + buffered_count
+
         # Get stats data (avoid nested locks)
         with self._stats_lock:
             # Calculate average response time
@@ -912,9 +904,11 @@ class HTTPOutputHandler(OutputHandler):
             last_failure_time = self._last_failure_time
             last_error_message = self._last_error_message
             last_error_type = self._last_error_type
+            batch_buffer_dropped = self._batch_buffer_dropped
         
-        # Build stats dict outside of locks (all values are now copied)
+        # Build stats dict outside of locks (all values are now copied); merge with base
         stats = {
+            **base_stats,
             "handler_name": self.name,
             "handler_type": "http",
             "url": self.url,
@@ -924,6 +918,7 @@ class HTTPOutputHandler(OutputHandler):
             "batches_sent": batches_sent,
             "batches_failed": batches_failed,
             "buffered_events": buffered_count,
+            "batch_buffer_dropped": batch_buffer_dropped,
             "connection_errors": connection_errors,
             "http_errors": http_errors,
             "timeout_errors": timeout_errors,
@@ -941,7 +936,6 @@ class HTTPOutputHandler(OutputHandler):
             "last_error_message": last_error_message,
             "last_error_type": last_error_type,
         }
-        
         return stats
     
     def _log_periodic_stats(self) -> None:
@@ -996,19 +990,29 @@ class HTTPOutputHandler(OutputHandler):
             f"HTTP output '{self.name}' closing: "
             f"sent={stats['events_sent']} events, "
             f"failed={stats['events_failed']} events, "
-            f"buffered={stats['buffered_events']} events remaining"
+            f"buffered={stats['buffered_events']} events remaining, "
+            f"batch_buffer_dropped={stats.get('batch_buffer_dropped', 0)}"
         )
         
         # Cancel timer
         if self._batch_timer:
             self._batch_timer.cancel()
             self._batch_timer = None
+
+        # Stop async HTTP workers before touching shared retry queue
+        if self._executor:
+            logger.debug(f"HTTP output '{self.name}': Shutting down thread pool executor")
+            try:
+                self._executor.shutdown(wait=True, timeout=30)
+            except TypeError:
+                self._executor.shutdown(wait=True)
+            self._executor = None
         
         # Flush any remaining events
         self._flush_batch_if_ready(force=True)
-        
-        # Shutdown thread pool if streaming
-        if self._executor:
-            logger.debug(f"HTTP output '{self.name}': Shutting down thread pool executor")
-            self._executor.shutdown(wait=True, timeout=30)
-            self._executor = None
+
+        remaining = self._batch_buffer.qsize()
+        if remaining:
+            logger.warning(
+                f"HTTP output '{self.name}': {remaining} event(s) still in retry queue after close flush"
+            )

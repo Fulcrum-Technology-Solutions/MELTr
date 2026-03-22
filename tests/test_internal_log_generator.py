@@ -1,20 +1,19 @@
 """Tests for internal log generator and engine integration."""
 
-from pathlib import Path
+import logging
+import time
+import uuid
 from typing import List
 
 import pytest
 
 from logforge.core.config import (
-    Config,
     InternalLogsConfig,
     OutputDefinition,
-    OutputsConfig,
     create_default_config,
 )
 from logforge.core.engine import Engine
 from logforge.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME, InternalLogGenerator
-from logforge.core.paths import get_logforge_home
 from logforge.entities.registry import EntityRegistry
 from logforge.outputs.base import OutputHandler
 
@@ -77,3 +76,22 @@ def test_engine_does_not_load_internal_log_generator_when_disabled(tmp_path, mon
     registry = EntityRegistry(config)
     engine = Engine(config, registry)
     assert INTERNAL_LOGS_GENERATOR_NAME not in engine._generators
+
+
+def test_internal_log_generator_forwards_logforge_records_to_outputs():
+    """Running internal-logs generator should deliver logforge.* records to output handlers."""
+    token = f"lf-internal-forward-{uuid.uuid4()}"
+    handler = MockOutputHandler("out1")
+    gen = InternalLogGenerator(output_handlers=[handler])
+    gen.start()
+    try:
+        # WARNING passes default/root levels in test runners; exercises InternalLogForwardingHandler.emit
+        logging.getLogger("logforge").warning(token)
+        deadline = time.time() + 3.0
+        while time.time() < deadline:
+            if any(token in e for e in handler._events):
+                return
+            time.sleep(0.05)
+        pytest.fail(f"expected a forwarded event containing {token!r}, got {handler._events!r}")
+    finally:
+        gen.stop()

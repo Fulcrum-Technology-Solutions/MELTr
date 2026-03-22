@@ -129,3 +129,34 @@ def test_output_handler_retry_config():
     assert handler.retry_config.max_attempts == 3
     assert handler.retry_config.retry_interval == 5
 
+
+def test_factory_wires_http_overflow_retry_and_buffer_size():
+    """Factory path should pass global outputs.retry/buffer_size into HTTP handler (Task 9 glue)."""
+    retry_config = RetryConfig(
+        max_attempts=2,
+        retry_interval=3,
+        backoff_multiplier=2.0,
+        max_backoff=30,
+    )
+    definitions = [
+        OutputDefinition(
+            name="http_out",
+            type="http",
+            url="https://example.com/ingest",
+            method="POST",
+            buffer_overflow_policy="drop_oldest",
+        ),
+    ]
+    handlers = create_output_handlers(
+        ["http_out"],
+        definitions,
+        retry_config=retry_config,
+        buffer_size=1234,
+    )
+    assert len(handlers) == 1
+    h = handlers[0]
+    assert isinstance(h, HTTPOutputHandler)
+    assert h.overflow_policy == "drop_oldest"
+    assert h.retry_config is not None and h.retry_config.max_attempts == 2
+    assert h.buffer_size == 1234
+

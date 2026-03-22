@@ -62,3 +62,32 @@ def test_default_config_includes_internal_logs():
         assert config.internal_logs.enabled is False
         assert config.internal_logs.outputs == []
 
+
+def test_edit_output_updates_existing_output_without_recreate(tmp_path, monkeypatch):
+    """In-place output edit must replace the same list slot (no delete/recreate)."""
+    from logforge.cli import config_editor
+    from logforge.core.config import OutputDefinition
+
+    config = create_default_config(tmp_path)
+    http_out = OutputDefinition(
+        name="http1",
+        type="http",
+        url="https://old.example/hook",
+        method="POST",
+        include_metadata=False,
+        buffer_overflow_policy="drop_newest",
+    )
+    config.outputs.definitions = [http_out]
+
+    monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: 1)
+
+    def fake_edit_http(output: OutputDefinition) -> OutputDefinition:
+        return output.model_copy(update={"url": "https://new.example/hook"})
+
+    monkeypatch.setattr(config_editor, "_edit_http_output_definition", fake_edit_http)
+
+    updated = config_editor._edit_output_interactive(config)
+    assert len(updated.outputs.definitions) == 1
+    assert updated.outputs.definitions[0].name == "http1"
+    assert updated.outputs.definitions[0].url == "https://new.example/hook"
+

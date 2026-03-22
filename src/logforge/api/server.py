@@ -5,8 +5,9 @@ import time
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from logforge.core.config import Config
 from logforge.utils.logging import get_logger
@@ -59,12 +60,23 @@ class APIServer:
         self.app.include_router(templates.router)
         self.app.include_router(generators.router)
         
-        # Metrics endpoint (will be moved to separate module later)
-        @self.app.get("/api/metrics")
-        async def metrics() -> str:
+        @self.app.get("/api/metrics", response_class=PlainTextResponse)
+        async def metrics(request: Request) -> str:
             """Prometheus metrics endpoint."""
-            # TODO: Return Prometheus format metrics
-            return "# LogForge metrics\n# TODO: Implement metrics collection\n"
+            lines = ["# LogForge output pipeline metrics"]
+            engine = getattr(request.app.state, "engine", None)
+            if engine:
+                try:
+                    from logforge.api.endpoints.health import _collect_output_handlers
+                    for h in _collect_output_handlers(engine):
+                        if hasattr(h, "get_statistics"):
+                            st = h.get_statistics()
+                            name = st.get("name", getattr(h, "name", "unknown")).replace('"', '\\"')
+                            lines.append(f'logforge_output_backlog_size{{output="{name}"}} {st.get("backlog_size", 0)}')
+                            lines.append(f'logforge_output_dropped_total{{output="{name}"}} {st.get("dropped_count", 0)}')
+                except Exception:
+                    pass
+            return "\n".join(lines) + "\n"
     
     def get_uptime(self) -> int:
         """Get server uptime in seconds.

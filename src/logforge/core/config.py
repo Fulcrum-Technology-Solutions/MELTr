@@ -122,6 +122,18 @@ class OutputDefinition(BaseModel):
     rotation: Optional[OutputRotationConfig] = Field(default=None, description="File rotation")
     timeout: Optional[int] = Field(default=None, description="Timeout in seconds")
     include_metadata: bool = Field(default=False, description="Include logforge_metadata wrapper for HTTP output")
+    buffer_overflow_policy: str = Field(
+        default="drop_newest",
+        description="When HTTP retry queue is full: drop_newest (reject incoming) or drop_oldest (evict oldest)",
+    )
+
+    @field_validator("buffer_overflow_policy")
+    @classmethod
+    def validate_buffer_overflow_policy(cls, v: str) -> str:
+        allowed = {"drop_newest", "drop_oldest"}
+        if v not in allowed:
+            raise ValueError(f"buffer_overflow_policy must be one of {allowed}, got {v!r}")
+        return v
 
 
 class OutputsConfig(BaseModel):
@@ -386,7 +398,7 @@ def create_default_config(home: Optional[Path] = None) -> Config:
             custom_path=str(home / 'templates' / 'custom'),
         ),
         logging=LoggingConfig(
-            file=str(home / 'logforge.log'),
+            file=str(home / 'logs' / 'logforge.log'),
             rotation=RotationConfig(),
         ),
         outputs=OutputsConfig(),

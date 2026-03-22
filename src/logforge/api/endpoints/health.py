@@ -1,6 +1,6 @@
 """Health and status endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -9,6 +9,16 @@ from logforge.core.engine import Engine
 from logforge.utils.logging import get_logger
 
 router = APIRouter(prefix="/api", tags=["health"])
+
+
+def _collect_output_handlers(engine: Engine) -> List:
+    """Collect unique output handlers from all generators (by name)."""
+    seen: Dict[str, object] = {}
+    for gen in engine.get_all_generators():
+        for h in getattr(gen, "output_handlers", []):
+            if hasattr(h, "name") and h.name not in seen:
+                seen[h.name] = h
+    return list(seen.values())
 
 
 def get_server(request: Request) -> APIServer:
@@ -65,13 +75,33 @@ async def health(server: Annotated[APIServer, Depends(get_server)]) -> dict:
     else:
         overall_status = "healthy"
     
-    return {
+    outputs_summary = None
+    if engine:
+        try:
+            handlers = _collect_output_handlers(engine)
+            outputs_summary = []
+            for h in handlers:
+                if hasattr(h, "get_statistics"):
+                    st = h.get_statistics()
+                    outputs_summary.append({
+                        "name": st.get("name", getattr(h, "name", "?")),
+                        "backlog_size": st.get("backlog_size", 0),
+                        "dropped_count": st.get("dropped_count", 0),
+                        "healthy": st.get("healthy", True),
+                    })
+        except Exception:
+            pass
+
+    result = {
         "status": overall_status,
         "uptime": server.get_uptime(),
         "generators": generator_counts,
-        "entity_registry": "healthy",  # TODO: Check registry health
-        "template_cache": "healthy",  # TODO: Check cache health
+        "entity_registry": "healthy",
+        "template_cache": "healthy",
     }
+    if outputs_summary is not None:
+        result["outputs"] = outputs_summary
+    return result
 
 
 @router.get("/status")
@@ -132,10 +162,27 @@ async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
         memory_mb = 0
         thread_count = 0
     
+    outputs_list = []
+    if engine:
+        try:
+            for h in _collect_output_handlers(engine):
+                if hasattr(h, "get_statistics"):
+                    st = h.get_statistics()
+                    outputs_list.append({
+                        "name": st.get("name", getattr(h, "name", "?")),
+                        "backlog_size": st.get("backlog_size", 0),
+                        "dropped_count": st.get("dropped_count", 0),
+                        "healthy": st.get("healthy", True),
+                        "buffer_size": st.get("buffer_size"),
+                    })
+        except Exception:
+            pass
+
     return {
         "uptime": server.get_uptime(),
         "version": "1.0.0",
         "generators": generators_list,
+        "outputs": outputs_list,
         "system": {
             "cpu_percent": cpu_percent,
             "memory_mb": int(memory_mb),

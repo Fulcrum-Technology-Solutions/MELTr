@@ -17,6 +17,7 @@ import typer
 from rich.console import Console
 
 from logforge.cli.user_utils import ensure_service_user_and_group
+from logforge.core.paths import get_logforge_home
 
 app = typer.Typer(name="service", help="Systemd service management")
 console = Console()
@@ -33,6 +34,8 @@ WorkingDirectory={logforge_home}
 ExecStart={logforge_bin} api start
 Restart=on-failure
 RestartSec=10s
+TimeoutStartSec=90
+LimitNOFILE=65536
 
 # Environment
 Environment="LOGFORGE_HOME={logforge_home}"
@@ -49,67 +52,33 @@ WantedBy=multi-user.target
 
 def _get_logforge_binary_path() -> Path:
     """Get path to logforge binary.
-    
+
     Returns:
         Path to logforge executable
     """
-    # Try to find logforge in PATH
     logforge_path = shutil.which('logforge')
     if logforge_path:
-        return Path(logforge_path)
-    
-    # Fall back to common locations
-    for path in ['/usr/local/bin/logforge', '/usr/bin/logforge', '/opt/logforge/.venv/bin/logforge']:
+        return Path(logforge_path).resolve()
+
+    # /opt: resolve casing (e.g. /opt/LogForge)
+    opt = Path('/opt')
+    if opt.exists():
+        for p in opt.iterdir():
+            if p.is_dir() and p.name.lower() == 'logforge':
+                venv_bin = p / '.venv' / 'bin' / 'logforge'
+                if venv_bin.exists():
+                    return venv_bin.resolve()
+                break
+
+    for path in ['/usr/local/bin/logforge', '/usr/bin/logforge']:
         if Path(path).exists():
-            return Path(path)
-    
-    # If in venv, use the venv's bin
+            return Path(path).resolve()
+
     venv_bin = Path(os.environ.get('VIRTUAL_ENV', '')) / 'bin' / 'logforge'
     if venv_bin.exists():
-        return venv_bin
-    
+        return venv_bin.resolve()
+
     raise RuntimeError("Could not find logforge binary. Install it system-wide or activate virtual environment.")
-
-
-def _get_logforge_home() -> Path:
-    """Get LOGFORGE_HOME path.
-    
-    Detects installation directory from binary location (like Splunk/Cribl).
-    Defaults to installation directory/logforge or /opt/logforge/logforge.
-    
-    Returns:
-        Path to LOGFORGE_HOME
-    """
-    env_home = os.getenv('LOGFORGE_HOME')
-    if env_home:
-        return Path(env_home).expanduser().resolve()
-    
-    # Try to detect from binary location
-    try:
-        bin_path = _get_logforge_binary_path()
-        # If binary is in /opt/logforge/.venv/bin/logforge, use /opt/logforge/logforge
-        # If binary is in /usr/local/bin/logforge, use /opt/logforge/logforge
-        # If binary is in /usr/bin/logforge, use /opt/logforge/logforge
-        if '/opt/logforge' in str(bin_path):
-            # Installation is in /opt/logforge
-            install_dir = Path('/opt/logforge')
-            home = install_dir / 'logforge'
-            return home.resolve()
-        elif bin_path.parent.parent.name == 'logforge':
-            # Binary is in something like /path/to/logforge/.venv/bin/logforge
-            install_dir = bin_path.parent.parent
-            home = install_dir / 'logforge'
-            return home.resolve()
-    except Exception:
-        pass
-    
-    # Fallback: try /opt/logforge/logforge (common installation location)
-    opt_home = Path('/opt/logforge/logforge')
-    if opt_home.parent.exists():
-        return opt_home.resolve()
-    
-    # Last resort: /var/lib/logforge
-    return Path('/var/lib/logforge')
 
 
 def _check_root() -> None:
@@ -133,11 +102,11 @@ def service_install(
     create_user: bool = typer.Option(True, "--create-user/--no-create-user", help="Create service user if it doesn't exist"),
 ) -> None:
     """Install LogForge as a systemd service.
-    
-    Similar to Splunk/Cribl installation. Init creates logmgr by default; use
-    --user logmgr --no-create-user when the user already exists.
+
+    Use --home /var/lib/logforge for the service data directory (default when run as root).
+    Use --user logmgr --no-create-user when the user already exists.
     Example:
-        sudo logforge service install --user logmgr --group logmgr --home /opt/logforge/logforge
+        sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge
     """
     _check_root()
     
@@ -148,7 +117,7 @@ def service_install(
         if logforge_home:
             home_path = Path(logforge_home).expanduser().resolve()
         else:
-            home_path = _get_logforge_home()
+            home_path = get_logforge_home()
         
         if logforge_bin:
             bin_path = Path(logforge_bin).expanduser().resolve()
@@ -188,8 +157,12 @@ def service_install(
         # Set ownership to service user so service can write
         if service_uid is not None and (service_uid, service_gid) != (0, 0):
             os.chown(home_path, service_uid, service_gid)
-            if home_path.parent.name == 'logforge' and home_path.parent.exists():
-                os.chown(home_path.parent, service_uid, service_gid)
+            parent = home_path.parent
+            if parent.exists():
+                if parent.name.lower() == 'logforge':
+                    os.chown(parent, service_uid, service_gid)
+                elif parent.name == 'data' and parent.parent.name.lower() == 'logforge' and parent.parent.exists():
+                    os.chown(parent.parent, service_uid, service_gid)
         
         log_dir = Path('/var/log/logforge')
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -228,7 +201,11 @@ def service_install(
 
 @app.command("uninstall")
 def service_uninstall() -> None:
-    """Uninstall LogForge systemd service."""
+    """Uninstall LogForge systemd service.
+
+    Removes only the systemd unit and reloads systemd. Data under LOGFORGE_HOME
+    and logs under /var/log/logforge are left intentionally.
+    """
     _check_root()
     
     try:
@@ -292,9 +269,7 @@ def service_restart() -> None:
 
 @app.command("status")
 def service_status() -> None:
-    """Show systemd service status."""
-    _check_root()
-    
+    """Show systemd service status (no root required)."""
     try:
         # Run systemctl status and capture output
         result = subprocess.run(
