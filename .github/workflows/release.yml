@@ -52,10 +52,30 @@ jobs:
         run: |
           python -m build
       
+      - name: Build Linux x86_64 .tgz bundle
+        run: |
+          bash scripts/build_linux_tgz.sh "${{ steps.version.outputs.version }}"
+      
+      - name: Smoke test Linux bundle
+        run: |
+          set -euo pipefail
+          TGZ="dist/logforge-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz"
+          test -f "$TGZ"
+          D=$(mktemp -d)
+          tar xzf "$TGZ" -C "$D"
+          B="$D/logforge-${{ steps.version.outputs.version }}-linux-x86_64"
+          test -x "$B/app/bin/logforge"
+          export PATH="$B/app/bin:$PATH"
+          logforge --version
+          logforge init --directory "$D/lfhome" --force
+          test -f "$D/lfhome/config.yaml"
+      
       - name: Create checksums
         run: |
           cd dist
-          sha256sum *.whl *.tar.gz > checksums.txt
+          shopt -s nullglob
+          FILES=( *.whl *.tar.gz *.sha256 )
+          sha256sum "${FILES[@]}" | sort -k2 > checksums.txt
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -64,6 +84,7 @@ jobs:
           files: |
             dist/*.whl
             dist/*.tar.gz
+            dist/*.sha256
             dist/checksums.txt
           draft: false
           prerelease: ${{ contains(steps.version.outputs.tag_name, 'alpha') || contains(steps.version.outputs.tag_name, 'beta') || contains(steps.version.outputs.tag_name, 'rc') }}

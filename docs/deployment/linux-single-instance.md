@@ -1,6 +1,13 @@
 # Linux single-instance deployment
 
-This guide follows the same operator flow as common on-prem data-plane products: **prerequisites → install software under a fixed root → filesystem rules → initialize state → run** (foreground or systemd). LogForge ships as a Python package (wheel); the recommended layout is an install root under `/opt/logforge` with a virtual environment, analogous to unpacking a product tarball under `/opt`.
+This guide follows the same operator flow as common on-prem data-plane products: **prerequisites → install software under a fixed root → filesystem rules → initialize state → run** (foreground or systemd).
+
+**Choose an install path:**
+
+| Method | When to use |
+|--------|-------------|
+| **[Official `.tar.gz` bundle](linux-tarball.md)** | Air-gapped hosts, no `pip` on servers, or Cribl-style “unpack under `/opt`” operations. **Linux x86_64**; includes embedded Python. |
+| **pip + venv** (below) | Development, PyPI installs, or when you already standardize on Python tooling. |
 
 For **upgrades, backups, and rollback**, see [DEPLOYMENT.md](../../DEPLOYMENT.md).
 

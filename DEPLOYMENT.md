@@ -1,6 +1,6 @@
 # LogForge Deployment & Update Guide
 
-**First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**.
+**First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**. For the **`.tar.gz` bundle** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)**.
 
 **Installation:** Most users install from a wheel (`pip install logforge` or `pip install logforge-*.whl`). Config and data live under **LOGFORGE_HOME** (default `/var/lib/logforge` for the systemd service). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
 

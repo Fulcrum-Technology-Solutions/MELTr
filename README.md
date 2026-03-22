@@ -16,7 +16,7 @@ LogForge is a synthetic event log generator designed for SOC engineers, DFIR ana
 
 LogForge is operator-friendly synthetic telemetry: install the package, initialize state under **`LOGFORGE_HOME`**, then run the API (foreground or systemd). For **Linux on-prem** (recommended layout under `/opt`, filesystem rules, systemd), use the full guide:
 
-**[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**
+**[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)** — For the **official Linux x86_64 `.tar.gz`** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)** (GitHub Releases).
 
 Minimal path (evaluation):
 
