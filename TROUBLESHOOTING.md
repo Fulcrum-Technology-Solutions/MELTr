@@ -1,5 +1,17 @@
 # LogForge Service Troubleshooting Guide
 
+**Linux single-instance install and layout:** [docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md).
+
+## Installation paths
+
+- **Wheel install:** The `logforge` binary is typically in the active virtualenv’s `bin/` or in `/usr/local/bin` / `/usr/bin`. Config and data live under **LOGFORGE_HOME** (default: `~/.logforge` for interactive users, or **`/var/lib/logforge`** when running as the service user).
+- **Service user:** The default service user is **logmgr** (not `logforge`). The systemd unit sets `User=logmgr`, `Group=logmgr`, and `Environment="LOGFORGE_HOME=/var/lib/logforge"` when installed with `--home /var/lib/logforge`.
+- **Log files:** Application logs are written to `LOGFORGE_HOME/logs/logforge.log` by default (with rotation). The systemd unit also sends stdout/stderr to the journal.
+
+### Wrong mount or split filesystem
+
+If **`LOGFORGE_HOME`** or **`/opt/logforge`** spans multiple mounts (e.g. bind mounts inside the venv or data dir), you can see confusing permission or I/O errors. Keep the **application venv** under one mount (e.g. all of `/opt/logforge`) and put **large file outputs** on separate paths via `config.yaml` instead of splitting the default tree across devices.
+
 ## Quick Diagnosis Commands
 
 ### 1. Check Systemd Journal Logs (Most Important)
@@ -19,8 +31,10 @@ sudo journalctl -u logforge -n 100 --no-pager | grep -i error
 
 ### 2. Check Service Status
 ```bash
-# Detailed status
-sudo systemctl status logforge -l --no-pager
+# Status (no root required)
+logforge service status
+# or
+systemctl status logforge --no-pager
 
 # Check if service file exists
 cat /etc/systemd/system/logforge.service
@@ -28,143 +42,95 @@ cat /etc/systemd/system/logforge.service
 
 ### 3. Verify Installation
 ```bash
-# Check if logforge binary exists and is executable
+# Binary location (venv or /usr/local/bin when installed from wheel)
 which logforge
-ls -la /opt/logforge/.venv/bin/logforge
-
-# Test logforge command directly
-/opt/logforge/.venv/bin/logforge --version
-/opt/logforge/.venv/bin/logforge status
+logforge --version
+logforge service status
 ```
 
 ### 4. Check LOGFORGE_HOME and Permissions
 ```bash
-# Check LOGFORGE_HOME environment variable
 echo $LOGFORGE_HOME
 
-# Check if logforge directory exists
-ls -la /opt/logforge/logforge/ 2>/dev/null || ls -la ./logforge/ 2>/dev/null || ls -la ~/.logforge/ 2>/dev/null
+# Common locations
+ls -la /var/lib/logforge/ 2>/dev/null || ls -la ~/.logforge/ 2>/dev/null || ls -la ./.logforge/ 2>/dev/null
 
-# Check directory permissions
-ls -la $(dirname $(/opt/logforge/.venv/bin/logforge config show 2>&1 | grep -i config | head -1 | awk '{print $NF}') 2>/dev/null || echo "/opt/logforge/logforge")
-
-# Check if config.yaml exists
-find /opt/logforge -name "config.yaml" -type f 2>/dev/null
-find . -name "config.yaml" -type f 2>/dev/null
-find ~ -name "config.yaml" -type f 2>/dev/null
+# Config and log file
+ls -la /var/lib/logforge/config.yaml 2>/dev/null
+ls -la /var/lib/logforge/logs/logforge.log 2>/dev/null
 ```
 
 ### 5. Test Manual Execution
 ```bash
-# Try running as the logforge user (if it exists)
-sudo -u logforge /opt/logforge/.venv/bin/logforge api start
+# As service user (logmgr)
+sudo -u logmgr logforge api start
 
-# Or run directly to see the error
-/opt/logforge/.venv/bin/logforge api start
-
-# Check Python path
-sudo -u logforge python3 -c "import sys; print(sys.path)"
-sudo -u logforge /opt/logforge/.venv/bin/python -c "import logforge; print('OK')"
+# Or run directly to see errors
+logforge api start
 ```
 
 ### 6. Check User and Permissions
 ```bash
-# Check if logforge user exists
-id logforge 2>/dev/null || echo "logforge user does not exist"
-
-# Check service file user/group
+id logmgr 2>/dev/null || echo "logmgr user does not exist"
 grep -E "^User=|^Group=" /etc/systemd/system/logforge.service
-
-# Check directory ownership
-ls -la /opt/logforge/
-ls -la /opt/logforge/.venv/bin/logforge
+ls -la /var/lib/logforge/
 ```
 
 ### 7. Validate Configuration
 ```bash
-# Validate config file
-/opt/logforge/.venv/bin/logforge config validate
-
-# Show config (if it loads)
-/opt/logforge/.venv/bin/logforge config show
+logforge config validate
+logforge config show
 ```
 
 ### 8. Check Dependencies
 ```bash
-# Verify Python and virtual environment
-/opt/logforge/.venv/bin/python --version
-/opt/logforge/.venv/bin/pip list | grep -E "fastapi|typer|pydantic"
-
-# Check if all required modules can be imported
-sudo -u logforge /opt/logforge/.venv/bin/python -c "
-import sys
-sys.path.insert(0, '/opt/logforge/src')
-try:
-    from logforge.service import LogForgeService
-    print('✓ LogForgeService import successful')
-except Exception as e:
-    print(f'✗ Import failed: {e}')
-    import traceback
-    traceback.print_exc()
-"
+python3 --version
+pip list | grep -E "fastapi|typer|pydantic"
+python3 -c "import logforge; print('OK')"
 ```
 
 ### 9. Check File System and Paths
 ```bash
-# Check if working directory exists
 grep WorkingDirectory /etc/systemd/system/logforge.service
-
-# Verify paths in service file
-cat /etc/systemd/system/logforge.service | grep -E "ExecStart|WorkingDirectory|Environment"
-
-# Check disk space
-df -h /opt/logforge
+grep -E "ExecStart|WorkingDirectory|Environment" /etc/systemd/system/logforge.service
+df -h /var/lib/logforge
 ```
 
 ### 10. Test with Debug Output
 ```bash
-# Run with Python debug output
-sudo -u logforge PYTHONUNBUFFERED=1 /opt/logforge/.venv/bin/python -m logforge api start
-
-# Or with verbose Python
-sudo -u logforge /opt/logforge/.venv/bin/python -v -m logforge api start 2>&1 | head -50
+sudo -u logmgr PYTHONUNBUFFERED=1 logforge api start
+python3 -v -m logforge api start 2>&1 | head -50
 ```
 
 ## Common Issues and Solutions
 
 ### Issue: "ModuleNotFoundError" or Import Errors
 **Solution:**
-- Ensure the `src/` directory is in Python path or install in development mode:
-  ```bash
-  cd /opt/logforge
-  /opt/logforge/.venv/bin/pip install -e .
-  ```
+- Reinstall the wheel or install from source in development mode: `pip install -e .` from the project root.
 
 ### Issue: "Permission denied" errors
 **Solution:**
-- Check file permissions:
+- Ensure LOGFORGE_HOME (e.g. `/var/lib/logforge`) is owned by the service user:
   ```bash
-  sudo chown -R logforge:logforge /opt/logforge/logforge/
-  sudo chmod -R 755 /opt/logforge/logforge/
+  sudo chown -R logmgr:logmgr /var/lib/logforge
   ```
 
 ### Issue: "Config file not found"
 **Solution:**
-- Initialize LogForge:
+- Run init. As a normal user: `logforge init --directory /var/lib/logforge --force` only works if you can write that path; otherwise use `sudo` or init as `logmgr` after `chown`.
   ```bash
-  sudo -u logforge /opt/logforge/.venv/bin/logforge init --directory /opt/logforge/logforge
+  sudo logforge init --directory /var/lib/logforge --user logmgr --group logmgr --force
+  # If logmgr exists and the tree is writable as logmgr:
+  sudo -u logmgr env LOGFORGE_HOME=/var/lib/logforge logforge init --directory /var/lib/logforge --force
   ```
 
 ### Issue: "LOGFORGE_HOME not set correctly"
 **Solution:**
-- Check the service file environment variable:
+- Ensure the systemd unit sets LOGFORGE_HOME. Reinstall the service with explicit home:
   ```bash
-  sudo systemctl edit logforge
-  # Add:
-  # [Service]
-  # Environment="LOGFORGE_HOME=/opt/logforge/logforge"
-  sudo systemctl daemon-reload
+  sudo logforge service install --home /var/lib/logforge --user logmgr
   ```
+  Or edit the unit and add `Environment="LOGFORGE_HOME=/var/lib/logforge"`, then `sudo systemctl daemon-reload`.
 
 ## Viewing HTTP Output Errors
 
@@ -172,10 +138,10 @@ HTTP output errors can be viewed in multiple ways:
 
 ### 1. Main Log File (Primary Location)
 
-The main application log file is configured in your `config.yaml`:
+The main application log file is under LOGFORGE_HOME by default:
 ```yaml
 logging:
-  file: ${LOGFORGE_HOME}/logforge.log
+  file: ${LOGFORGE_HOME}/logs/logforge.log
   level: INFO  # Use DEBUG for more detailed logs
 ```
 
@@ -378,12 +344,12 @@ echo "2. Recent Logs:"
 sudo journalctl -u logforge -n 20 --no-pager
 echo ""
 echo "3. Binary Check:"
-ls -la /opt/logforge/.venv/bin/logforge 2>/dev/null || echo "Binary not found"
+which logforge && logforge --version || echo "Binary not found"
 echo ""
 echo "4. Config Check:"
-/opt/logforge/.venv/bin/logforge config validate 2>&1 || echo "Config validation failed"
+logforge config validate 2>&1 || echo "Config validation failed"
 echo ""
 echo "5. Manual Test:"
-timeout 5 /opt/logforge/.venv/bin/logforge api start 2>&1 || echo "Manual start failed"
+timeout 5 logforge api start 2>&1 || echo "Manual start failed"
 ```
 

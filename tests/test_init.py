@@ -99,6 +99,16 @@ def test_init_sets_file_permissions(tmp_path, monkeypatch):
         assert entities_mode == 0o600
 
 
+def test_init_without_create_user_flags_defaults_to_non_root_behavior(tmp_path, monkeypatch):
+    """Omitting --create-user/--no-create-user uses non-root default (no logmgr) when euid != 0."""
+    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setattr("logforge.cli.init.os.geteuid", lambda: 1000)
+    runner = CliRunner()
+    result = runner.invoke(app, ["init", "--force", "--directory", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "config.yaml").exists()
+
+
 
 
 

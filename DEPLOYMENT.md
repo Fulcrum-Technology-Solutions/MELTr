@@ -1,5 +1,9 @@
 # LogForge Deployment & Update Guide
 
+**First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**.
+
+**Installation:** Most users install from a wheel (`pip install logforge` or `pip install logforge-*.whl`). Config and data live under **LOGFORGE_HOME** (default `/var/lib/logforge` for the systemd service). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
+
 ## Update Process for Test Machines
 
 ### Scenario: You've made code changes and need to update a test machine
@@ -87,28 +91,16 @@ sudo systemctl disable logforge
 sudo logforge service uninstall
 
 # Backup your data (config, entities, templates)
-sudo cp -r /opt/logforge/logforge /opt/logforge/logforge.backup.$(date +%Y%m%d_%H%M%S)
+sudo cp -r /var/lib/logforge /var/lib/logforge.backup.$(date +%Y%m%d_%H%M%S)
 
-# Remove old installation
-sudo rm -rf /opt/logforge/src
-sudo rm -rf /opt/logforge/.venv
+# For wheel install: upgrade the package; data stays in /var/lib/logforge
+pip install logforge --upgrade
 
-# Follow fresh installation steps
-cd /opt/logforge
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
+# Reinstall service (only if you removed it)
+sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge
 
-# Install from your source (git pull or file copy)
-git clone <your-repo> src  # or copy files
-cd src
-pip install -e .
-
-# Reinstall service
-sudo logforge service install --user logmgr --group logmgr --home /opt/logforge/logforge
-
-# Restore your data (if needed)
-# Config and entities should still be in /opt/logforge/logforge
+# For source install: remove old tree, clone/copy, pip install -e ., then service install --home /var/lib/logforge
+# Restore from backup to /var/lib/logforge if you moved data
 
 # Start service
 sudo systemctl start logforge
@@ -123,7 +115,7 @@ sudo systemctl enable logforge
 - ✅ `templates/custom/` - Your custom templates
 - ✅ `templates/default/` - Community templates (unless you reinstall them)
 - ✅ `outputs/` - Output files
-- ✅ `logforge.log` - Log files
+- ✅ `logs/logforge.log` - Log files (under LOGFORGE_HOME)
 
 **Replaced:**
 - 🔄 Python source code (`src/`)

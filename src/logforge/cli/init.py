@@ -23,11 +23,22 @@ app = typer.Typer(name="init", help="Initialize LogForge configuration")
 DEFAULT_SERVICE_USER = "logmgr"
 
 
+def default_create_user() -> bool:
+    """Default for --create-user when neither flag is passed: True only as root (typical service prep)."""
+    try:
+        return os.geteuid() == 0
+    except (AttributeError, OSError):
+        return False
+
+
 def _check_root_for_init() -> None:
     """Require root when --create-user is used."""
     if not check_root():
         console.print("[red]Error: Creating a service user requires root privileges.[/red]")
-        console.print("[yellow]Hint: Use 'sudo logforge init ...' or run without --create-user[/yellow]")
+        console.print(
+            "[yellow]Hint: Use 'sudo logforge init ...', or 'logforge init --no-create-user' "
+            "to initialize a user-writable LOGFORGE_HOME without creating logmgr.[/yellow]"
+        )
         raise typer.Exit(code=1)
 
 
@@ -37,15 +48,18 @@ def init(
     force: bool = False,
     user: Optional[str] = None,
     group: Optional[str] = None,
-    create_user: bool = True,
+    create_user: Optional[bool] = None,
 ) -> None:
     """Initialize LogForge configuration and directory structure.
 
     Uses LOGFORGE_HOME (default: ./.logforge or ./logforge when present, else
     ~/.logforge for interactive users or /var/lib/logforge for service accounts).
     With --create-user and root, creates the service user/group (default: logmgr)
-    and sets ownership.
+    and sets ownership. If neither --create-user nor --no-create-user is passed,
+    defaults to creating a service user only when running as root.
     """
+    if create_user is None:
+        create_user = default_create_user()
     if directory and directory is not None:
         home = Path(directory).expanduser().resolve()
     else:
@@ -72,11 +86,12 @@ def init(
     console.print(f"[green]Initializing LogForge in {home}[/green]")
     
     home.mkdir(parents=True, exist_ok=True)
+    (home / 'logs').mkdir(parents=True, exist_ok=True)
     templates_path.mkdir(parents=True, exist_ok=True)
     (templates_path / 'default').mkdir(parents=True, exist_ok=True)
     (templates_path / 'custom').mkdir(parents=True, exist_ok=True)
     (home / 'outputs').mkdir(parents=True, exist_ok=True)
-    
+
     if create_user:
         service_uid, service_gid = ensure_service_user_and_group(
             service_user,
@@ -92,7 +107,7 @@ def init(
         if service_uid is not None and (service_uid, service_gid) != (0, 0):
             try:
                 os.chown(home, service_uid, service_gid)
-                for d in [templates_path, templates_path / 'default', templates_path / 'custom', home / 'outputs']:
+                for d in [home / 'logs', templates_path, templates_path / 'default', templates_path / 'custom', home / 'outputs']:
                     if d.exists():
                         os.chown(d, service_uid, service_gid)
                 # Chown install root when home is under /opt/.../data or .../logforge
