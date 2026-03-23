@@ -12,32 +12,25 @@ LogForge is a synthetic event log generator designed for SOC engineers, DFIR ana
 - **Outputs** – File, console, HTTP, TCP, and syslog handlers share buffered retry logic with per-handler metrics and backlog tracking.
 - **Observability** – Prometheus-compatible metrics, structured logs, template/engine telemetry, and end-to-end test coverage.
 
-## Quick start
+## Quick start (production)
 
-LogForge is operator-friendly synthetic telemetry: install the package, initialize state under **`LOGFORGE_HOME`**, then run the API (foreground or systemd). For **Linux on-prem** (recommended layout under `/opt`, filesystem rules, systemd), use the full guide:
-
-**[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)** — For the **official Linux x86_64 `.tar.gz`** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)** (GitHub Releases).
-
-Minimal path (evaluation):
+Recommended path for **Linux x86_64**: download the official **`logforge-{version}-linux-x86_64.tar.gz`** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases), unpack under `/opt`, put the CLI on `PATH`, then initialize and run:
 
 ```bash
-pip install logforge
+sudo tar xzf logforge-{version}-linux-x86_64.tar.gz -C /opt
+sudo mv /opt/logforge-{version}-linux-x86_64 /opt/logforge
+export PATH=/opt/logforge/app/bin:$PATH
+export LOGFORGE_HOME=/opt/logforge/data
 logforge init --force
 logforge start
 ```
 
-- **Data location:** Config and data default to `~/.logforge` for normal users (or `./.logforge` / `./logforge` when present in the working tree). Override with `LOGFORGE_HOME`. Service installs often use `/var/lib/logforge` and user **`logmgr`**.
-- **Upgrades / backups:** See [DEPLOYMENT.md](DEPLOYMENT.md). **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)** (filesystem, systemd, checksums). Broader Linux layout (including systemd): **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**.
 
-### Development / from source
+**Other install options:** Install from a **wheel** (e.g. from a release asset or PyPI when published) into a venv, or run from a **source checkout** for development—see [linux-single-instance.md](docs/deployment/linux-single-instance.md).
 
-```bash
-git clone https://github.com/Fulcrum-Technology-Solutions/LogForge.git
-cd logforge
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-```
+- **Data location:** Config and data live under **`LOGFORGE_HOME`** (defaults described in the deployment guides). Override with `LOGFORGE_HOME`. Service installs often use `/var/lib/logforge` and user **`logmgr`**.
+- **Upgrades / backups:** [DEPLOYMENT.md](DEPLOYMENT.md). **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### CLI examples
 
@@ -84,24 +77,9 @@ All commands accept `--output json` for machine-friendly output and `--skip-heal
 
 ## Development
 
-### Tests
+Environment setup, tests, and formatting: **[docs/development/setup.md](docs/development/setup.md)**.
 
-```bash
-pytest           # full suite
-pytest -k tcp    # focused tests
-```
-
-The suite includes unit, API, CLI, output, and end-to-end scenarios.
-
-### Formatting & Linting
-
-```bash
-ruff check .
-black .
-mypy src
-```
-
-### Directory Layout
+### Directory layout
 
 ```
 src/logforge/

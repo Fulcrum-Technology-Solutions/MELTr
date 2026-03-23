@@ -2,6 +2,8 @@
 
 Releases are built on **Linux x86_64** (e.g. GitHub Actions `ubuntu-latest`) by [`.github/workflows/release.yml`](../../.github/workflows/release.yml) after `python -m build`.
 
+Contributors working from a clone should start with [setup.md](setup.md) (editable install and tests).
+
 ## What you get
 
 - **`app/bin/logforge`** — Shell script (not an ELF). It sets `PYTHONPATH` to the bundled `app/lib/python3.11/site-packages` and runs `python/bin/python3.11 -m logforge`. The ELF is the **embedded CPython interpreter** under `python/bin/`.
