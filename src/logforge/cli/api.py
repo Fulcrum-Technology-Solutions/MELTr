@@ -4,6 +4,7 @@ import os
 import sys
 from typing import Optional
 
+import click.exceptions
 import typer
 from rich.console import Console
 
@@ -83,8 +84,8 @@ def api_start(
             service.config.api.port = port
 
         service.run()
-    except typer.Exit:
-        # Parent return from daemonize uses typer.Exit(0); must not be treated as failure.
+    except (typer.Exit, click.exceptions.Exit):
+        # Clean CLI exits must not hit the generic Exception handler (Typer vs Click class names differ by version).
         raise
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutting down...[/yellow]")
