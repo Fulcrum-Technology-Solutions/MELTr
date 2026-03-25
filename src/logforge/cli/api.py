@@ -35,7 +35,10 @@ def _detach_from_terminal() -> None:
     if pid > 0:
         console.print(f"[green]LogForge started in background (PID {pid}).[/green]")
         console.print(f"[dim]Logs: LOGFORGE_HOME/logs — stop: kill {pid}[/dim]")
-        raise typer.Exit(0)
+        # Parent must not return through Typer/Click (Exit is caught as Exception in some versions).
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
     os.setsid()
     devnull_in = open(os.devnull, "rb")
     devnull_out = open(os.devnull, "wb")
