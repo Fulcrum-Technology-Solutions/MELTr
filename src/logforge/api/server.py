@@ -17,10 +17,10 @@ logger = get_logger(__name__)
 
 class APIServer:
     """Manages FastAPI server lifecycle in background thread."""
-    
+
     def __init__(self, config: Config) -> None:
         """Initialize API server.
-        
+
         Args:
             config: Configuration object
         """
@@ -34,9 +34,10 @@ class APIServer:
         self.server_thread: Optional[threading.Thread] = None
         self.server: Optional[uvicorn.Server] = None
         self.start_time: Optional[float] = None
+        self._thread_error: Optional[BaseException] = None
         self._setup_middleware()
         self._setup_routes()
-    
+
     def _setup_middleware(self) -> None:
         """Configure CORS and other middleware."""
         self.app.add_middleware(
@@ -46,20 +47,20 @@ class APIServer:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-    
+
     def _setup_routes(self) -> None:
         """Register API routes."""
         from logforge.api.endpoints import entities, generators, health, templates
-        
+
         # Store server instance in app state for dependency injection
         self.app.state.server = self
-        
+
         # Register routers
         self.app.include_router(health.router)
         self.app.include_router(entities.router)
         self.app.include_router(templates.router)
         self.app.include_router(generators.router)
-        
+
         @self.app.get("/api/metrics", response_class=PlainTextResponse)
         async def metrics(request: Request) -> str:
             """Prometheus metrics endpoint."""
@@ -77,29 +78,34 @@ class APIServer:
                 except Exception:
                     pass
             return "\n".join(lines) + "\n"
-    
+
     def get_uptime(self) -> int:
         """Get server uptime in seconds.
-        
+
         Returns:
             Uptime in seconds, or 0 if not started
         """
         if self.start_time is None:
             return 0
         return int(time.time() - self.start_time)
-    
+
     def start(self) -> None:
         """Start API server in background thread."""
         if self.server_thread is not None and self.server_thread.is_alive():
             logger.warning("API server already running")
             return
-        
+        if self.server_thread is not None and not self.server_thread.is_alive():
+            self.server_thread = None
+            self.server = None
+
         api_config = self.config.api
-        
+
         if not api_config.enabled:
             logger.info("API server disabled in configuration")
             return
-        
+
+        self._thread_error = None
+
         def run_server() -> None:
             """Run uvicorn server in thread."""
             try:
@@ -115,39 +121,42 @@ class APIServer:
                 logger.info(f"Starting API server on {api_config.host}:{api_config.port}")
                 self.server.run()
             except Exception as e:
+                self._thread_error = e
                 logger.error(f"API server error: {e}", exc_info=True)
-        
+
         self.server_thread = threading.Thread(
             target=run_server,
             daemon=True,
             name="logforge-api-server"
         )
         self.server_thread.start()
-        
+
         # Wait a moment for server to start
         time.sleep(0.5)
         logger.info("API server started in background thread")
-    
+
     def stop(self) -> None:
         """Stop API server gracefully."""
         if self.server is None:
             return
-        
+
         logger.info("Stopping API server...")
         if self.server:
             self.server.should_exit = True
-        
+
         if self.server_thread and self.server_thread.is_alive():
             self.server_thread.join(timeout=5.0)
-        
+
         self.start_time = None
         logger.info("API server stopped")
-    
+
     def is_running(self) -> bool:
         """Check if server is running.
-        
+
         Returns:
             True if server thread is alive
         """
+        if self._thread_error is not None:
+            return False
         return self.server_thread is not None and self.server_thread.is_alive()
 
