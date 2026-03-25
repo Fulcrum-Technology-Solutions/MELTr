@@ -153,8 +153,13 @@ class LogForgeService:
 
     def run(self) -> None:
         """Run service (blocking)."""
+        from logforge.core.pidfile import remove_service_pidfile, write_service_pidfile
+
+        pidfile_written = False
         try:
             self.start()
+            write_service_pidfile()
+            pidfile_written = True
 
             # Keep service running
             import time
@@ -170,6 +175,8 @@ class LogForgeService:
                 self.stop()
             except Exception as e:
                 logger.error(f"Error during shutdown: {e}", exc_info=True)
+            if pidfile_written:
+                remove_service_pidfile()
 
 
 def main() -> None:

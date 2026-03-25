@@ -61,6 +61,22 @@ def start(
     from logforge.cli.api import api_start
     api_start(host=host, port=port, config=config, foreground=foreground)
 
+
+@app.command("stop")
+def stop_command(
+    timeout: int = typer.Option(
+        30,
+        "--timeout",
+        "-t",
+        help="Seconds to wait after SIGTERM before SIGKILL",
+    ),
+) -> None:
+    """Stop the LogForge service (PID file under LOGFORGE_HOME/run/)."""
+    from logforge.cli.api import api_stop
+
+    api_stop(timeout=timeout)
+
+
 # Add status command (shortcut for generators status)
 @app.command("status")
 def status(

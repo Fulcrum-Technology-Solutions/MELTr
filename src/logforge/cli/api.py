@@ -35,7 +35,7 @@ def _detach_from_terminal() -> None:
     pid = os.fork()
     if pid > 0:
         console.print(f"[green]LogForge started in background (PID {pid}).[/green]")
-        console.print(f"[dim]Logs: LOGFORGE_HOME/logs — stop: kill {pid}[/dim]")
+        console.print(f"[dim]Logs: LOGFORGE_HOME/logs — stop: logforge stop | kill {pid}[/dim]")
         # Parent must not return through Typer/Click (Exit is caught as Exception in some versions).
         sys.stdout.flush()
         sys.stderr.flush()
@@ -96,4 +96,87 @@ def api_start(
         console.print("[red]Traceback:[/red]")
         console.print(traceback.format_exc())
         raise typer.Exit(code=1) from None
+
+
+@app.command("stop")
+def api_stop(
+    timeout: int = typer.Option(
+        30,
+        "--timeout",
+        "-t",
+        help="Seconds to wait after SIGTERM before SIGKILL",
+    ),
+) -> None:
+    """Stop the LogForge daemon (PID from LOGFORGE_HOME/run/logforge.pid)."""
+    import os
+    import signal
+    import time
+
+    from logforge.core.paths import get_logforge_home
+    from logforge.core.pidfile import (
+        cmdline_suggests_logforge,
+        read_service_pid,
+        remove_service_pidfile,
+    )
+
+    if not hasattr(os, "kill"):
+        console.print("[red]logforge stop requires a POSIX system with os.kill[/red]")
+        raise typer.Exit(code=1)
+
+    home = get_logforge_home()
+    pid = read_service_pid(home)
+    if pid is None:
+        console.print(
+            f"[yellow]No PID file at {home / 'run' / 'logforge.pid'} — nothing to stop.[/yellow]"
+        )
+        raise typer.Exit(code=0)
+
+    if pid == os.getpid():
+        console.print("[red]Refusing to stop: PID file points at this CLI process[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        console.print(f"[yellow]Stale PID file (process {pid} gone); removing it.[/yellow]")
+        remove_service_pidfile(home)
+        raise typer.Exit(code=0) from None
+    except PermissionError:
+        console.print(
+            f"[red]No permission to signal PID {pid}. "
+            "Run as the same user as the service (or root).[/red]"
+        )
+        raise typer.Exit(code=1) from None
+
+    if not cmdline_suggests_logforge(pid):
+        console.print(
+            f"[red]PID {pid} does not appear to be LogForge; refusing to kill.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]Stopping LogForge (PID {pid})...[/green]")
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        remove_service_pidfile(home)
+        console.print("[green]LogForge already stopped.[/green]")
+        raise typer.Exit(code=0) from None
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            remove_service_pidfile(home)
+            console.print("[green]LogForge stopped.[/green]")
+            raise typer.Exit(code=0) from None
+        time.sleep(0.2)
+
+    console.print(f"[yellow]Still running after {timeout}s; sending SIGKILL[/yellow]")
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    remove_service_pidfile(home)
+    console.print("[green]LogForge stopped.[/green]")
 

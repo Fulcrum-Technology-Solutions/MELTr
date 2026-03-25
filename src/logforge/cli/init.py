@@ -86,6 +86,7 @@ def init(
     console.print(f"[green]Initializing LogForge in {home}[/green]")
     
     home.mkdir(parents=True, exist_ok=True)
+    (home / 'run').mkdir(parents=True, exist_ok=True)
     (home / 'logs').mkdir(parents=True, exist_ok=True)
     templates_path.mkdir(parents=True, exist_ok=True)
     (templates_path / 'default').mkdir(parents=True, exist_ok=True)
@@ -107,7 +108,14 @@ def init(
         if service_uid is not None and (service_uid, service_gid) != (0, 0):
             try:
                 os.chown(home, service_uid, service_gid)
-                for d in [home / 'logs', templates_path, templates_path / 'default', templates_path / 'custom', home / 'outputs']:
+                for d in [
+                    home / 'run',
+                    home / 'logs',
+                    templates_path,
+                    templates_path / 'default',
+                    templates_path / 'custom',
+                    home / 'outputs',
+                ]:
                     if d.exists():
                         os.chown(d, service_uid, service_gid)
                 # Chown install root when home is under /opt/.../data or .../logforge

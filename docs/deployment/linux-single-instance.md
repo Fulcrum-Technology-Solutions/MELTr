@@ -82,6 +82,8 @@ source /opt/logforge/.venv/bin/activate
 logforge start
 ```
 
+To stop a manually started instance (foreground or background): **`logforge stop`** with the same `LOGFORGE_HOME`—equivalent to **`logforge api stop`**.
+
 ### Systemd service (production)
 
 1. Ensure data directory exists and is owned by the service user (default **`logmgr`**):

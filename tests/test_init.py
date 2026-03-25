@@ -30,6 +30,7 @@ def test_init_creates_directory_structure(tmp_path, monkeypatch):
     assert (tmp_path / "templates" / "default").exists()
     assert (tmp_path / "templates" / "custom").exists()
     assert (tmp_path / "outputs").exists()
+    assert (tmp_path / "run").exists()
 
 
 def test_init_creates_config_file(tmp_path, monkeypatch):

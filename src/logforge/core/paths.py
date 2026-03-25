@@ -79,6 +79,13 @@ def get_logforge_home() -> Path:
     return home_path
 
 
+def get_pidfile_path(home: Optional[Path] = None) -> Path:
+    """Path to the main service PID file (LOGFORGE_HOME/run/logforge.pid)."""
+    if home is None:
+        home = get_logforge_home()
+    return home.resolve() / "run" / "logforge.pid"
+
+
 def _ensure_directory(path: Path) -> None:
     """Ensure directory exists, create if needed.
     

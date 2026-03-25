@@ -22,6 +22,7 @@ export PATH=/opt/logforge/app/bin:$PATH
 export LOGFORGE_HOME=/opt/logforge/data
 logforge init --force
 logforge start          # backgrounds on POSIX (Splunk-style); use --foreground / -f to stay attached
+logforge stop           # SIGTERM via $LOGFORGE_HOME/run/logforge.pid; optional --timeout
 ```
 
 Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)** (filesystem, systemd, checksums). Broader Linux layout (including systemd): **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**.
@@ -35,7 +36,8 @@ Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linu
 
 ```bash
 # Service management
-logforge start                    # Start service (foreground)
+logforge start                    # Start API + engine (daemon on POSIX unless -f)
+logforge stop                     # Stop process in run/logforge.pid (same LOGFORGE_HOME as start)
 logforge service install          # Install systemd service (requires root)
 logforge service start            # Start systemd service
 logforge service stop             # Stop systemd service

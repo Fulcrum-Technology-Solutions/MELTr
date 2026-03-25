@@ -46,6 +46,8 @@ On POSIX, `logforge start` **daemonizes by default** (Splunk/Cribl-style): it pr
 
 **systemd** units use `api start --foreground` so the service manager tracks the main process correctly.
 
+**Stopping a manual start:** use **`logforge stop`** (same `LOGFORGE_HOME` as when you ran `start`); it reads `run/logforge.pid`, sends **SIGTERM**, then **SIGKILL** after `--timeout` if needed. For production, prefer **`systemctl stop logforge`** / `logforge service stop`.
+
 ## systemd
 
 The unit should invoke the **bundled** CLI:
