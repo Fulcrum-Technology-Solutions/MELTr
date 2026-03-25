@@ -44,6 +44,11 @@ mkdir -p "$STAGING"
 echo "Downloading ${PBS_NAME} ..."
 curl -fsSL "$PBS_URL" -o "$PY_TAR"
 curl -fsSL "$PBS_SHA_URL" -o "${PY_TAR}.sha256"
+# upstream ships a bare 64-hex line; sha256sum -c needs '<hash>  <filename>' (two spaces).
+FIRST_LINE="$(tr -d '\r' < "${PY_TAR}.sha256" | head -n1)"
+if [[ "$FIRST_LINE" =~ ^[a-fA-F0-9]{64}$ ]]; then
+  printf '%s  %s\n' "$FIRST_LINE" "${PBS_NAME}" > "${PY_TAR}.sha256"
+fi
 ( cd "$WORKDIR" && sha256sum -c "${PBS_NAME}.sha256" )
 
 tar -xzf "$PY_TAR" -C "$STAGING"
