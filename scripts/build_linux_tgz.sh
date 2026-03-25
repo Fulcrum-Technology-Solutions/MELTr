@@ -19,6 +19,21 @@ if [[ "$(uname -m)" != x86_64 ]]; then
   die "This script only targets x86_64 (see plan for future aarch64)."
 fi
 
+require_cmds() {
+  local cmd missing=()
+  for cmd in "$@"; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+  done
+  if ((${#missing[@]})); then
+    echo "ERROR: missing required commands: ${missing[*]}" >&2
+    echo "  RHEL/Fedora/Alma: dnf install -y tar curl coreutils findutils" >&2
+    echo "  Debian/Ubuntu:    apt-get update && apt-get install -y tar curl coreutils findutils" >&2
+    echo "  Alpine:           apk add tar curl coreutils findutils" >&2
+    exit 1
+  fi
+}
+require_cmds curl tar sha256sum mktemp find head tee
+
 VERSION="${1:?usage: $0 <version> [dist_dir]}"
 DIST_DIR="${2:-dist}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
