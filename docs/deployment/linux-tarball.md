@@ -40,6 +40,12 @@ logforge start
 
 `get_logforge_home()` treats binaries under `/opt/logforge` as an install layout and defaults `LOGFORGE_HOME` to `/opt/logforge/data` when unset—see [`paths.py`](../../src/logforge/core/paths.py).
 
+## Background operation (default)
+
+On POSIX, `logforge start` **daemonizes by default** (Splunk/Cribl-style): it prints the child PID and returns your shell. Logs go to `LOGFORGE_HOME/logs`. Use **`logforge start --foreground`** (`-f`) to keep the process attached for troubleshooting.
+
+**systemd** units use `api start --foreground` so the service manager tracks the main process correctly.
+
 ## systemd
 
 The unit should invoke the **bundled** CLI:

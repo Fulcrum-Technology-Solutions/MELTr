@@ -50,10 +50,16 @@ def start(
     host: Optional[str] = typer.Option(None, "--host", help="API server host"),
     port: Optional[int] = typer.Option(None, "--port", help="API server port"),
     config: Optional[str] = typer.Option(None, "--config", help="Config file path"),
+    foreground: bool = typer.Option(
+        False,
+        "--foreground",
+        "-f",
+        help="Stay attached to the terminal (default is to background on POSIX, like Splunk/Cribl CLI start)",
+    ),
 ) -> None:
     """Start the LogForge service and API server."""
     from logforge.cli.api import api_start
-    api_start(host=host, port=port, config=config)
+    api_start(host=host, port=port, config=config, foreground=foreground)
 
 # Add status command (shortcut for generators status)
 @app.command("status")

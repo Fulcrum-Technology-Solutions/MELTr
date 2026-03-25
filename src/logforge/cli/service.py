@@ -31,7 +31,7 @@ Type=simple
 User={service_user}
 Group={service_group}
 WorkingDirectory={logforge_home}
-ExecStart={logforge_bin} api start
+ExecStart={logforge_bin} api start --foreground
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=90
@@ -60,11 +60,14 @@ def _get_logforge_binary_path() -> Path:
     if logforge_path:
         return Path(logforge_path).resolve()
 
-    # /opt: resolve casing (e.g. /opt/LogForge)
+    # /opt: official tarball layout app/bin/logforge, or dev .venv (casing: LogForge)
     opt = Path('/opt')
     if opt.exists():
         for p in opt.iterdir():
             if p.is_dir() and p.name.lower() == 'logforge':
+                bundle_bin = p / 'app' / 'bin' / 'logforge'
+                if bundle_bin.is_file():
+                    return bundle_bin.resolve()
                 venv_bin = p / '.venv' / 'bin' / 'logforge'
                 if venv_bin.exists():
                     return venv_bin.resolve()

@@ -160,7 +160,7 @@ code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/logfor
 sudo tar xzf ${ARCHIVE_BASENAME}.tar.gz -C /opt   # creates /opt/logforge
 export PATH=/opt/logforge/app/bin:\$PATH
 logforge init --force
-logforge start
+logforge start   # backgrounds on Linux; use --foreground to attach; or \`service install\` + systemctl
 \`\`\`
 
 See \`docs/deployment/linux-tarball.md\` in the source tree for full operator documentation.

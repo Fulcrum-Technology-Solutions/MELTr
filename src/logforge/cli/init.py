@@ -134,8 +134,8 @@ def init(
     # Set secure permissions (600)
     os.chmod(config_path, 0o600)
     
-    # Create default entities.yaml if it doesn't exist
-    if not entities_path.exists():
+    # Create default entities.yaml if missing; on --force replace (fixes broken/minimal registries)
+    if not entities_path.exists() or force:
         _create_default_entities(home, entities_path)
         os.chmod(entities_path, 0o600)
     
@@ -197,6 +197,52 @@ def _interactive_wizard(home: Path) -> 'Config':
     return config
 
 
+def _minimal_valid_entities() -> dict:
+    """Smallest entity registry that passes validate_entities (for offline / missing bundle data)."""
+    return {
+        "organization": {
+            "name": "Acme Corporation",
+            "domain": "acme.com",
+            "contacts": {
+                "admin": "admin@acme.com",
+            },
+        },
+        "users": [
+            {
+                "username": "admin",
+                "email": "admin@acme.com",
+                "full_name": "Administrator",
+            },
+        ],
+        "devices": [
+            {
+                "hostname": "WORKSTATION-01",
+                "ip_address": "192.168.1.100",
+                "mac_address": "00:11:22:33:44:55",
+            },
+        ],
+        "services": [
+            {
+                "name": "Example HTTP",
+                "port": 80,
+                "protocol": "HTTP",
+            },
+        ],
+    }
+
+
+def _load_bundled_sample_entities() -> Optional[dict]:
+    """Load packaged entities.sample.yaml if present."""
+    try:
+        from importlib.resources import files
+
+        path = files("logforge").joinpath("data", "entities.sample.yaml")
+        content = path.read_text(encoding="utf-8")
+        return yaml.safe_load(content)
+    except Exception:
+        return None
+
+
 def _create_default_entities(home: Path, entities_path: Path) -> None:
     """Create default entities.yaml from bundled sample or minimal fallback.
     
@@ -204,27 +250,17 @@ def _create_default_entities(home: Path, entities_path: Path) -> None:
         home: LOGFORGE_HOME path (used to resolve examples path when not in package).
         entities_path: Path to entities.yaml to write.
     """
-    default_entities = None
-    try:
-        from importlib.resources import read_text
-        content = read_text("logforge", "data/entities.sample.yaml", encoding="utf-8")
-        default_entities = yaml.safe_load(content)
-    except Exception:
-        pass
-    if default_entities is None:
-        default_entities = {
-            "organization": {
-                "name": "Acme Corporation",
-                "domain": "acme.com",
-                "contacts": {
-                    "admin": "admin@acme.com",
-                    "security": "security@acme.com",
-                },
-            },
-            "users": [],
-            "devices": [],
-            "services": [],
-        }
+    from logforge.entities.validator import validate_entities
+
+    data = _load_bundled_sample_entities()
+    if data is not None:
+        try:
+            validate_entities(data)
+        except Exception:
+            data = None
+    if data is None:
+        data = _minimal_valid_entities()
+        validate_entities(data)
     with entities_path.open("w", encoding="utf-8") as f:
-        yaml.dump(default_entities, f, default_flow_style=False, sort_keys=False)
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 

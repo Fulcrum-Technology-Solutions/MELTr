@@ -21,7 +21,7 @@ sudo tar xzf logforge-{version}-linux-x86_64.tar.gz -C /opt
 export PATH=/opt/logforge/app/bin:$PATH
 export LOGFORGE_HOME=/opt/logforge/data
 logforge init --force
-logforge start
+logforge start          # backgrounds on POSIX (Splunk-style); use --foreground / -f to stay attached
 ```
 
 Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)** (filesystem, systemd, checksums). Broader Linux layout (including systemd): **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**.
