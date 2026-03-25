@@ -80,6 +80,9 @@ def api_start(
             service.config.api.port = port
 
         service.run()
+    except typer.Exit:
+        # Parent return from daemonize uses typer.Exit(0); must not be treated as failure.
+        raise
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutting down...[/yellow]")
     except Exception as e:
