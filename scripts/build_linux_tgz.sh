@@ -106,7 +106,17 @@ WRAPPER
 chmod 755 "$APP_PREFIX/bin/logforge"
 
 # License files
-cp -f "$ROOT/LICENSE" "$OUT_ROOT/LICENSE"
+if [[ -f "$ROOT/LICENSE" ]]; then
+  cp -f "$ROOT/LICENSE" "$OUT_ROOT/LICENSE"
+else
+  echo "WARNING: $ROOT/LICENSE missing; tarball will include an Apache-2.0 reference stub. Add LICENSE to the repo (see NOTICE)." >&2
+  cat > "$OUT_ROOT/LICENSE" << 'STUB'
+LogForge is licensed under the Apache License, Version 2.0.
+
+This build did not include the full LICENSE file from the repository. Use:
+https://www.apache.org/licenses/LICENSE-2.0.txt
+STUB
+fi
 if [[ -f "$ROOT/NOTICE" ]]; then
   cp -f "$ROOT/NOTICE" "$OUT_ROOT/NOTICE"
 fi
