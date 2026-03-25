@@ -6,6 +6,7 @@ Contributors working from a clone should start with [setup.md](setup.md) (editab
 
 ## What you get
 
+- **Layout** — The `.tar.gz` has a single top-level directory **`logforge/`** (override at build time with env **`BUNDLE_DIR`**). The release **filename** stays versioned, e.g. `logforge-1.2.3-linux-x86_64.tar.gz`.
 - **`app/bin/logforge`** — Shell script (not an ELF). It sets `PYTHONPATH` to the bundled `app/lib/python3.11/site-packages` and runs `python/bin/python3.11 -m logforge`. The ELF is the **embedded CPython interpreter** under `python/bin/`.
 - **`python/`** — Pinned [python-build-standalone](https://github.com/astral-sh/python-build-standalone) `install_only` tarball (see `PBS_*` variables in [`scripts/build_linux_tgz.sh`](../../scripts/build_linux_tgz.sh)).
 - **`app/lib/python3.11/site-packages/`** — From `pip install --prefix app` of the LogForge wheel and dependencies (no relocatable venv; avoids broken shebangs after moving the tree).

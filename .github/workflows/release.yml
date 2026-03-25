@@ -63,7 +63,7 @@ jobs:
           test -f "$TGZ"
           D=$(mktemp -d)
           tar xzf "$TGZ" -C "$D"
-          B="$D/logforge-${{ steps.version.outputs.version }}-linux-x86_64"
+          B="$D/logforge"
           test -x "$B/app/bin/logforge"
           export PATH="$B/app/bin:$PATH"
           logforge --version

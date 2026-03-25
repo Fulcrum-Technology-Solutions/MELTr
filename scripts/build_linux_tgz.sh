@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build logforge-{version}-linux-x86_64.tar.gz: embedded CPython (python-build-standalone)
+# Build logforge-{version}-linux-x86_64.tar.gz (unpacks to ./logforge/): embedded CPython (python-build-standalone)
 # + pip --prefix install of the wheel + portable bin/logforge wrapper.
 #
 # Requires: Linux x86_64, bash, curl, tar, gzip, sha256sum, python3 (build host only for bootstrap if needed).
@@ -71,8 +71,10 @@ tar -xzf "$PY_TAR" -C "$STAGING"
 EXTRACTED_PY="$STAGING/python/bin/python3.11"
 [[ -x "$EXTRACTED_PY" ]] || die "Expected embedded Python at $EXTRACTED_PY"
 
-BUNDLE_NAME="logforge-${VERSION}-linux-x86_64"
-OUT_ROOT="$STAGING/${BUNDLE_NAME}"
+# Top-level directory inside the tarball (stable path for `tar -C /opt`).
+BUNDLE_DIR="${BUNDLE_DIR:-logforge}"
+ARCHIVE_BASENAME="logforge-${VERSION}-linux-x86_64"
+OUT_ROOT="$STAGING/${BUNDLE_DIR}"
 mkdir -p "$OUT_ROOT"
 
 mv "$STAGING/python" "$OUT_ROOT/python"
@@ -155,8 +157,7 @@ code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/logfor
 ## Quick use
 
 \`\`\`bash
-sudo tar xzf logforge-${VERSION}-linux-x86_64.tar.gz -C /opt
-sudo mv /opt/${BUNDLE_NAME} /opt/logforge   # optional fixed path
+sudo tar xzf ${ARCHIVE_BASENAME}.tar.gz -C /opt   # creates /opt/logforge
 export PATH=/opt/logforge/app/bin:\$PATH
 logforge init --force
 logforge start
@@ -172,11 +173,11 @@ See \`docs/deployment/linux-tarball.md\` in the source tree for full operator do
 - Dependencies: THIRD_PARTY_NOTICES.txt
 EOF
 
-ARCHIVE_NAME="${BUNDLE_NAME}.tar.gz"
+ARCHIVE_NAME="${ARCHIVE_BASENAME}.tar.gz"
 ARCHIVE_PATH="${ROOT}/${DIST_DIR}/${ARCHIVE_NAME}"
 (
   cd "$STAGING"
-  tar -czf "$ARCHIVE_PATH" "$BUNDLE_NAME"
+  tar -czf "$ARCHIVE_PATH" "$BUNDLE_DIR"
 )
 
 echo "Created $ARCHIVE_PATH"

@@ -18,7 +18,6 @@ Recommended path for **Linux x86_64**: download the official **`logforge-{versio
 
 ```bash
 sudo tar xzf logforge-{version}-linux-x86_64.tar.gz -C /opt
-sudo mv /opt/logforge-{version}-linux-x86_64 /opt/logforge
 export PATH=/opt/logforge/app/bin:$PATH
 export LOGFORGE_HOME=/opt/logforge/data
 logforge init --force

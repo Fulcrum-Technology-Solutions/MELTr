@@ -1,6 +1,6 @@
 # Linux `.tar.gz` bundle (official release)
 
-The GitHub **Release** for each tag includes **`logforge-{version}-linux-x86_64.tar.gz`**: a self-contained tree with an embedded CPython build (from [python-build-standalone](https://github.com/astral-sh/python-build-standalone)), LogForge installed under `app/lib/python3.11/site-packages`, and a portable `app/bin/logforge` launcher. No `pip` or system Python is required on the target host.
+The GitHub **Release** for each tag includes **`logforge-{version}-linux-x86_64.tar.gz`**: a self-contained tree with an embedded CPython build (from [python-build-standalone](https://github.com/astral-sh/python-build-standalone)), LogForge installed under `app/lib/python3.11/site-packages`, and a portable `app/bin/logforge` launcher. No `pip` or system Python is required on the target host. Extracting the archive creates a top-level **`logforge/`** directory (not a version-suffixed path).
 
 For **pip/venv install** from PyPI or a wheel, see [linux-single-instance.md](linux-single-instance.md).
 
@@ -21,7 +21,6 @@ For **pip/venv install** from PyPI or a wheel, see [linux-single-instance.md](li
 
 ```bash
 sudo tar xzf logforge-{version}-linux-x86_64.tar.gz -C /opt
-sudo mv /opt/logforge-{version}-linux-x86_64 /opt/logforge
 ```
 
 3. Put the CLI on `PATH`:
