@@ -67,15 +67,17 @@ fi
 ( cd "$WORKDIR" && sha256sum -c "${PBS_NAME}.sha256" )
 
 tar -xzf "$PY_TAR" -C "$STAGING"
-# install_only layout: $STAGING/python/bin/python3.11
-PY_BIN="$STAGING/python/bin/python3.11"
-[[ -x "$PY_BIN" ]] || die "Expected embedded Python at $PY_BIN"
+# install_only layout: python/bin/python3.11 (path updates after mv into bundle dir)
+EXTRACTED_PY="$STAGING/python/bin/python3.11"
+[[ -x "$EXTRACTED_PY" ]] || die "Expected embedded Python at $EXTRACTED_PY"
 
 BUNDLE_NAME="logforge-${VERSION}-linux-x86_64"
 OUT_ROOT="$STAGING/${BUNDLE_NAME}"
 mkdir -p "$OUT_ROOT"
 
 mv "$STAGING/python" "$OUT_ROOT/python"
+PY_BIN="$OUT_ROOT/python/bin/python3.11"
+[[ -x "$PY_BIN" ]] || die "Expected embedded Python at $PY_BIN after layout"
 
 APP_PREFIX="$OUT_ROOT/app"
 "$PY_BIN" -m pip install --upgrade --no-cache-dir pip
