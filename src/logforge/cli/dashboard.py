@@ -1,12 +1,13 @@
 """Performance dashboard CLI command."""
 
-from typing import Optional
 import time
+from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.layout import Layout
 from rich.live import Live
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -24,7 +25,7 @@ def dashboard_callback(
     api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
 ) -> None:
     """Display real-time performance dashboard.
-    
+
     Shows CPU, memory, thread count, and generator statistics in a live-updating dashboard.
     Press Ctrl+C to exit.
     """
@@ -38,7 +39,7 @@ def _format_uptime(seconds: int) -> str:
     hours = (seconds % 86400) // 3600
     minutes = (seconds % 3600) // 60
     secs = seconds % 60
-    
+
     parts = []
     if days > 0:
         parts.append(f"{days}d")
@@ -48,7 +49,7 @@ def _format_uptime(seconds: int) -> str:
         parts.append(f"{minutes}m")
     if secs > 0 or not parts:
         parts.append(f"{secs}s")
-    
+
     return " ".join(parts)
 
 
@@ -80,28 +81,28 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
         data = response.json()
     except Exception as e:
         error_panel = Panel(
-            f"[red]Error fetching status: {e}[/red]\n\n"
+            f"[red]Error fetching status: {escape(str(e))}[/red]\n\n"
             "[yellow]Make sure LogForge API is running[/yellow]",
             title="Error",
             border_style="red"
         )
         return Layout(error_panel)
-    
+
     # System metrics
     system = data.get("system", {})
     cpu_percent = system.get("cpu_percent", 0.0)
     memory_mb = system.get("memory_mb", 0)
     threads = system.get("threads", 0)
     uptime = data.get("uptime", 0)
-    
+
     # Create layout
     layout = Layout()
-    
+
     # Top section: System metrics
     system_table = Table.grid(padding=(0, 2))
     system_table.add_column(style="cyan", justify="right", width=12)
     system_table.add_column(style="white", width=30)
-    
+
     # CPU with visual indicator
     cpu_color = _get_cpu_color(cpu_percent)
     cpu_bar = "█" * int(cpu_percent / 2) + "░" * (50 - int(cpu_percent / 2))
@@ -109,7 +110,7 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
         "CPU:",
         f"[{cpu_color}]{cpu_percent:5.1f}%[/{cpu_color}] [{cpu_color}]{cpu_bar}[/{cpu_color}]"
     )
-    
+
     # Memory
     memory_gb = memory_mb / 1024
     memory_color = _get_memory_color(memory_mb)
@@ -117,23 +118,23 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
         "Memory:",
         f"[{memory_color}]{memory_mb:6d} MB[/{memory_color}] ({memory_gb:.2f} GB)"
     )
-    
+
     # Threads
     system_table.add_row("Threads:", f"[green]{threads}[/green]")
-    
+
     # Uptime
     uptime_str = _format_uptime(uptime)
     system_table.add_row("Uptime:", f"[cyan]{uptime_str}[/cyan]")
-    
+
     # Refresh counter
     system_table.add_row("Refresh:", f"[dim]#{refresh_count}[/dim]")
-    
+
     system_panel = Panel(
         system_table,
         title="[bold blue]System Metrics[/bold blue]",
         border_style="blue"
     )
-    
+
     # Middle section: Generators
     generators_table = Table(show_header=True, header_style="bold magenta")
     generators_table.add_column("Name", style="cyan", width=30)
@@ -142,24 +143,24 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
     generators_table.add_column("Errors", style="red", justify="right", width=10)
     generators_table.add_column("Rate", style="yellow", justify="right", width=12)
     generators_table.add_column("Uptime", style="blue", width=12)
-    
+
     total_events = 0
     total_errors = 0
     running_count = 0
-    
+
     generators = data.get("generators", [])
-    
+
     for gen in generators:
         name = gen.get("name", "unknown")
         state = gen.get("state", "UNKNOWN")
         events = gen.get("events_generated", 0)
         errors = gen.get("errors", 0)
         uptime_gen = gen.get("uptime", 0)
-        
+
         # Calculate rate
         rate = events / uptime_gen if uptime_gen > 0 else 0
         rate_str = f"{rate:.2f}/s" if rate > 0 else "0/s"
-        
+
         state_color = {
             "RUNNING": "green",
             "STOPPED": "dim white",
@@ -168,21 +169,21 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
             "STARTING": "blue",
             "STOPPING": "yellow",
         }.get(state, "white")
-        
+
         generators_table.add_row(
-            name,
-            f"[{state_color}]{state}[/{state_color}]",
+            escape(str(name)),
+            f"[{state_color}]{escape(str(state))}[/{state_color}]",
             f"{events:,}",
             f"[red]{errors:,}[/red]" if errors > 0 else f"{errors:,}",
             rate_str,
             _format_uptime(uptime_gen),
         )
-        
+
         total_events += events
         total_errors += errors
         if state == "RUNNING":
             running_count += 1
-    
+
     # Summary row
     generators_table.add_row(
         "[bold]TOTAL[/bold]",
@@ -193,45 +194,45 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
         "",
         style="bold"
     )
-    
+
     generators_panel = Panel(
         generators_table,
         title=f"[bold green]Generators[/bold green] ({len(generators)} total)",
         border_style="green"
     )
-    
+
     # Bottom section: Summary stats
     summary_table = Table.grid(padding=(0, 2))
     summary_table.add_column(style="cyan", justify="right", width=20)
     summary_table.add_column(style="white", width=30)
-    
+
     summary_table.add_row("Total Events:", f"[bold cyan]{total_events:,}[/bold cyan]")
     error_style = "bold red" if total_errors > 0 else "bold green"
     summary_table.add_row("Total Errors:", f"[{error_style}]{total_errors:,}[/{error_style}]")
     summary_table.add_row("Running Generators:", f"[bold green]{running_count}[/bold green] / [dim]{len(generators)}[/dim]")
-    
+
     # Calculate average rate
     if generators:
         avg_rate = sum(
-            gen.get("events_generated", 0) / gen.get("uptime", 1) 
-            for gen in generators 
+            gen.get("events_generated", 0) / gen.get("uptime", 1)
+            for gen in generators
             if gen.get("uptime", 0) > 0
         ) / len([g for g in generators if g.get("uptime", 0) > 0])
         summary_table.add_row("Avg Event Rate:", f"[bold yellow]{avg_rate:.2f} events/sec[/bold yellow]")
-    
+
     summary_panel = Panel(
         summary_table,
         title="[bold yellow]Summary[/bold yellow]",
         border_style="yellow"
     )
-    
+
     # Arrange layout
     layout.split_column(
         Layout(system_panel, size=8),
         Layout(generators_panel, ratio=2),
         Layout(summary_panel, size=7),
     )
-    
+
     return layout
 
 
@@ -242,15 +243,15 @@ def dashboard_show(
     api_key: Optional[str] = typer.Option(None, "--api-key", envvar="LOGFORGE_API_KEY"),
 ) -> None:
     """Display real-time performance dashboard.
-    
+
     Shows CPU, memory, thread count, and generator statistics in a live-updating dashboard.
     Press Ctrl+C to exit.
     """
     client = get_api_client(api_url, api_key)
     client.require_service_running()
-    
+
     refresh_count = 0
-    
+
     # Display live dashboard
     try:
         with Live(
@@ -266,6 +267,6 @@ def dashboard_show(
     except KeyboardInterrupt:
         console.print("\n[yellow]Dashboard closed[/yellow]")
     except Exception as e:
-        console.print(f"\n[red]Error: {e}[/red]")
-        raise typer.Exit(code=1)
+        console.print(f"\n[red]Error: {escape(str(e))}[/red]")
+        raise typer.Exit(code=1) from None
 
