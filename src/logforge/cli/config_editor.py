@@ -303,6 +303,29 @@ def _create_console_output(name: str) -> OutputDefinition:
     )
 
 
+def _prompt_plaintext_token(prompt_text: str) -> str:
+    """Prompt for token value and enforce minimal safety/validity checks."""
+    while True:
+        token = Prompt.ask(prompt_text, password=True).strip()
+        if not token:
+            console.print("[red]Token cannot be empty.[/red]")
+            continue
+        if "${" in token:
+            console.print("[red]Token cannot contain '${'.[/red]")
+            continue
+        return token
+
+
+def _prompt_header_name(default: str = "X-API-Key") -> str:
+    """Prompt for a header name and require a non-empty value."""
+    while True:
+        header_name = Prompt.ask("API key header name", default=default).strip()
+        if not header_name:
+            console.print("[red]Header name cannot be empty.[/red]")
+            continue
+        return header_name
+
+
 def _create_http_output(name: str) -> OutputDefinition:
     """Create HTTP output interactively."""
     url = Prompt.ask("HTTP URL", default="https://api.example.com/v1/events")
@@ -323,24 +346,15 @@ def _create_http_output(name: str) -> OutputDefinition:
         )
         
         if auth_type == "Bearer":
-            token_var = Prompt.ask(
-                "Token environment variable name",
-                default="API_TOKEN",
-            )
-            headers["Authorization"] = f"Bearer ${{{token_var}}}"
+            token_value = _prompt_plaintext_token("Bearer token")
+            headers["Authorization"] = f"Bearer {token_value}"
         elif auth_type == "Splunk HEC":
-            token_var = Prompt.ask(
-                "HEC token environment variable name",
-                default="SPLUNK_HEC_TOKEN",
-            )
-            headers["Authorization"] = f"Splunk ${{{token_var}}}"
+            token_value = _prompt_plaintext_token("HEC token")
+            headers["Authorization"] = f"Splunk {token_value}"
         else:  # API Key
-            header_name = Prompt.ask("API key header name", default="X-API-Key")
-            token_var = Prompt.ask(
-                "API key environment variable name",
-                default="API_KEY",
-            )
-            headers[header_name] = f"${{{token_var}}}"
+            header_name = _prompt_header_name()
+            token_value = _prompt_plaintext_token("API key token")
+            headers[header_name] = token_value
     
     # Add Content-Type
     headers["Content-Type"] = "application/json"
@@ -537,24 +551,15 @@ def _edit_http_output_definition(output: OutputDefinition) -> OutputDefinition:
                 default="Bearer",
             )
             if auth_type == "Bearer":
-                token_var = Prompt.ask(
-                    "Token environment variable name",
-                    default="API_TOKEN",
-                )
-                headers["Authorization"] = f"Bearer ${{{token_var}}}"
+                token_value = _prompt_plaintext_token("Bearer token")
+                headers["Authorization"] = f"Bearer {token_value}"
             elif auth_type == "Splunk HEC":
-                token_var = Prompt.ask(
-                    "HEC token environment variable name",
-                    default="SPLUNK_HEC_TOKEN",
-                )
-                headers["Authorization"] = f"Splunk ${{{token_var}}}"
+                token_value = _prompt_plaintext_token("HEC token")
+                headers["Authorization"] = f"Splunk {token_value}"
             else:
-                header_name = Prompt.ask("API key header name", default="X-API-Key")
-                token_var = Prompt.ask(
-                    "API key environment variable name",
-                    default="API_KEY",
-                )
-                headers[header_name] = f"${{{token_var}}}"
+                header_name = _prompt_header_name()
+                token_value = _prompt_plaintext_token("API key token")
+                headers[header_name] = token_value
         updates["headers"] = headers
     return output.model_copy(update=updates)
 
