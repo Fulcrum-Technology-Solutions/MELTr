@@ -2,8 +2,10 @@
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import requests
 import yaml
 
 from logforge.core.config import Config, create_default_config, load_config
@@ -236,4 +238,156 @@ def test_plaintext_token_prompt_rejects_empty_and_dollar_brace(monkeypatch):
 
     token = config_editor._prompt_plaintext_token("Bearer token")
     assert token == "valid-token"
+
+
+def test_save_config_service_down_local_connection_refused_is_info(monkeypatch, tmp_path):
+    """Local connection-refused should be treated as info-only (save still succeeds)."""
+    from logforge.cli import config_editor
+
+    cfg = create_default_config(tmp_path)
+    rendered = []
+
+    monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
+    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+
+    class _Client:
+        api_url = "http://127.0.0.1:8080"
+
+        def get(self, *_a, **_k):
+            raise requests.exceptions.ConnectionError(
+                "Failed to establish a new connection: [Errno 111] Connection refused"
+            )
+
+        def post(self, *_a, **_k):
+            raise AssertionError("reload should not be attempted when service is down")
+
+    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+
+    assert config_editor._save_config(cfg) is True
+    out = "\n".join(rendered)
+    assert "Service is not running; skipping live reload" in out
+    assert "loaded automatically on next start" in out
+    assert "Could not connect to service" not in out
+
+
+def test_save_config_service_up_calls_reload(monkeypatch, tmp_path):
+    """When service is healthy, config reload endpoint is called."""
+    from logforge.cli import config_editor
+
+    cfg = create_default_config(tmp_path)
+    calls = {"post": 0}
+
+    monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
+
+    class _Response:
+        def __init__(self, status_code=200, data=None):
+            self.status_code = status_code
+            self._data = data or {}
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._data
+
+    class _Client:
+        api_url = "http://127.0.0.1:8080"
+
+        def get(self, *_a, **_k):
+            return _Response(status_code=200)
+
+        def post(self, *_a, **_k):
+            calls["post"] += 1
+            return _Response(status_code=200, data={"results": {"added": [], "removed": [], "updated": [], "errors": []}})
+
+    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+
+    assert config_editor._save_config(cfg) is True
+    assert calls["post"] == 1
+
+
+def test_save_config_timeout_keeps_warning_guidance(monkeypatch, tmp_path):
+    """Timeout should continue to show warning-style manual reload guidance."""
+    from logforge.cli import config_editor
+
+    cfg = create_default_config(tmp_path)
+    rendered = []
+
+    monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
+    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+
+    class _Client:
+        api_url = "http://127.0.0.1:8080"
+
+        def get(self, *_a, **_k):
+            raise requests.exceptions.Timeout("timed out")
+
+    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+
+    assert config_editor._save_config(cfg) is True
+    out = "\n".join(rendered)
+    assert "timed out" in out.lower()
+    assert "Use 'logforge config reload'" in out
+
+
+def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path):
+    """Unexpected apply exceptions should remain warning-style."""
+    from logforge.cli import config_editor
+
+    cfg = create_default_config(tmp_path)
+    rendered = []
+
+    monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
+    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+
+    class _Client:
+        api_url = "http://127.0.0.1:8080"
+
+        def get(self, *_a, **_k):
+            raise RuntimeError("boom")
+
+    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+
+    assert config_editor._save_config(cfg) is True
+    out = "\n".join(rendered)
+    assert "Could not apply changes automatically" in out
+    assert "Use 'logforge config reload'" in out
+
+
+def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_path):
+    """Non-local connection failures should keep warning path, not info-only skip."""
+    from logforge.cli import config_editor
+
+    cfg = create_default_config(tmp_path)
+    rendered = []
+
+    monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
+    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+
+    class _Client:
+        api_url = "https://api.example.com"
+
+        def get(self, *_a, **_k):
+            raise requests.exceptions.ConnectionError("temporary DNS failure")
+
+    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+
+    assert config_editor._save_config(cfg) is True
+    out = "\n".join(rendered)
+    assert "Could not connect to service at https://api.example.com" in out
 

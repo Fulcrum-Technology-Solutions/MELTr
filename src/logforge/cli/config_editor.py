@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.panel import Panel
@@ -27,6 +28,26 @@ if TYPE_CHECKING:
     from logforge.templates.loader import TemplateInfo
 
 console = Console()
+
+
+def _is_expected_local_service_down(api_url: str, error: Exception) -> bool:
+    """Return True when failure matches local service-not-running case."""
+    try:
+        hostname = (urlparse(api_url).hostname or "").lower()
+    except Exception:
+        hostname = ""
+
+    if hostname not in {"127.0.0.1", "localhost", "::1"}:
+        return False
+
+    error_text = str(error).lower()
+    refused_markers = (
+        "connection refused",
+        "[errno 111]",
+        "[winerror 10061]",
+        "failed to establish a new connection",
+    )
+    return any(marker in error_text for marker in refused_markers)
 
 
 def config_editor(
@@ -1595,9 +1616,13 @@ def _save_config(config: Config) -> bool:
                 else:
                     console.print(f"[yellow]⚠ Service returned status {health_response.status_code}. Restart service to apply changes.[/yellow]")
             except requests.exceptions.ConnectionError as e:
-                console.print(f"[yellow]⚠ Could not connect to service at {client.api_url}[/yellow]")
-                console.print(f"[yellow]  Error: {str(e)}[/yellow]")
-                console.print("[yellow]  Use 'logforge config reload' after starting the service.[/yellow]")
+                if _is_expected_local_service_down(client.api_url, e):
+                    console.print("[dim]ℹ Service is not running; skipping live reload.[/dim]")
+                    console.print("[dim]  Saved config will be loaded automatically on next start.[/dim]")
+                else:
+                    console.print(f"[yellow]⚠ Could not connect to service at {client.api_url}[/yellow]")
+                    console.print(f"[yellow]  Error: {str(e)}[/yellow]")
+                    console.print("[yellow]  Use 'logforge config reload' after starting the service.[/yellow]")
             except requests.exceptions.Timeout as e:
                 console.print(f"[yellow]⚠ Service health check timed out (service may be slow or unresponsive)[/yellow]")
                 console.print("[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]")
