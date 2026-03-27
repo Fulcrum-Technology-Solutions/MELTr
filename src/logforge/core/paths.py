@@ -6,6 +6,40 @@ from pathlib import Path
 from typing import Optional
 
 
+def get_data_home_from_install_binary(bin_path: Path) -> Optional[Path]:
+    """Return ``<install>/data`` when *bin_path* is under a known install layout.
+
+    Used so `sudo logforge service install` (often a minimal PATH) still picks the same
+    ``…/data`` directory as a normal interactive run with the same binary.
+
+    Resolution:
+    - **Tarball / vendor**: any path with an ``opt`` segment followed by ``logforge`` →
+      ``<.../opt/logforge>/data``
+    - **Repo-style** (historical): ``…/<project>/bin/logforge`` where *project* is named
+      ``logforge`` / ``LogForge`` → ``<project>/data``
+    """
+    try:
+        resolved = bin_path.resolve()
+    except OSError:
+        return None
+
+    parts = resolved.parts
+    for i, name in enumerate(parts):
+        if name.lower() != "logforge":
+            continue
+        if i > 0 and parts[i - 1].lower() == "opt":
+            install_dir = Path(*parts[: i + 1])
+            if install_dir.exists():
+                return (install_dir / "data").resolve()
+
+    if resolved.parent.parent.name.lower() == "logforge":
+        install_dir = resolved.parent.parent
+        if install_dir.exists():
+            return (install_dir / "data").resolve()
+
+    return None
+
+
 def get_logforge_home() -> Path:
     """Resolve LOGFORGE_HOME directory (config/data root, not the app install path).
 
@@ -13,9 +47,10 @@ def get_logforge_home() -> Path:
     1. LOGFORGE_HOME environment variable
     2. ./.logforge or ./logforge in current working directory (.logforge preferred)
     3. ../.logforge or ../logforge (parent directory)
-    4. Installation directory: when binary is under /opt/LogForge or /opt/logforge, use <install>/data
+    4. Install layout from ``shutil.which("logforge")`` when it matches ``opt``/``logforge``
+       segments (see :func:`get_data_home_from_install_binary`)
     5. ~/.logforge for interactive users (uid >= 1000)
-    6. /var/lib/logforge for service accounts (uid < 1000)
+    6. /var/lib/logforge for service accounts (uid < 1000) when no binary-based home applies
 
     Returns:
         Path to LOGFORGE_HOME directory
@@ -38,24 +73,15 @@ def get_logforge_home() -> Path:
         if parent_home.exists() and parent_home.is_dir():
             return parent_home.resolve()
 
-    # 3. Install dir: /opt/LogForge or /opt/logforge → <install>/data (no duplicative .../logforge)
+    # 3. Install dir: resolve via logforge binary when it's under a known layout
     try:
         import shutil
-        bin_path = shutil.which('logforge')
-        if bin_path:
-            bin_path = Path(bin_path).resolve()
-            bin_str = str(bin_path).lower()
-            if '/opt/logforge' in bin_str:
-                opt = Path('/opt')
-                if opt.exists():
-                    install_dir = next((opt / p.name for p in opt.iterdir() if p.name.lower() == 'logforge'), Path('/opt/logforge'))
-                    if install_dir.exists():
-                        return (install_dir / 'data').resolve()
-            # Repo-style: .../LogForge/.venv/bin/logforge or .../logforge/.venv/bin/logforge
-            if bin_path.parent.parent.name.lower() == 'logforge':
-                install_dir = bin_path.parent.parent
-                if install_dir.exists():
-                    return (install_dir / 'data').resolve()
+
+        which_bin = shutil.which("logforge")
+        if which_bin:
+            from_install = get_data_home_from_install_binary(Path(which_bin))
+            if from_install is not None:
+                return from_install
     except Exception:
         pass
 
@@ -88,7 +114,7 @@ def get_pidfile_path(home: Optional[Path] = None) -> Path:
 
 def _ensure_directory(path: Path) -> None:
     """Ensure directory exists, create if needed.
-    
+
     Args:
         path: Directory path to ensure
     """
@@ -100,11 +126,11 @@ def _ensure_directory(path: Path) -> None:
 
 def validate_path_within_home(path: Path, home: Path) -> bool:
     """Validate that a path is within LOGFORGE_HOME.
-    
+
     Args:
         path: Path to validate
         home: LOGFORGE_HOME base path
-        
+
     Returns:
         True if path is within home, False otherwise
     """
@@ -122,10 +148,10 @@ def validate_path_within_home(path: Path, home: Path) -> bool:
 
 def get_config_path(home: Optional[Path] = None) -> Path:
     """Get path to config.yaml file.
-    
+
     Args:
         home: LOGFORGE_HOME path. If None, resolves automatically.
-        
+
     Returns:
         Path to config.yaml
     """
@@ -136,10 +162,10 @@ def get_config_path(home: Optional[Path] = None) -> Path:
 
 def get_entities_path(home: Optional[Path] = None) -> Path:
     """Get path to entities.yaml file.
-    
+
     Args:
         home: LOGFORGE_HOME path. If None, resolves automatically.
-        
+
     Returns:
         Path to entities.yaml
     """
@@ -150,10 +176,10 @@ def get_entities_path(home: Optional[Path] = None) -> Path:
 
 def get_templates_path(home: Optional[Path] = None) -> Path:
     """Get path to templates directory.
-    
+
     Args:
         home: LOGFORGE_HOME path. If None, resolves automatically.
-        
+
     Returns:
         Path to templates directory
     """
@@ -164,10 +190,10 @@ def get_templates_path(home: Optional[Path] = None) -> Path:
 
 def get_backups_path(home: Optional[Path] = None) -> Path:
     """Get path to backups directory.
-    
+
     Args:
         home: LOGFORGE_HOME path. If None, resolves automatically.
-        
+
     Returns:
         Path to backups directory
     """

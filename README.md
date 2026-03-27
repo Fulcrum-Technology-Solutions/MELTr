@@ -29,7 +29,7 @@ Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linu
 
 **Other install options:** Install from a **wheel** (e.g. from a release asset or PyPI when published) into a venv, or run from a **source checkout** for development—see [linux-single-instance.md](docs/deployment/linux-single-instance.md).
 
-- **Data location:** Config and data live under **`LOGFORGE_HOME`** (defaults described in the deployment guides). Override with `LOGFORGE_HOME`. Service installs often use `/var/lib/logforge` and user **`logmgr`**.
+- **Data location:** Config and data live under **`LOGFORGE_HOME`** (defaults described in the deployment guides). Override with `LOGFORGE_HOME`. For the **`/opt/logforge`** bundle, `sudo logforge service install` defaults to **`/opt/logforge/data`** (same as a local run with that binary); use `--home` for another state directory. Service user is typically **`logmgr`**.
 - **Upgrades / backups:** [DEPLOYMENT.md](DEPLOYMENT.md). **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### CLI examples

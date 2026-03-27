@@ -2,7 +2,7 @@
 
 **First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**. For the **`.tar.gz` bundle** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)**.
 
-**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** (see [linux-tarball.md](docs/deployment/linux-tarball.md)), a **wheel** (`pip install logforge` or `pip install logforge-*.whl` from a release), or an **editable install** from source for development. Config and data live under **LOGFORGE_HOME** (default `/var/lib/logforge` for the systemd service). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
+**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** (see [linux-tarball.md](docs/deployment/linux-tarball.md)), a **wheel** (`pip install logforge` or `pip install logforge-*.whl` from a release), or an **editable install** from source for development. Config and data live under **LOGFORGE_HOME**. For `logforge service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/logforge` → `/opt/logforge/data`; otherwise same rules as `get_logforge_home()`). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
 
 ## Updating the official Linux `.tar.gz` (GitHub Releases)
 

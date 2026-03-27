@@ -86,19 +86,31 @@ To stop a manually started instance (foreground or background): **`logforge stop
 
 ### Systemd service (production)
 
-1. Ensure data directory exists and is owned by the service user (default **`logmgr`**):
+1. Initialize a data directory owned by the service user (default **`logmgr`**). Pick **one** layout:
+
+**A — Bundle default (recommended):** same `LOGFORGE_HOME` as a local run, **`/opt/logforge/data`**.
+
+```bash
+sudo mkdir -p /opt/logforge/data
+sudo logforge init --directory /opt/logforge/data --user logmgr --group logmgr --force
+```
+
+**B — State under `/var/lib`:** pass `--home /var/lib/logforge` on install.
 
 ```bash
 sudo mkdir -p /var/lib/logforge
 sudo logforge init --directory /var/lib/logforge --user logmgr --group logmgr --force
-# Or: sudo chown logmgr:logmgr /var/lib/logforge && sudo -u logmgr env LOGFORGE_HOME=/var/lib/logforge /opt/logforge/.venv/bin/logforge init --directory /var/lib/logforge --force
 ```
 
-2. Install the unit (uses `WorkingDirectory`, `LOGFORGE_HOME`, `ExecStart=<logforge> api start`, journal logging, `LimitNOFILE=65536`):
+2. Install the unit (uses `WorkingDirectory`, `LOGFORGE_HOME`, `ExecStart=<logforge> api start`, journal logging, `LimitNOFILE=65536`). `service install` reloads systemd.
 
 ```bash
-sudo /opt/logforge/.venv/bin/logforge service install --user logmgr --group logmgr --home /var/lib/logforge --binary /opt/logforge/.venv/bin/logforge
-sudo systemctl daemon-reload
+# A: omit --home → unit sets LOGFORGE_HOME=/opt/logforge/data
+sudo /opt/logforge/app/bin/logforge service install --user logmgr --group logmgr --binary /opt/logforge/app/bin/logforge
+
+# B: explicit state directory
+# sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge --binary /opt/logforge/app/bin/logforge
+
 sudo systemctl enable --now logforge
 ```
 
