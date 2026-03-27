@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -92,8 +93,8 @@ def test_default_application_log_file_uses_install_logs(tmp_path):
     assert default_application_log_file(binfile) == expect
 
 
-def test_get_logforge_home_service_account_prefers_opt_data_home(tmp_path, monkeypatch):
-    """Low-uid user still uses …/opt/logforge/data when `which` finds that bundle binary."""
+def test_get_logforge_home_service_account_prefers_opt_install_root(tmp_path, monkeypatch):
+    """Low-uid user uses …/opt/logforge (product root) when `which` finds that bundle binary."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("LOGFORGE_HOME", raising=False)
     bindir = tmp_path / "opt" / "logforge" / "app" / "bin"
@@ -104,7 +105,36 @@ def test_get_logforge_home_service_account_prefers_opt_data_home(tmp_path, monke
     with patch("os.getuid", return_value=999):
         with patch.object(shutil, "which", return_value=str(binfile)):
             home = get_logforge_home()
-    assert home == (tmp_path / "opt" / "logforge" / "data").resolve()
+    assert home == (tmp_path / "opt" / "logforge").resolve()
+
+
+def test_get_logforge_home_uses_argv0_when_which_missing(tmp_path, monkeypatch):
+    """Bundle home resolves from sys.argv[0] when logforge is not on PATH (e.g. sudo)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LOGFORGE_HOME", raising=False)
+    bindir = tmp_path / "opt" / "logforge" / "app" / "bin"
+    bindir.mkdir(parents=True)
+    binfile = bindir / "logforge"
+    binfile.write_bytes(b"")
+    (tmp_path / "opt" / "logforge" / "data").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(sys, "argv", [str(binfile), "init"])
+    with patch("os.getuid", return_value=1000):
+        with patch.object(shutil, "which", return_value=None):
+            home = get_logforge_home()
+    assert home == (tmp_path / "opt" / "logforge").resolve()
+
+
+def test_default_application_log_file_uses_argv0_when_which_missing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    bindir = tmp_path / "opt" / "logforge" / "app" / "bin"
+    bindir.mkdir(parents=True)
+    binfile = bindir / "logforge"
+    binfile.write_bytes(b"")
+    (tmp_path / "opt" / "logforge" / "data").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(sys, "argv", [str(binfile), "init"])
+    monkeypatch.setattr(shutil, "which", lambda _cmd: None)
+    expect = (tmp_path / "opt" / "logforge" / "logs" / "logforge.log").resolve()
+    assert default_application_log_file() == expect
 
 
 def test_get_logforge_home_default(monkeypatch):

@@ -33,16 +33,16 @@ export PATH=/opt/logforge/app/bin:$PATH
 4. Initialize and run (same as other install methods):
 
 ```bash
-export LOGFORGE_HOME=/opt/logforge/data
+export LOGFORGE_HOME=/opt/logforge
 logforge init --force
 logforge start
 ```
 
-`get_logforge_home()` treats binaries under `/opt/logforge` as an install layout and defaults `LOGFORGE_HOME` to `/opt/logforge/data` when unset—see [`paths.py`](../../src/logforge/core/paths.py).
+`get_logforge_home()` treats binaries under `/opt/logforge` as an install layout and defaults `LOGFORGE_HOME` to **`/opt/logforge`** when unset—see [`paths.py`](../../src/logforge/core/paths.py).
 
 ## Background operation (default)
 
-On POSIX, `logforge start` **daemonizes by default** (Splunk/Cribl-style): it prints the child PID and returns your shell. Logs go to `LOGFORGE_HOME/logs`. Use **`logforge start --foreground`** (`-f`) to keep the process attached for troubleshooting.
+On POSIX, `logforge start` **daemonizes by default** (Splunk/Cribl-style): it prints the child PID and returns your shell. Application logs default to **`<install_root>/logs`** (e.g. `/opt/logforge/logs/`). Use **`logforge start --foreground`** (`-f`) to keep the process attached for troubleshooting.
 
 **systemd** units use `api start --foreground` so the service manager tracks the main process correctly.
 
@@ -55,11 +55,10 @@ The unit should invoke the **bundled** CLI:
 ```bash
 sudo logforge service install \
   --user logmgr --group logmgr \
-  --home /var/lib/logforge \
   --binary /opt/logforge/app/bin/logforge
 ```
 
-Or install data under `/opt/logforge/data` and run as a non-`logmgr` user if your policy allows.
+Omit `--home` to use **`LOGFORGE_HOME=/opt/logforge`**. Use `--home /var/lib/logforge` (or similar) only if policy requires state outside `/opt`.
 
 ## Open source artifacts in the bundle
 

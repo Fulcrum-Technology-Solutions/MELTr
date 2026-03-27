@@ -17,7 +17,11 @@ import typer
 from rich.console import Console
 
 from logforge.cli.user_utils import ensure_service_user_and_group
-from logforge.core.paths import get_install_root_from_binary, get_logforge_home
+from logforge.core.paths import (
+    get_bundle_home_from_install_binary,
+    get_install_root_from_binary,
+    get_logforge_home,
+)
 
 app = typer.Typer(name="service", help="Systemd service management")
 console = Console()
@@ -89,7 +93,7 @@ def _get_logforge_binary_path() -> Path:
 
 def _check_root() -> None:
     """Check if running as root.
-    
+
     Raises:
         typer.Exit: If not running as root
     """
@@ -109,9 +113,11 @@ def service_install(
 ) -> None:
     """Install LogForge as a systemd service.
 
-    Use --home /var/lib/logforge for the service data directory (default when run as root).
+    Default ``LOGFORGE_HOME`` matches the official bundle layout (``/opt/logforge`` when the
+    binary lives under that tree). Override with ``--home`` for another state directory.
     Use --user logmgr --no-create-user when the user already exists.
     Example:
+        sudo logforge service install --user logmgr --group logmgr --binary /opt/logforge/app/bin/logforge
         sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge
     """
     _check_root()
@@ -120,15 +126,16 @@ def service_install(
         service_user = user or 'logmgr'
         service_group = group or service_user
 
-        if logforge_home:
-            home_path = Path(logforge_home).expanduser().resolve()
-        else:
-            home_path = get_logforge_home()
-
         if logforge_bin:
             bin_path = Path(logforge_bin).expanduser().resolve()
         else:
             bin_path = _get_logforge_binary_path()
+
+        if logforge_home:
+            home_path = Path(logforge_home).expanduser().resolve()
+        else:
+            bundle_home = get_bundle_home_from_install_binary(bin_path)
+            home_path = bundle_home if bundle_home is not None else get_logforge_home()
 
         if not bin_path.exists():
             console.print(f"[red]Error: LogForge binary not found at {bin_path}[/red]")

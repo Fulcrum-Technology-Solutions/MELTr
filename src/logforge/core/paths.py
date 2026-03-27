@@ -2,6 +2,8 @@
 
 import os
 import pwd
+import shutil
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -9,8 +11,8 @@ from typing import Optional
 def get_data_home_from_install_binary(bin_path: Path) -> Optional[Path]:
     """Return ``<install>/data`` when *bin_path* is under a known install layout.
 
-    Used so `sudo logforge service install` (often a minimal PATH) still picks the same
-    ``…/data`` directory as a normal interactive run with the same binary.
+    Used internally to locate the product root (parent of ``data``). Default
+    ``LOGFORGE_HOME`` for the bundle is the **install root** (``/opt/logforge``), not this path.
 
     Resolution:
     - **Tarball / vendor**: any path with an ``opt`` segment followed by ``logforge`` →
@@ -51,24 +53,56 @@ def get_install_root_from_binary(bin_path: Path) -> Optional[Path]:
     return data_home.parent.resolve()
 
 
+def _logforge_binary_candidates() -> list[Path]:
+    """Paths to try when resolving bundle layout (``sudo`` often omits ``logforge`` from ``PATH``)."""
+    raw: list[Path] = []
+    if sys.argv and sys.argv[0]:
+        a0 = Path(sys.argv[0])
+        if a0.name.lower() == "logforge":
+            raw.append(a0)
+    w = shutil.which("logforge")
+    if w:
+        raw.append(Path(w))
+    seen: set[str] = set()
+    out: list[Path] = []
+    for p in raw:
+        try:
+            key = str(p.resolve())
+        except OSError:
+            key = str(p)
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
+def get_bundle_home_from_install_binary(bin_path: Path) -> Optional[Path]:
+    """Return default ``LOGFORGE_HOME`` for a tarball layout (product root, not ``…/data``).
+
+    Official bundle under ``/opt/logforge`` uses **``/opt/logforge``** as the single state
+    root (config, entities, templates, run, etc.); logs default to ``/opt/logforge/logs/``.
+    """
+    return get_install_root_from_binary(bin_path)
+
+
 def default_application_log_file(bin_path: Optional[Path] = None) -> Path:
     """Default on-disk application log (Splunk-style: under install root).
 
     Uses ``<install_root>/logs/logforge.log`` when the binary is under a known
     bundle layout; otherwise ``<LOGFORGE_HOME>/logs/logforge.log``.
     """
-    resolved_bin: Optional[Path] = None
+    candidates: list[Path] = []
     if bin_path is not None:
-        resolved_bin = bin_path
+        candidates.append(bin_path)
     else:
-        import shutil
+        candidates.extend(_logforge_binary_candidates())
 
-        w = shutil.which("logforge")
-        if w:
-            resolved_bin = Path(w)
-
-    if resolved_bin is not None:
-        root = get_install_root_from_binary(resolved_bin)
+    for c in candidates:
+        try:
+            resolved = c.resolve()
+        except OSError:
+            continue
+        root = get_install_root_from_binary(resolved)
         if root is not None:
             return (root / "logs" / "logforge.log").resolve()
 
@@ -82,10 +116,10 @@ def get_logforge_home() -> Path:
     1. LOGFORGE_HOME environment variable
     2. ./.logforge or ./logforge in current working directory (.logforge preferred)
     3. ../.logforge or ../logforge (parent directory)
-    4. Install layout from ``shutil.which("logforge")`` when it matches ``opt``/``logforge``
-       segments (see :func:`get_data_home_from_install_binary`)
+    4. Official bundle: product root ``.../opt/logforge`` from the running binary
+       (see :func:`get_bundle_home_from_install_binary`; uses ``sys.argv[0]`` and ``PATH``)
     5. ~/.logforge for interactive users (uid >= 1000)
-    6. /var/lib/logforge for service accounts (uid < 1000) when no binary-based home applies
+    6. /var/lib/logforge for service accounts (uid < 1000) when no bundle home applies
 
     Returns:
         Path to LOGFORGE_HOME directory
@@ -108,15 +142,16 @@ def get_logforge_home() -> Path:
         if parent_home.exists() and parent_home.is_dir():
             return parent_home.resolve()
 
-    # 3. Install dir: resolve via logforge binary when it's under a known layout
+    # 3. Bundle install: LOGFORGE_HOME = product root (/opt/logforge), not …/data
     try:
-        import shutil
-
-        which_bin = shutil.which("logforge")
-        if which_bin:
-            from_install = get_data_home_from_install_binary(Path(which_bin))
-            if from_install is not None:
-                return from_install
+        for cand in _logforge_binary_candidates():
+            try:
+                resolved = cand.resolve()
+            except OSError:
+                continue
+            bundle_home = get_bundle_home_from_install_binary(resolved)
+            if bundle_home is not None:
+                return bundle_home
     except Exception:
         pass
 

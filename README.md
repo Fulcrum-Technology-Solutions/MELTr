@@ -19,7 +19,7 @@ Recommended path for **Linux x86_64**: download the official **`logforge-{versio
 ```bash
 sudo tar xzf logforge-{version}-linux-x86_64.tar.gz -C /opt
 export PATH=/opt/logforge/app/bin:$PATH
-export LOGFORGE_HOME=/opt/logforge/data
+export LOGFORGE_HOME=/opt/logforge
 logforge init --force
 logforge start          # backgrounds on POSIX (Splunk-style); use --foreground / -f to stay attached
 logforge stop           # SIGTERM via $LOGFORGE_HOME/run/logforge.pid; optional --timeout
@@ -29,7 +29,7 @@ Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linu
 
 **Other install options:** Install from a **wheel** (e.g. from a release asset or PyPI when published) into a venv, or run from a **source checkout** for development—see [linux-single-instance.md](docs/deployment/linux-single-instance.md).
 
-- **Data location:** Config and data live under **`LOGFORGE_HOME`** (defaults described in the deployment guides). Override with `LOGFORGE_HOME`. For the **`/opt/logforge`** bundle, `sudo logforge service install` defaults to **`/opt/logforge/data`** (same as a local run with that binary); use `--home` for another state directory. Service user is typically **`logmgr`**.
+- **Data location:** Config and entities live under **`LOGFORGE_HOME`**. For the **`/opt/logforge`** bundle, the default **`LOGFORGE_HOME`** is **`/opt/logforge`** (product root; same for local runs and `service install` without `--home`). Application logs default to **`/opt/logforge/logs/`**. Override with `LOGFORGE_HOME` / `LOGFORGE_LOG_FILE` or `--home` on install. Service user is typically **`logmgr`**.
 - **Upgrades / backups:** [DEPLOYMENT.md](DEPLOYMENT.md). **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### CLI examples

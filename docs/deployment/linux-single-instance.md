@@ -49,11 +49,11 @@ The [systemd install](../../src/logforge/cli/service.py) logic also discovers `/
 ## Filesystem layout
 
 - **Install tree:** Keep `/opt/logforge` (application + `.venv`) on a **single filesystem/mount**, as you would for other `/opt` products. Avoid splitting the venv across devices.
-- **State directory (`LOGFORGE_HOME`):** Config, entities, templates, local outputs, and logs live here. When the `logforge` binary resolves under `/opt/logforge`, the default data directory is **`/opt/logforge/data`** (see `get_logforge_home()` in [`paths.py`](../../src/logforge/core/paths.py)).
+- **State directory (`LOGFORGE_HOME`):** Config, entities, templates, and runtime files (`run/`, etc.) live here. When the `logforge` binary resolves under `/opt/logforge`, the default is **`/opt/logforge`** (product root). Application logs default to **`/opt/logforge/logs/`** (see [`paths.py`](../../src/logforge/core/paths.py)).
 - **Large or external data:** Put high-volume **file outputs** or other large paths **outside** `LOGFORGE_HOME` by configuring explicit paths in `config.yaml` (same idea as keeping heavy queues outside a product’s install tree).
 
 ```bash
-export LOGFORGE_HOME=/opt/logforge/data
+export LOGFORGE_HOME=/opt/logforge
 ```
 
 ## Initialize state
@@ -63,7 +63,7 @@ Create `config.yaml`, `entities.yaml`, and directory structure under `LOGFORGE_H
 ```bash
 cd /opt/logforge
 source .venv/bin/activate
-export LOGFORGE_HOME=/opt/logforge/data
+export LOGFORGE_HOME=/opt/logforge
 logforge init --force
 ```
 
@@ -77,7 +77,7 @@ logforge init --force
 `logforge start` is equivalent to `logforge api start` and matches what the systemd unit runs.
 
 ```bash
-export LOGFORGE_HOME=/opt/logforge/data   # if not already set
+export LOGFORGE_HOME=/opt/logforge   # if not already set
 source /opt/logforge/.venv/bin/activate
 logforge start
 ```
@@ -88,11 +88,11 @@ To stop a manually started instance (foreground or background): **`logforge stop
 
 1. Initialize a data directory owned by the service user (default **`logmgr`**). Pick **one** layout:
 
-**A — Bundle default (recommended):** same `LOGFORGE_HOME` as a local run, **`/opt/logforge/data`**.
+**A — Bundle default (recommended):** same `LOGFORGE_HOME` as a local run, **`/opt/logforge`** (single tree under the product directory).
 
 ```bash
-sudo mkdir -p /opt/logforge/data
-sudo logforge init --directory /opt/logforge/data --user logmgr --group logmgr --force
+sudo mkdir -p /opt/logforge
+sudo logforge init --directory /opt/logforge --user logmgr --group logmgr --force
 ```
 
 **B — State under `/var/lib`:** pass `--home /var/lib/logforge` on install.
@@ -105,7 +105,7 @@ sudo logforge init --directory /var/lib/logforge --user logmgr --group logmgr --
 2. Install the unit (uses `WorkingDirectory`, `LOGFORGE_HOME`, `ExecStart=<logforge> api start`, journal logging, `LimitNOFILE=65536`). `service install` reloads systemd.
 
 ```bash
-# A: omit --home → unit sets LOGFORGE_HOME=/opt/logforge/data
+# A: omit --home → unit sets LOGFORGE_HOME=/opt/logforge
 sudo /opt/logforge/app/bin/logforge service install --user logmgr --group logmgr --binary /opt/logforge/app/bin/logforge
 
 # B: explicit state directory
