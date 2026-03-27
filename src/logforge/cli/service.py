@@ -17,7 +17,7 @@ import typer
 from rich.console import Console
 
 from logforge.cli.user_utils import ensure_service_user_and_group
-from logforge.core.paths import get_logforge_home
+from logforge.core.paths import get_install_root_from_binary, get_logforge_home
 
 app = typer.Typer(name="service", help="Systemd service management")
 console = Console()
@@ -39,6 +39,9 @@ LimitNOFILE=65536
 
 # Environment
 Environment="LOGFORGE_HOME={logforge_home}"
+
+# Optional: override application log path (default: <install_root>/logs/logforge.log)
+# Environment="LOGFORGE_LOG_FILE=/path/to/logforge.log"
 
 # Logging
 StandardOutput=journal
@@ -112,32 +115,32 @@ def service_install(
         sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge
     """
     _check_root()
-    
+
     try:
         service_user = user or 'logmgr'
         service_group = group or service_user
-        
+
         if logforge_home:
             home_path = Path(logforge_home).expanduser().resolve()
         else:
             home_path = get_logforge_home()
-        
+
         if logforge_bin:
             bin_path = Path(logforge_bin).expanduser().resolve()
         else:
             bin_path = _get_logforge_binary_path()
-        
+
         if not bin_path.exists():
             console.print(f"[red]Error: LogForge binary not found at {bin_path}[/red]")
             raise typer.Exit(code=1)
-        
-        console.print(f"[green]Installing LogForge systemd service...[/green]")
+
+        console.print("[green]Installing LogForge systemd service...[/green]")
         console.print(f"  Service user: {service_user}")
         console.print(f"  Service group: {service_group}")
         console.print(f"  LOGFORGE_HOME: {home_path}")
-        
+
         home_path.mkdir(parents=True, exist_ok=True)
-        
+
         service_uid, service_gid = ensure_service_user_and_group(
             service_user,
             service_group,
@@ -149,14 +152,14 @@ def service_install(
             on_no_pwd_grp=lambda: console.print("[yellow]⚠ pwd/grp modules not available, skipping user/group creation[/yellow]"),
             on_useradd_missing=lambda: console.print("[yellow]⚠ useradd/groupadd not found, skipping user/group creation[/yellow]"),
         )
-        
+
         if service_uid == 0 and service_gid == 0 and (pwd is None or grp is None):
             console.print("[yellow]⚠ pwd/grp modules not available, using root ownership[/yellow]")
             console.print("[yellow]⚠ Service may not start correctly[/yellow]")
         elif service_uid == 0 and service_gid == 0:
             console.print(f"[yellow]⚠ Could not get {service_user} user info - using root ownership[/yellow]")
             console.print("[yellow]⚠ Service may not start correctly[/yellow]")
-        
+
         # Set ownership to service user so service can write
         if service_uid is not None and (service_uid, service_gid) != (0, 0):
             os.chown(home_path, service_uid, service_gid)
@@ -166,12 +169,19 @@ def service_install(
                     os.chown(parent, service_uid, service_gid)
                 elif parent.name == 'data' and parent.parent.name.lower() == 'logforge' and parent.parent.exists():
                     os.chown(parent.parent, service_uid, service_gid)
-        
-        log_dir = Path('/var/log/logforge')
-        log_dir.mkdir(parents=True, exist_ok=True)
-        if service_uid is not None and (service_uid, service_gid) != (0, 0):
-            os.chown(log_dir, service_uid, service_gid)
-        
+
+        install_root = get_install_root_from_binary(bin_path)
+        if install_root is not None:
+            app_log_dir = install_root / 'logs'
+            app_log_dir.mkdir(parents=True, exist_ok=True)
+            if service_uid is not None and (service_uid, service_gid) != (0, 0):
+                os.chown(app_log_dir, service_uid, service_gid)
+        else:
+            log_dir = Path('/var/log/logforge')
+            log_dir.mkdir(parents=True, exist_ok=True)
+            if service_uid is not None and (service_uid, service_gid) != (0, 0):
+                os.chown(log_dir, service_uid, service_gid)
+
         # Create service file
         service_content = SERVICE_FILE.format(
             logforge_home=str(home_path),
@@ -179,21 +189,21 @@ def service_install(
             service_user=service_user,
             service_group=service_group,
         )
-        
+
         service_file_path = Path('/etc/systemd/system/logforge.service')
         service_file_path.write_text(service_content)
         console.print(f"[green]✓ Created service file: {service_file_path}[/green]")
-        
+
         # Reload systemd
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         console.print("[green]✓ Reloaded systemd daemon[/green]")
-        
+
         console.print("\n[green]Service installed successfully![/green]")
         console.print("\n[yellow]Next steps:[/yellow]")
         console.print("  sudo systemctl start logforge")
         console.print("  sudo systemctl enable logforge  # Start on boot")
         console.print("  sudo systemctl status logforge")
-        
+
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
@@ -206,26 +216,27 @@ def service_install(
 def service_uninstall() -> None:
     """Uninstall LogForge systemd service.
 
-    Removes only the systemd unit and reloads systemd. Data under LOGFORGE_HOME
-    and logs under /var/log/logforge are left intentionally.
+    Removes only the systemd unit and reloads systemd. Data under LOGFORGE_HOME,
+    install-tree logs under ``<install_root>/logs``, and ``/var/log/logforge`` (if used)
+    are left intentionally.
     """
     _check_root()
-    
+
     try:
         # Stop and disable service
         subprocess.run(['systemctl', 'stop', 'logforge'], check=False)
         subprocess.run(['systemctl', 'disable', 'logforge'], check=False)
-        
+
         # Remove service file
         service_file = Path('/etc/systemd/system/logforge.service')
         if service_file.exists():
             service_file.unlink()
             console.print("[green]✓ Removed service file[/green]")
-        
+
         # Reload systemd
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         console.print("[green]✓ Service uninstalled[/green]")
-        
+
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
@@ -235,7 +246,7 @@ def service_uninstall() -> None:
 def service_start() -> None:
     """Start the systemd service."""
     _check_root()
-    
+
     try:
         subprocess.run(['systemctl', 'start', 'logforge'], check=True)
         console.print("[green]✓ Service started[/green]")
@@ -248,7 +259,7 @@ def service_start() -> None:
 def service_stop() -> None:
     """Stop the systemd service."""
     _check_root()
-    
+
     try:
         subprocess.run(['systemctl', 'stop', 'logforge'], check=True)
         console.print("[green]✓ Service stopped[/green]")
@@ -261,7 +272,7 @@ def service_stop() -> None:
 def service_restart() -> None:
     """Restart the systemd service."""
     _check_root()
-    
+
     try:
         subprocess.run(['systemctl', 'restart', 'logforge'], check=True)
         console.print("[green]✓ Service restarted[/green]")
@@ -283,7 +294,7 @@ def service_status() -> None:
         console.print(result.stdout)
         if result.stderr:
             console.print(result.stderr)
-        
+
         if result.returncode != 0:
             raise typer.Exit(code=result.returncode)
     except subprocess.CalledProcessError as e:

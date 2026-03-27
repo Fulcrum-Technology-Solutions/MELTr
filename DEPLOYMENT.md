@@ -134,7 +134,7 @@ sudo systemctl enable logforge
 - ✅ `templates/custom/` - Your custom templates
 - ✅ `templates/default/` - Community templates (unless you reinstall them)
 - ✅ `outputs/` - Output files
-- ✅ `logs/logforge.log` - Log files (under LOGFORGE_HOME)
+- ✅ `logs/logforge.log` - Application logs (bundle default: under `<install_root>/logs`, e.g. `/opt/logforge/logs/`; override with `LOGFORGE_LOG_FILE`)
 
 **Replaced:**
 - 🔄 Python source code (`src/`)

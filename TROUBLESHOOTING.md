@@ -6,7 +6,7 @@
 
 - **Wheel install:** The `logforge` binary is typically in the active virtualenv’s `bin/` or in `/usr/local/bin` / `/usr/bin`. Config and data live under **LOGFORGE_HOME** (default: `~/.logforge` for interactive users, or **`/var/lib/logforge`** when running as the service user).
 - **Service user:** The default service user is **logmgr** (not `logforge`). The systemd unit sets `User=logmgr`, `Group=logmgr`, and `Environment="LOGFORGE_HOME=/var/lib/logforge"` when installed with `--home /var/lib/logforge`.
-- **Log files:** Application logs are written to `LOGFORGE_HOME/logs/logforge.log` by default (with rotation). The systemd unit also sends stdout/stderr to the journal.
+- **Log files:** For the bundled layout under `/opt/logforge`, application logs default to **`/opt/logforge/logs/logforge.log`** (with rotation), independent of `LOGFORGE_HOME`. Other installs fall back to `LOGFORGE_HOME/logs/logforge.log`. Operators can set **`LOGFORGE_LOG_FILE`** in the environment (e.g. systemd unit or `systemctl edit`) to override. The systemd unit also sends stdout/stderr to the journal.
 
 ### Wrong mount or split filesystem
 

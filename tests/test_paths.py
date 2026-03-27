@@ -7,9 +7,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from logforge.core.paths import (
+    default_application_log_file,
     get_config_path,
     get_data_home_from_install_binary,
     get_entities_path,
+    get_install_root_from_binary,
     get_logforge_home,
     get_templates_path,
     validate_path_within_home,
@@ -68,6 +70,26 @@ def test_get_data_home_from_install_binary_opt_layout(tmp_path):
     data = tmp_path / "opt" / "logforge" / "data"
     data.mkdir()
     assert get_data_home_from_install_binary(binfile) == data.resolve()
+
+
+def test_get_install_root_from_binary_opt_layout(tmp_path):
+    bindir = tmp_path / "opt" / "logforge" / "app" / "bin"
+    bindir.mkdir(parents=True)
+    binfile = bindir / "logforge"
+    binfile.write_bytes(b"")
+    (tmp_path / "opt" / "logforge" / "data").mkdir(parents=True, exist_ok=True)
+    expect_root = (tmp_path / "opt" / "logforge").resolve()
+    assert get_install_root_from_binary(binfile) == expect_root
+
+
+def test_default_application_log_file_uses_install_logs(tmp_path):
+    bindir = tmp_path / "opt" / "logforge" / "app" / "bin"
+    bindir.mkdir(parents=True)
+    binfile = bindir / "logforge"
+    binfile.write_bytes(b"")
+    (tmp_path / "opt" / "logforge" / "data").mkdir(parents=True, exist_ok=True)
+    expect = (tmp_path / "opt" / "logforge" / "logs" / "logforge.log").resolve()
+    assert default_application_log_file(binfile) == expect
 
 
 def test_get_logforge_home_service_account_prefers_opt_data_home(tmp_path, monkeypatch):

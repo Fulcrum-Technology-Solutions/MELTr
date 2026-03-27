@@ -40,6 +40,41 @@ def get_data_home_from_install_binary(bin_path: Path) -> Optional[Path]:
     return None
 
 
+def get_install_root_from_binary(bin_path: Path) -> Optional[Path]:
+    """Return product/install root (parent of ``data``) for a bundled layout.
+
+    For example ``/opt/logforge/app/bin/logforge`` → ``/opt/logforge``.
+    """
+    data_home = get_data_home_from_install_binary(bin_path)
+    if data_home is None:
+        return None
+    return data_home.parent.resolve()
+
+
+def default_application_log_file(bin_path: Optional[Path] = None) -> Path:
+    """Default on-disk application log (Splunk-style: under install root).
+
+    Uses ``<install_root>/logs/logforge.log`` when the binary is under a known
+    bundle layout; otherwise ``<LOGFORGE_HOME>/logs/logforge.log``.
+    """
+    resolved_bin: Optional[Path] = None
+    if bin_path is not None:
+        resolved_bin = bin_path
+    else:
+        import shutil
+
+        w = shutil.which("logforge")
+        if w:
+            resolved_bin = Path(w)
+
+    if resolved_bin is not None:
+        root = get_install_root_from_binary(resolved_bin)
+        if root is not None:
+            return (root / "logs" / "logforge.log").resolve()
+
+    return (get_logforge_home() / "logs" / "logforge.log").resolve()
+
+
 def get_logforge_home() -> Path:
     """Resolve LOGFORGE_HOME directory (config/data root, not the app install path).
 
