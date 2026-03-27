@@ -188,7 +188,11 @@ def render_status_snapshot(snapshot: dict[str, Any], refresh_count: int = 0) -> 
         "[bold]TOTAL[/bold]",
         f"[bold]{running_count}/{len(generators)}[/bold]",
         f"[bold]{total_events:,}[/bold]",
-        f"[bold red]{total_errors:,}[/bold]" if total_errors > 0 else f"[bold green]{total_errors:,}[/bold]",
+        (
+            f"[bold red]{total_errors:,}[/bold red]"
+            if total_errors > 0
+            else f"[bold green]{total_errors:,}[/bold green]"
+        ),
         "",
         "",
         style="bold"
