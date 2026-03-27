@@ -327,7 +327,7 @@ def _create_console_output(name: str) -> OutputDefinition:
 def _prompt_plaintext_token(prompt_text: str) -> str:
     """Prompt for token value and enforce minimal safety/validity checks."""
     while True:
-        token = Prompt.ask(prompt_text, password=True).strip()
+        token = Prompt.ask(prompt_text).strip()
         if not token:
             console.print("[red]Token cannot be empty.[/red]")
             continue

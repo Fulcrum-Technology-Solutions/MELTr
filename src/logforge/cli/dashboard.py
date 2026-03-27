@@ -1,7 +1,7 @@
 """Performance dashboard CLI command."""
 
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 from rich.console import Console
@@ -73,20 +73,19 @@ def _get_memory_color(memory_mb: int, threshold_mb: int = 1024) -> str:
         return "green"
 
 
-def generate_dashboard(client, refresh_count: int = 0) -> Layout:
-    """Generate dashboard layout with current metrics."""
-    try:
-        response = client.get("/api/status")
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        error_panel = Panel(
-            f"[red]Error fetching status: {escape(str(e))}[/red]\n\n"
-            "[yellow]Make sure LogForge API is running[/yellow]",
-            title="Error",
-            border_style="red"
-        )
-        return Layout(error_panel)
+def fetch_status_snapshot(client) -> dict[str, Any]:
+    """Fetch a status snapshot from the running service."""
+    response = client.get("/api/status")
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, dict):
+        raise ValueError(f"unexpected /api/status payload type: {type(data).__name__}")
+    return data
+
+
+def render_status_snapshot(snapshot: dict[str, Any], refresh_count: int = 0) -> Layout:
+    """Render a dashboard layout from a status snapshot."""
+    data = snapshot
 
     # System metrics
     system = data.get("system", {})
@@ -213,12 +212,16 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
 
     # Calculate average rate
     if generators:
-        avg_rate = sum(
-            gen.get("events_generated", 0) / gen.get("uptime", 1)
-            for gen in generators
-            if gen.get("uptime", 0) > 0
-        ) / len([g for g in generators if g.get("uptime", 0) > 0])
-        summary_table.add_row("Avg Event Rate:", f"[bold yellow]{avg_rate:.2f} events/sec[/bold yellow]")
+        uptime_gens = [g for g in generators if g.get("uptime", 0) > 0]
+        if uptime_gens:
+            avg_rate = sum(
+                gen.get("events_generated", 0) / gen.get("uptime", 1)
+                for gen in uptime_gens
+            ) / len(uptime_gens)
+            summary_table.add_row(
+                "Avg Event Rate:",
+                f"[bold yellow]{avg_rate:.2f} events/sec[/bold yellow]",
+            )
 
     summary_panel = Panel(
         summary_table,
@@ -234,6 +237,27 @@ def generate_dashboard(client, refresh_count: int = 0) -> Layout:
     )
 
     return layout
+
+
+def _safe_error_layout(title: str, message: str) -> Layout:
+    panel = Panel(
+        message,
+        title=title,
+        border_style="red",
+    )
+    return Layout(panel)
+
+
+def safe_render_tick(client, refresh_count: int) -> Layout:
+    """Fetch+render a tick, always returning a Layout (never raises)."""
+    try:
+        snapshot = fetch_status_snapshot(client)
+        return render_status_snapshot(snapshot, refresh_count)
+    except Exception as e:
+        return _safe_error_layout(
+            "[bold red]Error[/bold red]",
+            f"[red]Dashboard error[/red]: {escape(str(e))}",
+        )
 
 
 @app.command("show")
@@ -255,7 +279,7 @@ def dashboard_show(
     # Display live dashboard
     try:
         with Live(
-            generate_dashboard(client, refresh_count),
+            safe_render_tick(client, refresh_count),
             refresh_per_second=1.0 / refresh_rate if refresh_rate > 0 else 1.0,
             screen=True,
             redirect_stderr=False
@@ -263,7 +287,7 @@ def dashboard_show(
             while True:
                 time.sleep(refresh_rate)
                 refresh_count += 1
-                live.update(generate_dashboard(client, refresh_count))
+                live.update(safe_render_tick(client, refresh_count))
     except KeyboardInterrupt:
         console.print("\n[yellow]Dashboard closed[/yellow]")
     except Exception as e:

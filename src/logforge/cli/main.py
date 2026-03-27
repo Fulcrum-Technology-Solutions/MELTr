@@ -1,13 +1,12 @@
 """Main CLI entry point."""
 
-import sys
 from typing import Optional
 
 import typer
 from rich.console import Console
 
 from logforge import __version__
-from logforge.cli import api, api_client, config, dashboard, entities, generators, service, templates
+from logforge.cli import api, config, dashboard, entities, generators, service, templates
 from logforge.cli.init import init
 
 console = Console()
@@ -77,6 +76,34 @@ def stop_command(
     api_stop(timeout=timeout)
 
 
+@app.command("restart")
+def restart_command(
+    timeout: int = typer.Option(
+        30,
+        "--timeout",
+        "-t",
+        help="Seconds to wait after SIGTERM before SIGKILL (local stop fallback)",
+    ),
+    foreground: bool = typer.Option(
+        False,
+        "--foreground",
+        "-f",
+        help="Stay attached to the terminal for local restart fallback",
+    ),
+) -> None:
+    """Restart LogForge (prefer systemd if integrated, otherwise local PID-file stop/start)."""
+    from logforge.cli.api import api_start, api_stop
+    from logforge.cli.restart import restart
+
+    restart(
+        timeout=timeout,
+        foreground=foreground,
+        console=console,
+        api_stop=api_stop,
+        api_start=api_start,
+    )
+
+
 # Add status command (shortcut for generators status)
 @app.command("status")
 def status(
@@ -103,11 +130,11 @@ def main_callback(
     if version:
         console.print(f"LogForge {__version__}")
         raise typer.Exit()
-    
+
     # If no command provided, let Typer show help (no_args_is_help=True)
     if ctx.invoked_subcommand is None:
         return
-    
+
     # Store API settings in context for subcommands
     ctx.ensure_object(dict)
     ctx.obj['api_url'] = api_url
