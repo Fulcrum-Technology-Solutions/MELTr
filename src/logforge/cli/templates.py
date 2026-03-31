@@ -1218,6 +1218,61 @@ def _do_install_template(
         templates_path = Path(config.templates.local_path)
         default_path = templates_path / 'default'
         default_path.mkdir(parents=True, exist_ok=True)
+
+        def emit_template_installed_events(*, vendor_id: str, product_id: Optional[str], method: str) -> None:
+            """
+            Emit one telemetry event per installed template under vendor/product scope.
+            Non-fatal: never blocks install success.
+            """
+            try:
+                from logforge.telemetry import TelemetryClient, TelemetryEvent, get_actor_id, telemetry_enabled
+                from logforge.community.package import get_local_collection_version
+
+                if not telemetry_enabled():
+                    return
+
+                loader = TemplateLoader(config)
+                discovered = loader.discover_templates()
+
+                actor_id = get_actor_id()
+                client_telemetry = TelemetryClient(base_api_url=config.templates.community_api_url)
+
+                version_cache: dict[tuple[str, str], Optional[str]] = {}
+
+                events: list[TelemetryEvent] = []
+                prefix = f"{vendor_id}/"
+                product_prefix = f"{vendor_id}/{product_id}/" if product_id else None
+
+                for tid in discovered.keys():
+                    if not tid.startswith(prefix):
+                        continue
+                    if product_prefix and not tid.startswith(product_prefix):
+                        continue
+                    parts = tid.split("/")
+                    if len(parts) < 4:
+                        continue
+                    v, prod, ds, _name = parts[0], parts[1], parts[2], parts[3]
+                    key = (v, prod)
+                    if key not in version_cache:
+                        version_cache[key] = get_local_collection_version(v, prod, templates_path)  # type: ignore[arg-type]
+                    events.append(
+                        TelemetryEvent(
+                            event_type="template_installed",
+                            vendor_id=v,
+                            product_id=prod,
+                            data_source_id=ds,
+                            template_id=tid,
+                            collection_version=version_cache[key],
+                            properties={"method": method},
+                        )
+                    )
+
+                # Chunk to match server batch limits
+                chunk_size = 200
+                for i in range(0, len(events), chunk_size):
+                    client_telemetry.post_events(actor_id=actor_id, events=events[i : i + chunk_size])
+            except Exception:
+                _log.debug("Telemetry emit failed", exc_info=True)
         
         if local_file:
             # Install from local .forge file
@@ -1247,6 +1302,7 @@ def _do_install_template(
                 
                 console.print(f"[green]✓ Package installed successfully[/green]")
                 console.print(f"  Location: {installed_dir}")
+                emit_template_installed_events(vendor_id=vendor_id, product_id=None, method="local_file")
                 return
         
         # Install from API
@@ -1298,6 +1354,7 @@ def _do_install_template(
             console.print(f"\n[green]✓ Vendor package installed successfully[/green]")
             console.print(f"  Location: {installed_dir}")
             console.print(f"[dim]Configure generators in config.yaml to enable/disable individual templates[/dim]")
+            emit_template_installed_events(vendor_id=vendor_id, product_id=None, method="community_api")
         
         elif product or len(parts) == 2:
             # Product-level installation
@@ -1348,6 +1405,7 @@ def _do_install_template(
             console.print(f"\n[green]✓ Product installed successfully[/green]")
             console.print(f"  Location: {installed_dir}")
             console.print(f"[dim]Configure generators in config.yaml to enable/disable individual templates[/dim]")
+            emit_template_installed_events(vendor_id=vendor_id, product_id=product_id, method="community_api")
         
         else:
             # Invalid - too many parts (individual template not supported)

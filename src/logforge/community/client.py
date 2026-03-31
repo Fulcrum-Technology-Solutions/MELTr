@@ -9,6 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from logforge.utils.logging import get_logger
+from logforge.telemetry import get_actor_id
 
 logger = get_logger(__name__)
 
@@ -70,6 +71,11 @@ class CommunityAPIClient:
         self.session.headers.update({
             'User-Agent': 'LogForge-OSS/1.0.0',
             'Accept': 'application/json',
+        })
+        # Mark requests as originating from the CLI for server-side telemetry attribution.
+        self.session.headers.update({
+            "X-LogForge-Client": "cli",
+            "X-LogForge-Actor-Id": get_actor_id(),
         })
     
     def _request(
