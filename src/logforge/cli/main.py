@@ -1,13 +1,12 @@
 """Main CLI entry point."""
 
-import sys
 from typing import Optional
 
 import typer
 from rich.console import Console
 
 from logforge import __version__
-from logforge.cli import api, api_client, config, dashboard, entities, generators, service, templates
+from logforge.cli import api, config, dashboard, entities, generators, service, templates
 from logforge.cli.init import init
 
 console = Console()
@@ -25,9 +24,16 @@ def init_command(
     directory: Optional[str] = typer.Option(None, "--directory", "-d", help="Installation directory (default: ./logforge)"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Run interactive wizard"),
     force: bool = typer.Option(False, "--force", help="Overwrite existing configuration"),
+    user: Optional[str] = typer.Option(None, "--user", "-u", help="Service user to create or use (default: logmgr)"),
+    group: Optional[str] = typer.Option(None, "--group", "-g", help="Service group (default: same as user)"),
+    create_user: Optional[bool] = typer.Option(
+        None,
+        "--create-user/--no-create-user",
+        help="Create service user/group if missing (default: yes when root, no when non-root)",
+    ),
 ) -> None:
     """Initialize LogForge configuration and directory structure."""
-    init(directory=directory, interactive=interactive, force=force)
+    init(directory=directory, interactive=interactive, force=force, user=user, group=group, create_user=create_user)
 
 app.add_typer(config.app, name="config")
 app.add_typer(entities.app, name="entities")
@@ -43,10 +49,60 @@ def start(
     host: Optional[str] = typer.Option(None, "--host", help="API server host"),
     port: Optional[int] = typer.Option(None, "--port", help="API server port"),
     config: Optional[str] = typer.Option(None, "--config", help="Config file path"),
+    foreground: bool = typer.Option(
+        False,
+        "--foreground",
+        "-f",
+        help="Stay attached to the terminal (default is to background on POSIX, like Splunk/Cribl CLI start)",
+    ),
 ) -> None:
     """Start the LogForge service and API server."""
     from logforge.cli.api import api_start
-    api_start(host=host, port=port, config=config)
+    api_start(host=host, port=port, config=config, foreground=foreground)
+
+
+@app.command("stop")
+def stop_command(
+    timeout: int = typer.Option(
+        30,
+        "--timeout",
+        "-t",
+        help="Seconds to wait after SIGTERM before SIGKILL",
+    ),
+) -> None:
+    """Stop the LogForge service (PID file under LOGFORGE_HOME/run/)."""
+    from logforge.cli.api import api_stop
+
+    api_stop(timeout=timeout)
+
+
+@app.command("restart")
+def restart_command(
+    timeout: int = typer.Option(
+        30,
+        "--timeout",
+        "-t",
+        help="Seconds to wait after SIGTERM before SIGKILL (local stop fallback)",
+    ),
+    foreground: bool = typer.Option(
+        False,
+        "--foreground",
+        "-f",
+        help="Stay attached to the terminal for local restart fallback",
+    ),
+) -> None:
+    """Restart LogForge (prefer systemd if integrated, otherwise local PID-file stop/start)."""
+    from logforge.cli.api import api_start, api_stop
+    from logforge.cli.restart import restart
+
+    restart(
+        timeout=timeout,
+        foreground=foreground,
+        console=console,
+        api_stop=api_stop,
+        api_start=api_start,
+    )
+
 
 # Add status command (shortcut for generators status)
 @app.command("status")
@@ -74,11 +130,11 @@ def main_callback(
     if version:
         console.print(f"LogForge {__version__}")
         raise typer.Exit()
-    
+
     # If no command provided, let Typer show help (no_args_is_help=True)
     if ctx.invoked_subcommand is None:
         return
-    
+
     # Store API settings in context for subcommands
     ctx.ensure_object(dict)
     ctx.obj['api_url'] = api_url

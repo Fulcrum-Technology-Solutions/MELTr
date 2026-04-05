@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.panel import Panel
@@ -17,12 +18,36 @@ from logforge.core.config import (
     save_config as save_config_file,
 )
 from logforge.core.paths import get_logforge_home
+from logforge.cli.menu import paginate_choose
 from logforge.templates.loader import TemplateLoader
+
+# Sentinel: user chose "back" in paginated list (not a template/vendor/product id)
+_MENU_BACK = "__menu_back__"
 
 if TYPE_CHECKING:
     from logforge.templates.loader import TemplateInfo
 
 console = Console()
+
+
+def _is_expected_local_service_down(api_url: str, error: Exception) -> bool:
+    """Return True when failure matches local service-not-running case."""
+    try:
+        hostname = (urlparse(api_url).hostname or "").lower()
+    except Exception:
+        hostname = ""
+
+    if hostname not in {"127.0.0.1", "localhost", "::1"}:
+        return False
+
+    error_text = str(error).lower()
+    refused_markers = (
+        "connection refused",
+        "[errno 111]",
+        "[winerror 10061]",
+        "failed to establish a new connection",
+    )
+    return any(marker in error_text for marker in refused_markers)
 
 
 def config_editor(
@@ -114,7 +139,7 @@ def _show_main_menu() -> str:
     )
     console.print(menu)
     
-    return Prompt.ask("\nSelect option", choices=["1", "2", "3", "4", "5", "6", "7", "8"], default="7")
+    return Prompt.ask("\nSelect option", choices=["1", "2", "3", "4", "5", "6", "7", "8"], default="1")
 
 
 def _edit_outputs_section(config: Config) -> Config:
@@ -299,6 +324,29 @@ def _create_console_output(name: str) -> OutputDefinition:
     )
 
 
+def _prompt_plaintext_token(prompt_text: str) -> str:
+    """Prompt for token value and enforce minimal safety/validity checks."""
+    while True:
+        token = Prompt.ask(prompt_text).strip()
+        if not token:
+            console.print("[red]Token cannot be empty.[/red]")
+            continue
+        if "${" in token:
+            console.print("[red]Token cannot contain '${'.[/red]")
+            continue
+        return token
+
+
+def _prompt_header_name(default: str = "X-API-Key") -> str:
+    """Prompt for a header name and require a non-empty value."""
+    while True:
+        header_name = Prompt.ask("API key header name", default=default).strip()
+        if not header_name:
+            console.print("[red]Header name cannot be empty.[/red]")
+            continue
+        return header_name
+
+
 def _create_http_output(name: str) -> OutputDefinition:
     """Create HTTP output interactively."""
     url = Prompt.ask("HTTP URL", default="https://api.example.com/v1/events")
@@ -319,24 +367,15 @@ def _create_http_output(name: str) -> OutputDefinition:
         )
         
         if auth_type == "Bearer":
-            token_var = Prompt.ask(
-                "Token environment variable name",
-                default="API_TOKEN",
-            )
-            headers["Authorization"] = f"Bearer ${{{token_var}}}"
+            token_value = _prompt_plaintext_token("Bearer token")
+            headers["Authorization"] = f"Bearer {token_value}"
         elif auth_type == "Splunk HEC":
-            token_var = Prompt.ask(
-                "HEC token environment variable name",
-                default="SPLUNK_HEC_TOKEN",
-            )
-            headers["Authorization"] = f"Splunk ${{{token_var}}}"
+            token_value = _prompt_plaintext_token("HEC token")
+            headers["Authorization"] = f"Splunk {token_value}"
         else:  # API Key
-            header_name = Prompt.ask("API key header name", default="X-API-Key")
-            token_var = Prompt.ask(
-                "API key environment variable name",
-                default="API_KEY",
-            )
-            headers[header_name] = f"${{{token_var}}}"
+            header_name = _prompt_header_name()
+            token_value = _prompt_plaintext_token("API key token")
+            headers[header_name] = token_value
     
     # Add Content-Type
     headers["Content-Type"] = "application/json"
@@ -421,30 +460,220 @@ def _create_syslog_output(name: str) -> OutputDefinition:
     )
 
 
+def _build_rotation_from_prompts(
+    existing: Optional[OutputRotationConfig] = None,
+) -> Optional[OutputRotationConfig]:
+    """Interactive rotation config; defaults from *existing* when set."""
+    rotation_type = Prompt.ask(
+        "Rotation type",
+        choices=["size", "time"],
+        default=(existing.type if existing else "size"),
+    )
+    max_size = None
+    max_age = None
+    if rotation_type == "size":
+        max_size = Prompt.ask(
+            "Max file size (e.g., 100MB, 1GB)",
+            default=(str(existing.max_size) if existing and existing.max_size else "100MB"),
+        )
+    else:
+        max_age = Prompt.ask(
+            "Max age (e.g., 7d, 24h, 1w)",
+            default=(existing.max_age if existing and existing.max_age else "7d"),
+        )
+    max_files = IntPrompt.ask(
+        "Maximum rotated files to keep",
+        default=(existing.max_files if existing and existing.max_files is not None else 10),
+    )
+    compress = Confirm.ask(
+        "Compress rotated files?",
+        default=(existing.compress if existing else True),
+    )
+    return OutputRotationConfig(
+        type=rotation_type,
+        max_size=max_size,
+        max_age=max_age,
+        max_files=max_files,
+        compress=compress,
+    )
+
+
+def _edit_file_output_definition(output: OutputDefinition) -> OutputDefinition:
+    path = Prompt.ask(
+        "File path (supports variables: {generator}, {date}, …)",
+        default=output.path or "",
+    )
+    rotation = output.rotation
+    if Confirm.ask("Edit rotation settings?", default=False):
+        rotation = _build_rotation_from_prompts(output.rotation)
+    new_path = path.strip() if path else output.path
+    return output.model_copy(update={"path": new_path, "rotation": rotation})
+
+
+def _edit_console_output_definition(output: OutputDefinition) -> OutputDefinition:
+    stream = Prompt.ask(
+        "Stream",
+        choices=["stdout", "stderr"],
+        default=output.stream or "stdout",
+    )
+    format_type = Prompt.ask(
+        "Format",
+        choices=["json", "text"],
+        default=output.format or "json",
+    )
+    return output.model_copy(update={"stream": stream, "format": format_type})
+
+
+def _edit_http_output_definition(output: OutputDefinition) -> OutputDefinition:
+    url = Prompt.ask("HTTP URL", default=output.url or "https://api.example.com/v1/events")
+    method = Prompt.ask(
+        "HTTP method",
+        choices=["POST", "PUT", "PATCH"],
+        default=output.method or "POST",
+    )
+    batch_size = IntPrompt.ask(
+        "Batch size (events per batch, batching mode)",
+        default=output.batch_size or 100,
+    )
+    batch_interval = IntPrompt.ask(
+        "Batch interval (seconds)",
+        default=output.batch_interval or 5,
+    )
+    timeout = IntPrompt.ask("Request timeout (seconds)", default=output.timeout or 30)
+    streaming = Confirm.ask(
+        "Streaming mode (send each event as generated)?",
+        default=output.streaming if output.streaming is not None else True,
+    )
+    include_metadata = Confirm.ask(
+        "Include logforge_metadata wrapper?",
+        default=output.include_metadata,
+    )
+    policy = Prompt.ask(
+        "Buffer overflow policy when retry queue is full",
+        choices=["drop_newest", "drop_oldest"],
+        default=output.buffer_overflow_policy,
+    )
+    updates = {
+        "url": url,
+        "method": method,
+        "batch_size": batch_size,
+        "batch_interval": batch_interval,
+        "timeout": timeout,
+        "streaming": streaming,
+        "include_metadata": include_metadata,
+        "buffer_overflow_policy": policy,
+    }
+    if Confirm.ask("Rebuild authentication headers from presets?", default=False):
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if Confirm.ask("Add authentication header?", default=False):
+            auth_type = Prompt.ask(
+                "Authentication type",
+                choices=["Bearer", "Splunk HEC", "API Key"],
+                default="Bearer",
+            )
+            if auth_type == "Bearer":
+                token_value = _prompt_plaintext_token("Bearer token")
+                headers["Authorization"] = f"Bearer {token_value}"
+            elif auth_type == "Splunk HEC":
+                token_value = _prompt_plaintext_token("HEC token")
+                headers["Authorization"] = f"Splunk {token_value}"
+            else:
+                header_name = _prompt_header_name()
+                token_value = _prompt_plaintext_token("API key token")
+                headers[header_name] = token_value
+        updates["headers"] = headers
+    return output.model_copy(update=updates)
+
+
+def _edit_tcp_output_definition(output: OutputDefinition) -> OutputDefinition:
+    host = Prompt.ask("Host", default=output.host or "localhost")
+    port = IntPrompt.ask("Port", default=output.port or 514)
+    delimiter = Prompt.ask("Delimiter", default=output.delimiter or "\\n")
+    keepalive = Confirm.ask(
+        "Enable TCP keepalive?",
+        default=output.keepalive if output.keepalive is not None else True,
+    )
+    return output.model_copy(
+        update={
+            "host": host,
+            "port": port,
+            "delimiter": delimiter,
+            "keepalive": keepalive,
+        }
+    )
+
+
+def _edit_syslog_output_definition(output: OutputDefinition) -> OutputDefinition:
+    host = Prompt.ask("Syslog server host", default=output.host or "localhost")
+    port = IntPrompt.ask("Port", default=output.port or 514)
+    protocol = Prompt.ask(
+        "Protocol",
+        choices=["tcp", "udp"],
+        default=output.protocol or "udp",
+    )
+    facility = Prompt.ask(
+        "Facility",
+        choices=[
+            "kern", "user", "mail", "daemon", "auth", "syslog", "lpr", "news",
+            "uucp", "cron", "authpriv", "ftp", "local0", "local1", "local2",
+            "local3", "local4", "local5", "local6", "local7",
+        ],
+        default=output.facility or "user",
+    )
+    severity = Prompt.ask(
+        "Severity",
+        choices=[
+            "emerg", "alert", "crit", "err", "warning", "notice", "info", "debug",
+        ],
+        default=output.severity or "info",
+    )
+    return output.model_copy(
+        update={
+            "host": host,
+            "port": port,
+            "protocol": protocol,
+            "facility": facility,
+            "severity": severity,
+        }
+    )
+
+
+def _prompt_edit_output_definition(output: OutputDefinition) -> OutputDefinition:
+    editors = {
+        "file": _edit_file_output_definition,
+        "console": _edit_console_output_definition,
+        "http": _edit_http_output_definition,
+        "tcp": _edit_tcp_output_definition,
+        "syslog": _edit_syslog_output_definition,
+    }
+    fn = editors.get(output.type)
+    if fn is None:
+        console.print(f"[red]No editor for output type '{output.type}'[/red]")
+        return output
+    return fn(output)
+
+
 def _edit_output_interactive(config: Config) -> Config:
     """Edit an existing output."""
     if not config.outputs.definitions:
         console.print("[yellow]No outputs to edit[/yellow]")
         return config
-    
-    # List outputs
+
     console.print("\n[bold]Select Output to Edit[/bold]\n")
-    for i, output in enumerate(config.outputs.definitions, 1):
-        console.print(f"  [{i}] {output.name} ({output.type})")
-    
+    for i, out in enumerate(config.outputs.definitions, 1):
+        console.print(f"  [{i}] {out.name} ({out.type})")
+
     choice = IntPrompt.ask("\nSelect output number", default=1)
     if choice < 1 or choice > len(config.outputs.definitions):
         console.print("[red]Invalid selection[/red]")
         return config
-    
+
     output = config.outputs.definitions[choice - 1]
     console.print(f"\n[bold]Editing: {output.name}[/bold]\n")
-    
-    # For now, just show current config and allow basic edits
-    # Full editing would require re-creating the output
-    console.print("[yellow]Note: Full output editing not yet implemented.[/yellow]")
-    console.print("[yellow]Remove and re-add the output to change settings.[/yellow]")
-    
+
+    updated = _prompt_edit_output_definition(output)
+    config.outputs.definitions[choice - 1] = updated
+    console.print("[green]✓ Output updated[/green]")
     return config
 
 
@@ -898,74 +1127,6 @@ def _get_template_hierarchy(config: Config) -> dict[str, dict[str, list[tuple[st
     return hierarchy
 
 
-def _paginate_list(
-    items: list[tuple[str, Any]],
-    page_size: int = 20,
-    title: str = "",
-    show_index: bool = True,
-) -> Optional[int]:
-    """Display paginated list and get user selection.
-    
-    Args:
-        items: List of (display_text, value) tuples
-        page_size: Number of items per page
-        title: Title to display
-        page_size: Items per page
-        
-    Returns:
-        Selected index (0-based) or None if cancelled
-    """
-    if not items:
-        return None
-    
-    total_pages = (len(items) + page_size - 1) // page_size
-    current_page = 0
-    
-    while True:
-        start_idx = current_page * page_size
-        end_idx = min(start_idx + page_size, len(items))
-        page_items = items[start_idx:end_idx]
-        
-        if title:
-            console.print(f"\n[bold]{title}[/bold]\n")
-        
-        # Display items for current page
-        for i, (display_text, value) in enumerate(page_items):
-            idx = start_idx + i
-            if show_index:
-                console.print(f"  [{idx + 1}] {display_text}")
-            else:
-                console.print(f"  {display_text}")
-        
-        # Show pagination info
-        if total_pages > 1:
-            console.print(f"\n[dim]Page {current_page + 1} of {total_pages} (n=next, p=prev, q=quit)[/dim]")
-        else:
-            console.print("\n[dim](q=quit)[/dim]")
-        
-        # Get user input
-        user_input = Prompt.ask("\nSelect option", default="1").strip().lower()
-        
-        if user_input == 'q':
-            return None
-        elif user_input == 'n' and current_page < total_pages - 1:
-            current_page += 1
-            continue
-        elif user_input == 'p' and current_page > 0:
-            current_page -= 1
-            continue
-        
-        # Try to parse as number
-        try:
-            choice = int(user_input)
-            if 1 <= choice <= len(items):
-                return choice - 1
-            else:
-                console.print(f"[red]Invalid selection. Please choose 1-{len(items)}[/red]")
-        except ValueError:
-            console.print("[red]Invalid input. Please enter a number, 'n', 'p', or 'q'[/red]")
-
-
 def _select_template_from_product(
     config: Config,
     vendor: str,
@@ -1026,10 +1187,12 @@ def _select_template_from_product(
             title += f", {existing_count} already configured"
         title += ")"
     
-    selection = _paginate_list(items, page_size=20, title=title)
+    selection = paginate_choose(items, console=console, page_size=20, title=title)
     if selection is None:
         return None
-    
+    if selection < 0:
+        return _MENU_BACK
+
     selected_template_id = items[selection][1]
     console.print(f"[green]Selected: {selected_template_id}[/green]")
     return selected_template_id
@@ -1073,10 +1236,12 @@ def _select_product(
         return None
     
     title = f"Products: {vendor}"
-    selection = _paginate_list(items, page_size=20, title=title)
+    selection = paginate_choose(items, console=console, page_size=20, title=title)
     if selection is None:
         return None
-    
+    if selection < 0:
+        return _MENU_BACK
+
     selected_product = items[selection][1]
     return selected_product
 
@@ -1120,29 +1285,37 @@ def _select_vendor(config: Config, exclude_existing: bool = False) -> Optional[s
         return None
     
     title = "Select Vendor"
-    selection = _paginate_list(items, page_size=20, title=title)
-    if selection is None:
+    selection = paginate_choose(items, console=console, page_size=20, title=title)
+    if selection is None or selection < 0:
         return None
-    
+
     selected_vendor = items[selection][1]
     return selected_vendor
 
 
 def _select_template_hierarchical(config: Config, exclude_existing: bool = False) -> Optional[str]:
     """Hierarchical template selection: vendor -> product -> template."""
-    # Step 1: Select vendor
-    vendor = _select_vendor(config, exclude_existing=exclude_existing)
-    if not vendor:
-        return None
-    
-    # Step 2: Select product
-    product = _select_product(config, vendor, exclude_existing=exclude_existing)
-    if not product:
-        return None
-    
-    # Step 3: Select template
-    template = _select_template_from_product(config, vendor, product, exclude_existing=exclude_existing)
-    return template
+    while True:
+        vendor = _select_vendor(config, exclude_existing=exclude_existing)
+        if not vendor:
+            return None
+
+        while True:
+            product = _select_product(config, vendor, exclude_existing=exclude_existing)
+            if product is None:
+                return None
+            if product == _MENU_BACK:
+                break
+
+            while True:
+                template = _select_template_from_product(
+                    config, vendor, product, exclude_existing=exclude_existing
+                )
+                if template is None:
+                    return None
+                if template == _MENU_BACK:
+                    break
+                return template
 
 
 def _select_template_interactive(config: Config, exclude_existing: bool = False) -> Optional[str]:
@@ -1443,9 +1616,13 @@ def _save_config(config: Config) -> bool:
                 else:
                     console.print(f"[yellow]⚠ Service returned status {health_response.status_code}. Restart service to apply changes.[/yellow]")
             except requests.exceptions.ConnectionError as e:
-                console.print(f"[yellow]⚠ Could not connect to service at {client.api_url}[/yellow]")
-                console.print(f"[yellow]  Error: {str(e)}[/yellow]")
-                console.print("[yellow]  Use 'logforge config reload' after starting the service.[/yellow]")
+                if _is_expected_local_service_down(client.api_url, e):
+                    console.print("[dim]ℹ Service is not running; skipping live reload.[/dim]")
+                    console.print("[dim]  Saved config will be loaded automatically on next start.[/dim]")
+                else:
+                    console.print(f"[yellow]⚠ Could not connect to service at {client.api_url}[/yellow]")
+                    console.print(f"[yellow]  Error: {str(e)}[/yellow]")
+                    console.print("[yellow]  Use 'logforge config reload' after starting the service.[/yellow]")
             except requests.exceptions.Timeout as e:
                 console.print(f"[yellow]⚠ Service health check timed out (service may be slow or unresponsive)[/yellow]")
                 console.print("[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]")

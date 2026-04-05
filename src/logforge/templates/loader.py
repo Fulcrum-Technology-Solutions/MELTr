@@ -178,6 +178,24 @@ class TemplateLoader:
             return template_info.metadata
         return None
 
+    def resolve_paths_under(self, base: Path, template_id: str) -> Optional[Tuple[Path, Path]]:
+        """Return ``(j2_path, meta_path)`` under ``base`` if the ``.j2`` file exists.
+
+        ``meta_path`` may not exist on disk yet; it is still the conventional path.
+        Used for diff/merge against a specific tree (default vs custom) regardless
+        of precedence in :meth:`discover_templates`.
+        """
+        parts = [p for p in template_id.strip().strip("/").split("/") if p]
+        if len(parts) != 4:
+            return None
+        vendor, product, data_source, name = parts
+        data_dir = base / vendor / product / data_source
+        j2_path = data_dir / f"{name}.j2"
+        meta_path = data_dir / f"{name}.meta.yaml"
+        if not j2_path.is_file():
+            return None
+        return j2_path, meta_path
+
 
 class TemplateInfo:
     """Information about a discovered template."""

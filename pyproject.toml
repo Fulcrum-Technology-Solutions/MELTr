@@ -41,6 +41,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "pip-licenses>=4.0.0",
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
@@ -56,10 +57,10 @@ dev = [
 logforge = "logforge.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/logforge"
+Homepage = "https://github.com/Fulcrum-Technology-Solutions/LogForge"
 Documentation = "https://docs.logforge.io"
-Repository = "https://github.com/yourusername/logforge.git"
-Issues = "https://github.com/yourusername/logforge/issues"
+Repository = "https://github.com/Fulcrum-Technology-Solutions/LogForge.git"
+Issues = "https://github.com/Fulcrum-Technology-Solutions/LogForge/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -69,6 +70,9 @@ version = {attr = "logforge.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+logforge = ["data/*.yaml"]
 
 [tool.black]
 line-length = 100
