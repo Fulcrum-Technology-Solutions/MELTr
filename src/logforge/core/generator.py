@@ -387,17 +387,25 @@ class Generator:
         """
         logger.debug(f"Generator {self.name}: _write_to_outputs() called with {len(self.output_handlers)} handler(s)")
         
+        success_count = 0
         for i, handler in enumerate(self.output_handlers):
             handler_name = getattr(handler, 'name', f'handler_{i}')
             logger.debug(f"Generator {self.name}: Writing to output handler {i+1}/{len(self.output_handlers)}: {handler_name}")
             try:
                 handler.write(event)
+                success_count += 1
                 logger.debug(f"Generator {self.name}: Successfully wrote to handler {handler_name}")
             except Exception as e:
                 logger.warning(f"Generator {self.name}: Output handler {handler_name} write failed: {e}", exc_info=True)
                 # Don't raise - let other handlers try
                 # State will transition to DEGRADED if all handlers fail
         
+        if success_count == 0:
+            if self.state == GeneratorState.RUNNING:
+                self._transition_to(GeneratorState.DEGRADED)
+        elif self.state == GeneratorState.DEGRADED:
+            self._transition_to(GeneratorState.RUNNING)
+
         logger.debug(f"Generator {self.name}: _write_to_outputs() completed")
     
     def _validate_entities_available(self) -> None:

@@ -5,7 +5,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from collections import deque
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from logforge.core.config import RetryConfig
 from logforge.utils.logging import get_logger
@@ -42,6 +42,7 @@ class OutputHandler(ABC):
         self._last_failure_time: Optional[float] = None
         self._is_healthy = True
         self._retry_lock = threading.Lock()
+        self._dropped_count = 0
     
     def write(self, event: str) -> None:
         """Write a single event with retry and buffering.
@@ -103,7 +104,8 @@ class OutputHandler(ABC):
         with self._buffer_lock:
             if len(self._buffer) >= self.buffer_size:
                 # Buffer full - drop oldest
-                dropped = self._buffer.popleft()
+                self._buffer.popleft()
+                self._dropped_count += 1
                 logger.warning(
                     f"Output handler {self.name}: Buffer full, dropping event. "
                     f"Buffer size: {self.buffer_size}"
@@ -246,9 +248,28 @@ class OutputHandler(ABC):
     
     def is_healthy(self) -> bool:
         """Check if handler is healthy.
-        
+
         Returns:
             True if healthy, False if degraded
         """
         with self._retry_lock:
             return self._is_healthy
+
+    def get_statistics(self) -> Dict:
+        """Return backlog and dropped counts for observability.
+
+        Returns:
+            Dict with backlog_size, dropped_count, healthy, buffer_size.
+        """
+        with self._buffer_lock:
+            backlog_size = len(self._buffer)
+            dropped_count = self._dropped_count
+        with self._retry_lock:
+            healthy = self._is_healthy
+        return {
+            "name": self.name,
+            "backlog_size": backlog_size,
+            "dropped_count": dropped_count,
+            "healthy": healthy,
+            "buffer_size": self.buffer_size,
+        }

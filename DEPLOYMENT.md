@@ -1,5 +1,27 @@
 # LogForge Deployment & Update Guide
 
+**First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**. For the **`.tar.gz` bundle** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)**.
+
+**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** (see [linux-tarball.md](docs/deployment/linux-tarball.md)), a **wheel** (`pip install logforge` or `pip install logforge-*.whl` from a release), or an **editable install** from source for development. Config and data live under **LOGFORGE_HOME**. For `logforge service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/logforge` → **`LOGFORGE_HOME=/opt/logforge`**; otherwise same rules as `get_logforge_home()`). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
+
+## Updating the official Linux `.tar.gz` (GitHub Releases)
+
+Use this when LogForge was installed from **`logforge-{version}-linux-x86_64.tar.gz`** (embedded Python under e.g. `/opt/logforge`). Details: [docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md).
+
+1. **Stop** the service: `sudo systemctl stop logforge`
+2. **Back up** `LOGFORGE_HOME` (e.g. `/opt/logforge` or `/var/lib/logforge`), for example:  
+   `sudo tar czf ~/logforge-home-backup.tgz -C /opt logforge`  
+   (adjust `-C` and paths to match your layout; preserve `config.yaml`, `entities.yaml`, `templates/`, etc.).
+3. **Download** the new `logforge-{version}-linux-x86_64.tar.gz` and verify checksums from [Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases).
+4. **Replace the install tree** (`python/`, `app/`) without deleting your data directory:
+   - If **`LOGFORGE_HOME`** is **outside** the unpacked bundle, remove the old `python` and `app` directories (or the whole previous bundle folder) and unpack the new tarball into the same install root.
+   - If **`LOGFORGE_HOME`** is **`/opt/logforge`** (state alongside `app/` and `python/`), move state aside before replacing the install tree, for example:  
+     `sudo mv /opt/logforge/config.yaml /tmp/ && sudo mv /opt/logforge/entities.yaml /tmp/ && …`  
+     or archive the whole directory except the install subdirs you replace; then restore after unpacking.
+5. Ensure **`PATH`** includes `/opt/logforge/app/bin` and that **systemd** still uses the bundled binary if you installed with  
+   `logforge service install --binary /opt/logforge/app/bin/logforge ...`.
+6. **Start** the service: `sudo systemctl start logforge`
+
 ## Update Process for Test Machines
 
 ### Scenario: You've made code changes and need to update a test machine
@@ -87,28 +109,16 @@ sudo systemctl disable logforge
 sudo logforge service uninstall
 
 # Backup your data (config, entities, templates)
-sudo cp -r /opt/logforge/logforge /opt/logforge/logforge.backup.$(date +%Y%m%d_%H%M%S)
+sudo cp -r /var/lib/logforge /var/lib/logforge.backup.$(date +%Y%m%d_%H%M%S)
 
-# Remove old installation
-sudo rm -rf /opt/logforge/src
-sudo rm -rf /opt/logforge/.venv
+# For wheel install: upgrade the package; data stays in /var/lib/logforge
+pip install logforge --upgrade
 
-# Follow fresh installation steps
-cd /opt/logforge
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
+# Reinstall service (only if you removed it)
+sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge
 
-# Install from your source (git pull or file copy)
-git clone <your-repo> src  # or copy files
-cd src
-pip install -e .
-
-# Reinstall service
-sudo logforge service install --user logmgr --group logmgr --home /opt/logforge/logforge
-
-# Restore your data (if needed)
-# Config and entities should still be in /opt/logforge/logforge
+# For source install: remove old tree, clone/copy, pip install -e ., then service install --home /var/lib/logforge
+# Restore from backup to /var/lib/logforge if you moved data
 
 # Start service
 sudo systemctl start logforge
@@ -123,7 +133,7 @@ sudo systemctl enable logforge
 - ✅ `templates/custom/` - Your custom templates
 - ✅ `templates/default/` - Community templates (unless you reinstall them)
 - ✅ `outputs/` - Output files
-- ✅ `logforge.log` - Log files
+- ✅ `logs/logforge.log` - Application logs (bundle default: under `<install_root>/logs`, e.g. `/opt/logforge/logs/`; override with `LOGFORGE_LOG_FILE`)
 
 **Replaced:**
 - 🔄 Python source code (`src/`)

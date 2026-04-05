@@ -12,61 +12,32 @@ LogForge is a synthetic event log generator designed for SOC engineers, DFIR ana
 - **Outputs** – File, console, HTTP, TCP, and syslog handlers share buffered retry logic with per-handler metrics and backlog tracking.
 - **Observability** – Prometheus-compatible metrics, structured logs, template/engine telemetry, and end-to-end test coverage.
 
-## Quick Start
+## Quick start (production)
 
-### Prerequisites
-
-- Python 3.9+
-- Optional: `uvicorn`, `poetry`/`pipx`/`pip` for execution, curl/httpie for API tests.
-
-### Installation
+Recommended path for **Linux x86_64**: download the official **`logforge-{version}-linux-x86_64.tar.gz`** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases), unpack under `/opt`, put the CLI on `PATH`, then initialize and run:
 
 ```bash
-git clone https://github.com/your-org/logforge.git
-cd logforge
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-```
-
-### Initialize
-
-```bash
+sudo tar xzf logforge-{version}-linux-x86_64.tar.gz -C /opt
+export PATH=/opt/logforge/app/bin:$PATH
 export LOGFORGE_HOME=/opt/logforge
 logforge init --force
+logforge start          # backgrounds on POSIX (Splunk-style); use --foreground / -f to stay attached
+logforge stop           # SIGTERM via $LOGFORGE_HOME/run/logforge.pid; optional --timeout
 ```
 
-This creates the directory layout, default configuration, entity registry, and template scaffolding under `LOGFORGE_HOME`.
+Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)** (filesystem, systemd, checksums). Broader Linux layout (including systemd): **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**.
 
-### Start the Service) 
+**Other install options:** Install from a **wheel** (e.g. from a release asset or PyPI when published) into a venv, or run from a **source checkout** for development—see [linux-single-instance.md](docs/deployment/linux-single-instance.md).
 
-**Foreground mode (development/testing):**
-```bash
-logforge start
-```
+- **Data location:** Config and entities live under **`LOGFORGE_HOME`**. For the **`/opt/logforge`** bundle, the default **`LOGFORGE_HOME`** is **`/opt/logforge`** (product root; same for local runs and `service install` without `--home`). Application logs default to **`/opt/logforge/logs/`**. Override with `LOGFORGE_HOME` / `LOGFORGE_LOG_FILE` or `--home` on install. Service user is typically **`logmgr`**.
+- **Upgrades / backups:** [DEPLOYMENT.md](DEPLOYMENT.md). **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-**As a systemd service (production):**
-```bash
-# Install systemd service (creates user, directories, service file)
-sudo logforge service install
-
-# Start the service
-sudo systemctl start logforge
-# or use the wrapper:
-sudo logforge service start
-
-# Enable on boot
-sudo systemctl enable logforge
-```
-
-The service embeds the management API server and starts enabled generators automatically. The CLI health-checks the API before performing operations.
-
-### CLI Examples
+### CLI examples
 
 ```bash
 # Service management
-logforge start                    # Start service (foreground)
+logforge start                    # Start API + engine (daemon on POSIX unless -f)
+logforge stop                     # Stop process in run/logforge.pid (same LOGFORGE_HOME as start)
 logforge service install          # Install systemd service (requires root)
 logforge service start            # Start systemd service
 logforge service stop             # Stop systemd service
@@ -86,8 +57,10 @@ logforge templates browse             # Browse remote templates (hierarchical, p
 logforge templates search <query>     # Search templates (interactive, paginated)
 logforge templates install <id>      # Install template package
 logforge templates info <id>         # View template details
-logforge templates customize <id>    # Create custom template override
-logforge templates diff <id>         # Compare local vs remote template
+logforge templates customize <id>    # Copy installed default → custom for editing
+logforge templates diff <id>         # Unified diff: installed default vs custom (4-part ID)
+logforge templates merge <id>        # Overwrite custom from default (--yes, --force)
+logforge templates create <id>       # New minimal custom .j2 + .meta under templates/custom/
 
 # Generator operations
 logforge generators list
@@ -105,24 +78,9 @@ All commands accept `--output json` for machine-friendly output and `--skip-heal
 
 ## Development
 
-### Tests
+Environment setup, tests, and formatting: **[docs/development/setup.md](docs/development/setup.md)**.
 
-```bash
-pytest           # full suite
-pytest -k tcp    # focused tests
-```
-
-The suite includes unit, API, CLI, output, and end-to-end scenarios.
-
-### Formatting & Linting
-
-```bash
-ruff check .
-black .
-mypy src
-```
-
-### Directory Layout
+### Directory layout
 
 ```
 src/logforge/
@@ -142,6 +100,18 @@ Tests mirror this structure under `tests/`.
 ## Configuration
 
 The generated `config.yaml` controls API parameters, engine behavior, entity registry options, template paths, output definitions, and generator configurations. Paths are validated to stay under `LOGFORGE_HOME`.
+
+### Internal log generator
+
+A built-in generator named `internal-logs` forwards application logs (the `logforge.*` logger) to the same output destinations as synthetic events. Enable it in `config.yaml` and start it like any other generator:
+
+```yaml
+internal_logs:
+  enabled: true
+  outputs: [stdout]  # or file, http, etc.
+```
+
+Then `logforge generators start internal-logs` (or let the service start it automatically when `internal_logs.enabled` is true). The name `internal-logs` is reserved.
 
 ### Generator Timezone Override
 
@@ -265,79 +235,4 @@ logforge config edit                 # Interactive editor with:
 ## License
 
 Apache 2.0. See `LICENSE` for details.
-
-# LogForge OSS
-
-LogForge is a synthetic event log generator tailored for security engineering teams.
-
-## Development Status
-
-The project is under active construction. See `Tasks.md` for phase planning and progress notes.
-
-## Local Setup
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
-```
-
-## CLI Usage
-
-**Entity Management**:
-- `logforge entities list` — show registry summary or `--type users|devices|services` for detailed listings.
-- `logforge entities show <type> <name>` — view specific entity details.
-- `logforge entities add <type>` — interactively add new entity.
-- `logforge entities import <file>` — import entities from YAML file.
-
-**Generator Management**:
-- `logforge generators list` — fetch generator status from the management API.
-- `logforge generators start <name>` / `stop <name>` — control generator lifecycles.
-
-**Template Management**:
-- `logforge templates` — interactive menu for browsing, searching, and installing templates.
-- All template commands support pagination for large result sets.
-- Hierarchical browsing: vendor → product → template selection.
-
-## API Quick Start
-
-The management API runs on `http://127.0.0.1:8080` by default.
-
-```bash
-# Generator overview
-curl http://127.0.0.1:8080/api/generators | jq
-
-# Start or stop a generator
-curl -X POST http://127.0.0.1:8080/api/generators/windows_security/start
-curl -X POST http://127.0.0.1:8080/api/generators/windows_security/stop
-
-# Entity summary
-curl http://127.0.0.1:8080/api/entities | jq
-```
-
-## Troubleshooting
-
-### Installation Issues
-
-**Error: `No module named pip` in venv**
-
-Upgrade pip in your virtual environment:
-
-```bash
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-```
-
-**Error: Editable install fails with older pip**
-
-Upgrade pip to version 21.3+ (PEP 660 support required):
-
-```bash
-python -m pip install --upgrade pip
-```
-
-## License
-
-Apache License 2.0
 
