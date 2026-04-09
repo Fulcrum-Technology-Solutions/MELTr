@@ -473,4 +473,7 @@ def register_filters(env: Environment) -> None:
     env.globals['random_guid'] = random_guid
     env.globals['random_hostname'] = random_hostname
     env.globals['random_hex'] = random_hex
+    # Callable form: subtract_seconds(dt, n) / add_seconds(dt, n) (also available as filters)
+    env.globals['add_seconds'] = add_seconds
+    env.globals['subtract_seconds'] = subtract_seconds
 

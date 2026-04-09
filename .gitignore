@@ -37,6 +37,7 @@ htmlcov/
 .hypothesis/
 
 # IDEs
+.cursor/
 .vscode/
 .idea/
 *.swp
