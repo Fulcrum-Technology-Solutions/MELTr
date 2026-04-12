@@ -53,7 +53,7 @@ def init(
     """Initialize LogForge configuration and directory structure.
 
     Uses LOGFORGE_HOME (default: ./.logforge or ./logforge when present, else
-    ~/.logforge for interactive users or /var/lib/logforge for service accounts).
+    ~/.logforge for interactive users or /opt/logforge for service accounts).
     With --create-user and root, creates the service user/group (default: logmgr)
     and sets ownership. If neither --create-user nor --no-create-user is passed,
     defaults to creating a service user only when running as root.

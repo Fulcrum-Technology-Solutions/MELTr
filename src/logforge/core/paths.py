@@ -119,7 +119,7 @@ def get_logforge_home() -> Path:
     4. Official bundle: product root ``.../opt/logforge`` from the running binary
        (see :func:`get_bundle_home_from_install_binary`; uses ``sys.argv[0]`` and ``PATH``)
     5. ~/.logforge for interactive users (uid >= 1000)
-    6. /var/lib/logforge for service accounts (uid < 1000) when no bundle home applies
+    6. /opt/logforge for service accounts (uid < 1000) when no bundle home applies
 
     Returns:
         Path to LOGFORGE_HOME directory
@@ -167,7 +167,7 @@ def get_logforge_home() -> Path:
             is_service_account = False
 
     if is_service_account:
-        home_path = Path('/var/lib/logforge')
+        home_path = Path('/opt/logforge')
     else:
         home_path = Path.home() / '.logforge'
 
