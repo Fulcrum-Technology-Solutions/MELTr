@@ -50,8 +50,8 @@ def test_get_logforge_home_prefers_dot_logforge(tmp_path, monkeypatch):
     assert home == dot_logforge.resolve()
 
 
-def test_get_logforge_home_service_account_uses_var_lib(tmp_path, monkeypatch):
-    """Service accounts fall back to /var/lib/logforge only when the binary is not under opt/logforge."""
+def test_get_logforge_home_service_account_uses_opt_without_bundle(tmp_path, monkeypatch):
+    """Service accounts fall back to /opt/logforge when bundle layout cannot be resolved."""
     from logforge.core import paths as paths_module
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv('LOGFORGE_HOME', raising=False)
@@ -59,7 +59,7 @@ def test_get_logforge_home_service_account_uses_var_lib(tmp_path, monkeypatch):
         with patch.object(shutil, "which", return_value=None):
             with patch.object(paths_module, "_ensure_directory"):
                 home = get_logforge_home()
-    assert home == Path('/var/lib/logforge')
+    assert home == Path('/opt/logforge')
 
 
 def test_get_data_home_from_install_binary_opt_layout(tmp_path):
