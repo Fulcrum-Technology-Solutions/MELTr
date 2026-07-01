@@ -4,7 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from logforge.api.errors import log_api_exception
 from logforge.core.engine import Engine
+from logforge.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/generators", tags=["generators"])
 
@@ -104,7 +108,8 @@ async def start_generator(
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Generator not found: {name}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start generator: {str(e)}")
+        detail = log_api_exception(logger, "Start generator", e)
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.post("/{name}/stop")
@@ -131,7 +136,8 @@ async def stop_generator(
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Generator not found: {name}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to stop generator: {str(e)}")
+        detail = log_api_exception(logger, "Stop generator", e)
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.post("/{name}/restart")
@@ -158,7 +164,8 @@ async def restart_generator(
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Generator not found: {name}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to restart generator: {str(e)}")
+        detail = log_api_exception(logger, "Restart generator", e)
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.post("/restart-all")
@@ -188,7 +195,7 @@ async def restart_all_generators(
             results.append({
                 "name": generator.name,
                 "success": False,
-                "error": str(e),
+                "error": log_api_exception(logger, f"Restart generator {generator.name}", e),
                 "state": generator.state.value,
             })
     
