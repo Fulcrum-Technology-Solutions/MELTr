@@ -80,6 +80,18 @@ All commands accept `--output json` for machine-friendly output and `--skip-heal
 
 Environment setup, tests, and formatting: **[docs/development/setup.md](docs/development/setup.md)**.
 
+### Security (local pre-commit)
+
+After cloning, run once to enable secret scanning on commit:
+
+```bash
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit
+brew install gitleaks   # if not installed
+```
+
+CI runs TruffleHog via `.github/workflows/security-checks.yml` on push and pull request.
+
 ### Directory layout
 
 ```
