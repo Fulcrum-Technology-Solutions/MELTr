@@ -4,6 +4,7 @@ from typing import Annotated, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from logforge.api.errors import log_api_exception
 from logforge.api.server import APIServer
 from logforge.core.engine import Engine
 from logforge.utils.logging import get_logger
@@ -223,7 +224,6 @@ async def reload_config(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Config file not found")
     except Exception as e:
-        logger = get_logger(__name__)
-        logger.error(f"Failed to reload config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to reload config: {str(e)}")
+        detail = log_api_exception(get_logger(__name__), "Reload config", e)
+        raise HTTPException(status_code=500, detail=detail)
 

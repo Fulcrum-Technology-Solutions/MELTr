@@ -4,7 +4,7 @@ Use this guide to run LogForge from a **source checkout**. Production installs t
 
 ## Requirements
 
-- **Python:** `>=3.9` (see `requires-python` in [`pyproject.toml`](../../pyproject.toml)).
+- **Python:** `>=3.10` (see `requires-python` in [`pyproject.toml`](../../pyproject.toml)).
 - **Git** for cloning the repository.
 
 ## Runtime dependencies

@@ -4,7 +4,11 @@ from typing import Annotated, Any, Dict, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
+from logforge.api.errors import log_api_exception
 from logforge.entities.registry import EntityRegistry
+from logforge.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/entities", tags=["entities"])
 
@@ -63,8 +67,11 @@ async def import_entities(
     # Validate import data
     try:
         validate_entities(entities_data, schema_path=None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid entities: {e}")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid entities: {str(e)}")
+        detail = log_api_exception(logger, "Validate entities import", e)
+        raise HTTPException(status_code=400, detail=detail)
     
     # Get current data
     current_data = registry._data or {

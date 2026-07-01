@@ -16,7 +16,7 @@ For **upgrades, backups, and rollback**, see [DEPLOYMENT.md](../../DEPLOYMENT.md
 | Requirement | Notes |
 |-------------|--------|
 | **OS** | Linux x86_64 or ARM64 with a supported Python (see README). |
-| **Python** | 3.9 or newer. |
+| **Python** | 3.10 or newer. |
 | **Network ports** | Default management API listens on **8080** (`127.0.0.1`). Ensure this port is free, or change `api.host` / `api.port` in `config.yaml` after init. Generators and outputs use the same process; no separate “data plane” port unless you configure HTTP/TCP/syslog outputs to listen locally. |
 | **Tools** | `pip`, `venv` (typically via `python3 -m venv`). Optional: `curl` or `httpie` for API checks. |
 
