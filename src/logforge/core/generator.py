@@ -13,6 +13,7 @@ from logforge.outputs.base import OutputHandler
 from logforge.templates.loader import TemplateLoader
 from logforge.templates.renderer import TemplateRenderer
 from logforge.utils.logging import get_logger
+from logforge.utils.public_errors import sanitize_stored_error
 
 logger = get_logger(__name__)
 
@@ -447,7 +448,7 @@ class Generator:
                     datetime.fromtimestamp(self._last_event_time, ZoneInfo(self.get_timezone())).isoformat()
                     if self._last_event_time else None
                 ),
-                "last_error": self._last_error,
+                "last_error": sanitize_stored_error(self._last_error),
             }
     
     def get_status(self) -> Dict:
