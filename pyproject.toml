@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "jinja2>=3.1.0",
+    "jinja2>=3.1.6",
     "pyyaml>=6.0.3",
     "typer>=0.26.8",
     "requests>=2.34.2",
@@ -34,8 +34,8 @@ dependencies = [
     "prometheus-client>=0.19.0",
     "pydantic>=2.13.4",
     "faker>=40.28.1",
-    "rich>=13.0.0",
-    "psutil>=5.9.0",
+    "rich>=15.0.0",
+    "psutil>=7.2.2",
 ]
 
 [project.optional-dependencies]
@@ -43,10 +43,10 @@ dev = [
     "pip-licenses>=5.5.5",
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.23.0",
+    "pytest-asyncio>=1.4.0",
     "pytest-mock>=3.15.1",
     "black>=26.5.1",
-    "ruff>=0.15.20",
+    "ruff>=0.15.21",
     "mypy>=1.8.0",
     "httpx>=0.28.1",
     "jsonschema>=4.26.0",
@@ -116,6 +116,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "--strict-markers",
     "--cov=logforge",
