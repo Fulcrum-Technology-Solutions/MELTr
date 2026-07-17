@@ -27,7 +27,7 @@ logforge stop           # SIGTERM via $LOGFORGE_HOME/run/logforge.pid; optional 
 
 Full operator details: **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)** (filesystem, systemd, checksums). Broader Linux layout (including systemd): **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**.
 
-**Other install options:** Install from a **wheel** (e.g. from a release asset or PyPI when published) into a venv, or run from a **source checkout** for development—see [linux-single-instance.md](docs/deployment/linux-single-instance.md).
+**Other install options:** Install from a **wheel** downloaded from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases) into a venv (`pip install ./logforge-*.whl`), or run from a **source checkout** for development—see [linux-single-instance.md](docs/deployment/linux-single-instance.md). PyPI publishing is not available for this project (the `logforge` name is already taken).
 
 - **Data location:** Config and entities live under **`LOGFORGE_HOME`**. For the **`/opt/logforge`** bundle, the default **`LOGFORGE_HOME`** is **`/opt/logforge`** (product root; same for local runs and `service install` without `--home`). Application logs default to **`/opt/logforge/logs/`**. Override with `LOGFORGE_HOME` / `LOGFORGE_LOG_FILE` or `--home` on install. Service user is typically **`logmgr`**.
 - **Upgrades / backups:** [DEPLOYMENT.md](DEPLOYMENT.md). **Troubleshooting:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
