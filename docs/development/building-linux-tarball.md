@@ -42,3 +42,7 @@ The build installs [`pip-licenses`](https://pypi.org/project/pip-licenses/) in a
 ## CI
 
 On tag push, the workflow builds the wheel, runs `scripts/build_linux_tgz.sh`, smoke-tests `logforge --version` and `logforge init`, then uploads wheels, sdists, the Linux tarball, `.sha256` files, and `checksums.txt`.
+
+## Maintainer note: release tags
+
+Create release tags (`v*`) from **`main`** after promoting `develop` → `main`. Do not reuse stale or non-main tags. The release workflow derives the package version from the tag name.

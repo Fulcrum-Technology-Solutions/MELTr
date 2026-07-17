@@ -2,7 +2,7 @@
 
 **First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**. For the **`.tar.gz` bundle** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)**.
 
-**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** (see [linux-tarball.md](docs/deployment/linux-tarball.md)), a **wheel** (`pip install logforge` or `pip install logforge-*.whl` from a release), or an **editable install** from source for development. Config and data live under **LOGFORGE_HOME**. For `logforge service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/logforge` → **`LOGFORGE_HOME=/opt/logforge`**; otherwise same rules as `get_logforge_home()`). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
+**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** or **wheel** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases) (see [linux-tarball.md](docs/deployment/linux-tarball.md)), or an **editable install** from source for development. Install wheels with `pip install ./logforge-*.whl` (not from PyPI — the `logforge` name is taken by another project). Config and data live under **LOGFORGE_HOME**. For `logforge service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/logforge` → **`LOGFORGE_HOME=/opt/logforge`**; otherwise same rules as `get_logforge_home()`). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
 
 ## Updating the official Linux `.tar.gz` (GitHub Releases)
 
@@ -111,8 +111,8 @@ sudo logforge service uninstall
 # Backup your data (config, entities, templates)
 sudo cp -r /var/lib/logforge /var/lib/logforge.backup.$(date +%Y%m%d_%H%M%S)
 
-# For wheel install: upgrade the package; data stays in /var/lib/logforge
-pip install logforge --upgrade
+# For wheel install: download the new wheel from GitHub Releases; data stays in /var/lib/logforge
+pip install ./logforge-*.whl --upgrade
 
 # Reinstall service (only if you removed it)
 sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge
