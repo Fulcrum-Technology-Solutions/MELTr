@@ -43,7 +43,12 @@ class EngineConfig(BaseModel):
 
 
 class AuthConfig(BaseModel):
-    """API authentication configuration."""
+    """API authentication configuration.
+
+    Key-implies-auth: authentication is active when ``enabled`` is true or when
+    a non-empty API key is resolved from ``MELTR_API_KEY``, ``LOGFORGE_API_KEY``,
+    or ``key`` in config (env vars take precedence over config).
+    """
 
     enabled: bool = Field(default=False, description="Enable API key authentication")
     key: Optional[str] = Field(default=None, description="API key (auto-generated if enabled)")
