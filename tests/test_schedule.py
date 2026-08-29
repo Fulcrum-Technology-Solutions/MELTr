@@ -3,12 +3,11 @@
 import json
 import shutil
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
 
-import pytest
 import yaml
 
 from meltr.core.config import (
@@ -22,9 +21,7 @@ from meltr.core.generator import GeneratorState
 from meltr.core.schedule import ScheduleDecision, evaluate_schedule
 from meltr.entities.registry import EntityRegistry
 
-SAMPLE_ENTITIES = (
-    Path(__file__).parent.parent / "src" / "meltr" / "data" / "entities.sample.yaml"
-)
+SAMPLE_ENTITIES = Path(__file__).parent.parent / "src" / "meltr" / "data" / "entities.sample.yaml"
 
 
 def _dt(iso: str, tz: str = "UTC") -> datetime:
@@ -38,9 +35,7 @@ def test_continuous_always_emits():
     now = _dt("2026-08-29T03:00:00")
     started = _dt("2026-08-29T00:00:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -56,9 +51,7 @@ def test_window_inside_business_hours():
     now = _dt("2026-08-28T10:30:00", "America/New_York")
     started = _dt("2026-08-28T09:00:00", "America/New_York")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -74,9 +67,7 @@ def test_window_outside_time_range():
     now = _dt("2026-08-28T20:00:00", "America/New_York")
     started = _dt("2026-08-28T09:00:00", "America/New_York")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="outside_window")
 
@@ -92,9 +83,7 @@ def test_window_outside_allowed_day():
     now = _dt("2026-08-29T10:30:00", "America/New_York")
     started = _dt("2026-08-29T09:00:00", "America/New_York")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="outside_window")
 
@@ -104,9 +93,7 @@ def test_burst_under_count_limit():
     now = _dt("2026-08-29T00:01:00")
     started = _dt("2026-08-29T00:00:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=9, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=9, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -116,9 +103,7 @@ def test_burst_count_reached():
     now = _dt("2026-08-29T00:01:00")
     started = _dt("2026-08-29T00:00:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=10, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=10, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="burst_complete")
 
@@ -128,9 +113,7 @@ def test_burst_duration_exceeded():
     started = _dt("2026-08-29T00:00:00")
     now = _dt("2026-08-29T00:05:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="burst_complete")
 
@@ -140,9 +123,7 @@ def test_burst_within_duration():
     started = _dt("2026-08-29T00:00:00")
     now = _dt("2026-08-29T00:04:59")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -156,9 +137,7 @@ def test_window_boundary_start_inclusive():
     )
     now = _dt("2026-08-28T09:00:00", "UTC")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=now
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=now)
 
     assert decision.emit is True
     assert decision.reason == "ok"
@@ -173,9 +152,7 @@ def test_window_boundary_end_inclusive():
     )
     now = _dt("2026-08-28T17:00:00", "UTC")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=now
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=now)
 
     assert decision.emit is True
     assert decision.reason == "ok"
@@ -190,9 +167,7 @@ def test_window_overnight_span():
     )
     now = _dt("2026-08-28T23:30:00", "UTC")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=now
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=now)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -202,9 +177,7 @@ def test_burst_duration_seconds_suffix():
     started = _dt("2026-08-29T00:00:00")
     now = _dt("2026-08-29T00:00:31")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="burst_complete")
 
@@ -236,9 +209,7 @@ def _install_high_rate_template(base: Path) -> str:
     return template_id
 
 
-def test_generator_window_schedule_emits_zero_outside_window(
-    tmp_path, monkeypatch
-) -> None:
+def test_generator_window_schedule_emits_zero_outside_window(tmp_path, monkeypatch) -> None:
     """Standalone generator with window schedule emits nothing outside the window."""
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     template_id = _install_high_rate_template(tmp_path)

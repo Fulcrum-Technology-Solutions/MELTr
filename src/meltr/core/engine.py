@@ -582,9 +582,7 @@ class Engine:
                 try:
                     future.result()
                 except Exception as e:
-                    logger.error(
-                        f"Generator {name} loop crashed immediately: {e}", exc_info=True
-                    )
+                    logger.error(f"Generator {name} loop crashed immediately: {e}", exc_info=True)
                     generator._transition_to(GeneratorState.ERROR)
                     raise RuntimeError(f"Generator {name} loop failed to start: {e}") from e
 
