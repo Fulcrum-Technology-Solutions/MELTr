@@ -1,0 +1,6 @@
+vendor: testvendor
+product: testproduct
+data_source: events
+description: Preview fixture template for tests
+format: JSON
+is_generator: true
