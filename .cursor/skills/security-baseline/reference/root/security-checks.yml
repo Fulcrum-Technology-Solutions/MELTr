@@ -1,0 +1,28 @@
+name: Security & Quality Checks
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Weekly dependency audit (Mondays 00:00 UTC)
+    - cron: "0 0 * * 1"
+
+jobs:
+  secrets-scan:
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/secrets-scan.yml@main
+
+  build:
+    if: github.event_name == 'pull_request'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/build.yml@main
+
+  lint:
+    if: github.event_name == 'pull_request'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/lint.yml@main
+
+  dependency-audit:
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/dependency-audit.yml@main
+
+  semgrep:
+    if: github.event_name == 'pull_request'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/semgrep.yml@main

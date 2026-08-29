@@ -1,0 +1,36 @@
+name: Security & Quality Checks
+
+# Monorepo variant: the app lives in a subdirectory (web/). build/lint/audit are
+# pointed there via working-directory. Secrets scan still covers the whole repo.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * 1" # Weekly dependency audit (Mondays 00:00 UTC)
+
+jobs:
+  secrets-scan:
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/secrets-scan.yml@main
+
+  build:
+    if: github.event_name == 'pull_request'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/build.yml@main
+    with:
+      working-directory: web
+
+  lint:
+    if: github.event_name == 'pull_request'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/lint.yml@main
+    with:
+      working-directory: web
+
+  dependency-audit:
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/dependency-audit.yml@main
+    with:
+      working-directory: web
+
+  semgrep:
+    if: github.event_name == 'pull_request'
+    uses: Fulcrum-Technology-Solutions/.github/.github/workflows/semgrep.yml@main

@@ -16,6 +16,21 @@ Global review gate: `~/.cursor/rules/review-gate.mdc` (≥2 specialists by risk)
 
 Canonical roadmap: `docs/superpowers/plans/2026-08-29-meltr-v2-completion.md`
 
+## Local Cursor skills
+
+Under `.cursor/skills/` (use when relevant):
+
+| Skill | Use for |
+|-------|---------|
+| `creating-pr` | Feature/fix PRs into `main` |
+| `writing-commit-messages` | Conventional commits |
+| `reviewing-code` | Diff reviews (Python/FastAPI) |
+| `auditing-security` | Security pass / OWASP-style audit |
+| `security-baseline` | FTSC CI/secret-scan/Dependabot baseline |
+| `grill-with-docs` | Stress-test plans against domain language |
+| `suggesting-cursor-rules` / `suggesting-cursor-hooks` | Encode repeated corrections / checks |
+| `writing-guidelines` | Prose/docs voice review |
+
 ## Development setup
 
 ```

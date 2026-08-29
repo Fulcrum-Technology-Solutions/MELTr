@@ -1,0 +1,23 @@
+# Root-layout repo: hook runs from the repo root (where .git lives).
+
+# 1) Secret scan of staged changes
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "❌ gitleaks not installed. Install it: brew install gitleaks"
+  exit 1
+fi
+gitleaks git --staged --redact . || {
+  echo "❌ Commit blocked: gitleaks found a secret in staged changes."
+  exit 1
+}
+
+# 2) Block committing secret files: .env*, and .dev.vars (Cloudflare local secrets).
+#    Allow .env.example / .env.template.
+if git diff --cached --name-only \
+   | grep -E '(^|/)(\.env(\..*)?|\.dev\.vars)$' \
+   | grep -vE '\.(example|template)$' >/dev/null; then
+  echo "❌ Commit blocked: a secret file (.env* or .dev.vars) is staged. Unstage it: git reset HEAD <file>"
+  exit 1
+fi
+
+# 3) Lint staged files
+npx lint-staged
