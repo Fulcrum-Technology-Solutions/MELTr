@@ -61,6 +61,10 @@ class APIConfig(BaseModel):
     host: str = Field(default="127.0.0.1", description="Listen address")
     port: int = Field(default=8080, description="Listen port")
     auth: AuthConfig = Field(default_factory=AuthConfig, description="Authentication settings")
+    cors_origins: List[str] = Field(
+        default_factory=list,
+        description="Allowed CORS origins (empty disables cross-origin browser access)",
+    )
 
 
 class EntityRegistryConfig(BaseModel):

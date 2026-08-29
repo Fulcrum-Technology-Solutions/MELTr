@@ -41,10 +41,11 @@ class APIServer:
 
     def _setup_middleware(self) -> None:
         """Configure CORS and other middleware."""
+        origins = list(self.config.api.cors_origins)
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],  # TODO: Make configurable
-            allow_credentials=True,
+            allow_origins=origins,
+            allow_credentials=bool(origins),
             allow_methods=["*"],
             allow_headers=["*"],
         )

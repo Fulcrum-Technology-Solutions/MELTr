@@ -689,7 +689,7 @@ def test_datetime_wrapper_arithmetic():
 def test_register_filters_adds_now():
     from jinja2 import Environment
 
-    env = Environment()
+    env = Environment()  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     register_filters(env)
     assert "now" in env.globals
     assert "random_int" in env.filters
