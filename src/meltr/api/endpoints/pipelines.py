@@ -58,9 +58,7 @@ async def start_pipeline(
             "name": name,
             "state": status["state"],
             "message": (
-                "Pipeline starting"
-                if status["state"] == "STARTING"
-                else "Pipeline started"
+                "Pipeline starting" if status["state"] == "STARTING" else "Pipeline started"
             ),
         }
     except KeyError:
@@ -83,9 +81,7 @@ async def stop_pipeline(
             "name": name,
             "state": status["state"],
             "message": (
-                "Pipeline stopping"
-                if status["state"] == "STOPPING"
-                else "Pipeline stopped"
+                "Pipeline stopping" if status["state"] == "STOPPING" else "Pipeline stopped"
             ),
         }
     except KeyError:

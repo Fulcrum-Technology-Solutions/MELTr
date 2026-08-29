@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from typing import Optional
 from zoneinfo import ZoneInfo
 
 from meltr.core.config import ScheduleConfig
@@ -80,7 +79,9 @@ def _inside_window(schedule: ScheduleConfig, now: datetime) -> bool:
     local_now = now.astimezone(tz)
 
     if schedule.days:
-        allowed_days = {_DAY_NAME_TO_ISO[d.lower()] for d in schedule.days if d.lower() in _DAY_NAME_TO_ISO}
+        allowed_days = {
+            _DAY_NAME_TO_ISO[d.lower()] for d in schedule.days if d.lower() in _DAY_NAME_TO_ISO
+        }
         if allowed_days and local_now.isoweekday() not in allowed_days:
             return False
 
@@ -117,7 +118,7 @@ def _burst_complete(
     return False
 
 
-def _resolve_timezone(timezone_name: Optional[str]) -> ZoneInfo:
+def _resolve_timezone(timezone_name: str | None) -> ZoneInfo:
     if timezone_name:
         try:
             return ZoneInfo(timezone_name)
@@ -134,7 +135,7 @@ def _parse_time(time_str: str) -> time:
         return time(0, 0)
 
 
-def _parse_duration(duration: Optional[str]) -> Optional[int]:
+def _parse_duration(duration: str | None) -> int | None:
     if not duration:
         return None
 

@@ -144,9 +144,7 @@ def test_pipeline_name_collision_with_generator_rejected(tmp_path, monkeypatch) 
     engine = Engine(config, registry)
 
     assert "lab-pipeline" not in engine._pipelines
-    child_names = [
-        name for name in engine._generators if name.startswith("lab-pipeline::")
-    ]
+    child_names = [name for name in engine._generators if name.startswith("lab-pipeline::")]
     assert child_names == []
 
 
@@ -236,9 +234,7 @@ def test_reload_config_preserves_pipeline_child_generators(tmp_path, monkeypatch
         engine.shutdown()
 
 
-def test_pipeline_child_name_collision_rejected_atomically(
-    tmp_path, monkeypatch
-) -> None:
+def test_pipeline_child_name_collision_rejected_atomically(tmp_path, monkeypatch) -> None:
     """Pipeline load must fail atomically when a child name already exists."""
     file_a = tmp_path / "out-a.log"
     file_b = tmp_path / "out-b.log"

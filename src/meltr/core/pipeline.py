@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import threading
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
-from meltr.core.config import PipelineConfig, ScheduleConfig
+from meltr.core.config import GeneratorConfig, PipelineConfig
 from meltr.core.generator import Generator, GeneratorState
-from meltr.core.config import GeneratorConfig
 from meltr.outputs.factory import create_output_handlers
 from meltr.templates.loader import TemplateLoader
 from meltr.utils.logging import get_logger
@@ -49,8 +48,8 @@ class Pipeline:
     def __init__(
         self,
         config: PipelineConfig,
-        generators: List[Generator],
-        child_generator_names: List[str],
+        generators: list[Generator],
+        child_generator_names: list[str],
         schedule_state: ScheduleSharedState,
     ) -> None:
         self.config = config
@@ -77,8 +76,8 @@ class Pipeline:
         """Build a pipeline and its child generators."""
         schedule_state = ScheduleSharedState(datetime.now(timezone.utc))
 
-        generators: List[Generator] = []
-        child_names: List[str] = []
+        generators: list[Generator] = []
+        child_names: list[str] = []
 
         for index, stream in enumerate(config.streams):
             template_info = template_cache.get_template(stream.template)

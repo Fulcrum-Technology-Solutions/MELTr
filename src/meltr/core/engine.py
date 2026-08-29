@@ -178,9 +178,7 @@ class Engine:
 
                 with self._generators_lock:
                     collisions = [
-                        name
-                        for name in pipeline.child_generator_names
-                        if name in self._generators
+                        name for name in pipeline.child_generator_names if name in self._generators
                     ]
                 if collisions:
                     logger.error(
@@ -194,15 +192,13 @@ class Engine:
 
                 with self._generators_lock:
                     for child_name, child_gen in zip(
-                        pipeline.child_generator_names, pipeline.generators
+                        pipeline.child_generator_names, pipeline.generators, strict=True
                     ):
                         self._generators[child_name] = child_gen
 
                 logger.info(f"Loaded pipeline: {pipe_config.name}")
             except Exception as e:
-                logger.error(
-                    f"Failed to load pipeline {pipe_config.name}: {e}", exc_info=True
-                )
+                logger.error(f"Failed to load pipeline {pipe_config.name}: {e}", exc_info=True)
 
     def start_pipeline(self, name: str) -> None:
         """Start all child generators for a pipeline."""

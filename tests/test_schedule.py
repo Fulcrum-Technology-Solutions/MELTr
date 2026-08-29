@@ -1,9 +1,7 @@
 """Tests for schedule gate evaluation."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from zoneinfo import ZoneInfo
-
-import pytest
 
 from meltr.core.config import ScheduleConfig
 from meltr.core.schedule import ScheduleDecision, evaluate_schedule
@@ -20,9 +18,7 @@ def test_continuous_always_emits():
     now = _dt("2026-08-29T03:00:00")
     started = _dt("2026-08-29T00:00:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -38,9 +34,7 @@ def test_window_inside_business_hours():
     now = _dt("2026-08-28T10:30:00", "America/New_York")
     started = _dt("2026-08-28T09:00:00", "America/New_York")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -56,9 +50,7 @@ def test_window_outside_time_range():
     now = _dt("2026-08-28T20:00:00", "America/New_York")
     started = _dt("2026-08-28T09:00:00", "America/New_York")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="outside_window")
 
@@ -74,9 +66,7 @@ def test_window_outside_allowed_day():
     now = _dt("2026-08-29T10:30:00", "America/New_York")
     started = _dt("2026-08-29T09:00:00", "America/New_York")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="outside_window")
 
@@ -86,9 +76,7 @@ def test_burst_under_count_limit():
     now = _dt("2026-08-29T00:01:00")
     started = _dt("2026-08-29T00:00:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=9, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=9, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -98,9 +86,7 @@ def test_burst_count_reached():
     now = _dt("2026-08-29T00:01:00")
     started = _dt("2026-08-29T00:00:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=10, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=10, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="burst_complete")
 
@@ -110,9 +96,7 @@ def test_burst_duration_exceeded():
     started = _dt("2026-08-29T00:00:00")
     now = _dt("2026-08-29T00:05:00")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="burst_complete")
 
@@ -122,9 +106,7 @@ def test_burst_within_duration():
     started = _dt("2026-08-29T00:00:00")
     now = _dt("2026-08-29T00:04:59")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -138,9 +120,7 @@ def test_window_boundary_start_inclusive():
     )
     now = _dt("2026-08-28T09:00:00", "UTC")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=now
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=now)
 
     assert decision.emit is True
     assert decision.reason == "ok"
@@ -155,9 +135,7 @@ def test_window_boundary_end_inclusive():
     )
     now = _dt("2026-08-28T17:00:00", "UTC")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=now
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=now)
 
     assert decision.emit is True
     assert decision.reason == "ok"
@@ -172,9 +150,7 @@ def test_window_overnight_span():
     )
     now = _dt("2026-08-28T23:30:00", "UTC")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=now
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=now)
 
     assert decision == ScheduleDecision(emit=True, reason="ok")
 
@@ -184,8 +160,6 @@ def test_burst_duration_seconds_suffix():
     started = _dt("2026-08-29T00:00:00")
     now = _dt("2026-08-29T00:00:31")
 
-    decision = evaluate_schedule(
-        schedule, now=now, events_emitted=0, started_at=started
-    )
+    decision = evaluate_schedule(schedule, now=now, events_emitted=0, started_at=started)
 
     assert decision == ScheduleDecision(emit=False, reason="burst_complete")

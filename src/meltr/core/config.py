@@ -270,6 +270,7 @@ class Config(BaseModel):
         description="Forward application logs to outputs (built-in generator)",
     )
 
+
 def substitute_env_vars(value: Any, home: Path) -> Any:
     """Recursively substitute environment variables in config values.
 

@@ -1,7 +1,5 @@
 """Pipeline management CLI commands."""
 
-from typing import Optional
-
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -14,8 +12,8 @@ console = Console()
 
 @app.command("list")
 def pipelines_list(
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    api_url: str | None = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
 ) -> None:
     """List all pipelines."""
     client = get_api_client(api_url, api_key)
@@ -58,8 +56,8 @@ def pipelines_list(
 @app.command("start")
 def pipelines_start(
     name: str = typer.Argument(..., help="Pipeline name"),
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    api_url: str | None = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
 ) -> None:
     """Start a pipeline."""
     client = get_api_client(api_url, api_key)
@@ -81,8 +79,8 @@ def pipelines_start(
 @app.command("stop")
 def pipelines_stop(
     name: str = typer.Argument(..., help="Pipeline name"),
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    api_url: str | None = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
 ) -> None:
     """Stop a pipeline."""
     client = get_api_client(api_url, api_key)
@@ -103,9 +101,9 @@ def pipelines_stop(
 
 @app.command("status")
 def pipelines_status(
-    name: Optional[str] = typer.Argument(None, help="Pipeline name (optional)"),
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    name: str | None = typer.Argument(None, help="Pipeline name (optional)"),
+    api_url: str | None = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
 ) -> None:
     """Show pipeline status."""
     client = get_api_client(api_url, api_key)
@@ -127,7 +125,7 @@ def pipelines_status(
             console.print(f"  [cyan]Outputs:[/cyan] {', '.join(data['outputs'])}")
             console.print(f"  [cyan]Schedule:[/cyan] {data['schedule']['mode']}")
             stats = data["statistics"]
-            console.print(f"\n  [bold]Statistics:[/bold]")
+            console.print("\n  [bold]Statistics:[/bold]")
             console.print(f"    Events Generated: {stats['events_generated']}")
             console.print(f"    Errors: {stats['errors']}")
 
