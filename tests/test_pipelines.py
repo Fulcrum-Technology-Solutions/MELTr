@@ -202,3 +202,66 @@ def test_api_pipelines_list_start_stop(pipeline_api_client: TestClient) -> None:
 def test_child_generator_name_format() -> None:
     assert Pipeline.child_generator_name("lab", 0) == "lab::0"
     assert Pipeline.child_generator_name("lab", 1) == "lab::1"
+
+
+def test_reload_config_preserves_pipeline_child_generators(tmp_path, monkeypatch) -> None:
+    """reload_config must not tear down pipeline child generators."""
+    file_a = tmp_path / "out-a.log"
+    file_b = tmp_path / "out-b.log"
+    config, registry, engine, _stream_a, _stream_b = _setup_home(
+        tmp_path, monkeypatch, file_a=file_a, file_b=file_b
+    )
+
+    try:
+        child_names_before = sorted(
+            name for name in engine._generators if name.startswith("lab-pipeline::")
+        )
+        assert child_names_before == ["lab-pipeline::0", "lab-pipeline::1"]
+
+        engine.start_pipeline("lab-pipeline")
+
+        results = engine.reload_config(config.model_copy(deep=True))
+
+        child_names_after = sorted(
+            name for name in engine._generators if name.startswith("lab-pipeline::")
+        )
+        assert child_names_after == child_names_before
+        assert "lab-pipeline" in engine._pipelines
+        assert not any(name in results["removed"] for name in child_names_before)
+
+        status = engine.get_pipeline_status("lab-pipeline")
+        assert status["name"] == "lab-pipeline"
+        assert len(status["streams"]) == 2
+    finally:
+        engine.shutdown()
+
+
+def test_pipeline_child_name_collision_rejected_atomically(
+    tmp_path, monkeypatch
+) -> None:
+    """Pipeline load must fail atomically when a child name already exists."""
+    file_a = tmp_path / "out-a.log"
+    file_b = tmp_path / "out-b.log"
+    config, registry, engine, stream_a, _stream_b = _setup_home(
+        tmp_path, monkeypatch, file_a=file_a, file_b=file_b
+    )
+    engine.shutdown()
+
+    from meltr.core.config import GeneratorConfig
+
+    config.generators = [
+        GeneratorConfig(
+            name="lab-pipeline::0",
+            template=stream_a,
+            enabled=False,
+            outputs=["file-a"],
+        )
+    ]
+    engine = Engine(config, registry)
+
+    try:
+        assert "lab-pipeline" not in engine._pipelines
+        assert "lab-pipeline::0" in engine._generators
+        assert "lab-pipeline::1" not in engine._generators
+    finally:
+        engine.shutdown()

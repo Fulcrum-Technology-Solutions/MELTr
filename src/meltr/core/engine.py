@@ -135,6 +135,14 @@ class Engine:
                         f"Failed to load {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True
                     )
 
+    def _collect_pipeline_child_names(self) -> set[str]:
+        """Return all registered pipeline child generator names."""
+        with self._pipelines_lock:
+            names: set[str] = set()
+            for pipeline in self._pipelines.values():
+                names.update(pipeline.child_generator_names)
+            return names
+
     def load_pipelines_from_config(self) -> None:
         """Load pipeline configurations and register child generators."""
         with self._pipelines_lock:
@@ -168,6 +176,19 @@ class Engine:
                     buffer_size=self.config.outputs.buffer_size,
                 )
 
+                with self._generators_lock:
+                    collisions = [
+                        name
+                        for name in pipeline.child_generator_names
+                        if name in self._generators
+                    ]
+                if collisions:
+                    logger.error(
+                        f"Pipeline {pipe_config.name}: child name collision(s): "
+                        f"{', '.join(collisions)}"
+                    )
+                    continue
+
                 with self._pipelines_lock:
                     self._pipelines[pipe_config.name] = pipeline
 
@@ -175,11 +196,6 @@ class Engine:
                     for child_name, child_gen in zip(
                         pipeline.child_generator_names, pipeline.generators
                     ):
-                        if child_name in self._generators:
-                            logger.error(
-                                f"Pipeline {pipe_config.name}: child name {child_name} already exists"
-                            )
-                            continue
                         self._generators[child_name] = child_gen
 
                 logger.info(f"Loaded pipeline: {pipe_config.name}")
@@ -291,8 +307,12 @@ class Engine:
         new_gen_configs = {gen.name: gen for gen in new_config.generators}
         new_names = set(new_gen_configs.keys())
 
+        # Pipeline child generators ({pipeline}::{index}) are managed via pipelines
+        # config, not config.generators — exclude them from the removed sweep.
+        pipeline_child_names = self._collect_pipeline_child_names()
+
         # Find removed generators
-        removed_names = current_names - new_names
+        removed_names = current_names - new_names - pipeline_child_names
         for name in removed_names:
             try:
                 logger.info(f"Stopping removed generator: {name}")
@@ -494,6 +514,12 @@ class Engine:
                             results["errors"].append(
                                 f"Failed to update {INTERNAL_LOGS_GENERATOR_NAME}: {e}"
                             )
+
+        try:
+            self.load_pipelines_from_config()
+        except Exception as e:
+            logger.error(f"Error reloading pipelines: {e}", exc_info=True)
+            results["errors"].append(f"Failed to reload pipelines: {e}")
 
         logger.info(
             f"Config reloaded: {len(results['added'])} added, "

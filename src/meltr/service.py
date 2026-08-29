@@ -130,6 +130,16 @@ class LogForgeService:
                     logger.info(f"Started generator: {gen_config.name}")
                 except Exception as e:
                     logger.error(f"Failed to start generator {gen_config.name}: {e}", exc_info=True)
+
+        # Start enabled pipelines
+        for pipe_config in self.config.pipelines:
+            if pipe_config.enabled:
+                try:
+                    self.engine.start_pipeline(pipe_config.name)
+                    logger.info(f"Started pipeline: {pipe_config.name}")
+                except Exception as e:
+                    logger.error(f"Failed to start pipeline {pipe_config.name}: {e}", exc_info=True)
+
         # Start internal log generator if configured
         il = getattr(self.config, "internal_logs", None)
         if il and il.enabled and il.outputs:
