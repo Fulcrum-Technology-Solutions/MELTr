@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from logforge.api.endpoints import generators as generators_module
+from meltr.api.endpoints import generators as generators_module
 
 
 @pytest.fixture

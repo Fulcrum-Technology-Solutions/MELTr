@@ -3,7 +3,7 @@ requires = ["setuptools>=83.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "logforge"
+name = "meltr"
 dynamic = ["version"]
 description = "Synthetic event log generator with template-based architecture"
 readme = "README.md"
@@ -53,25 +53,26 @@ dev = [
 ]
 
 [project.scripts]
-logforge = "logforge.cli.main:main"
+meltr = "meltr.cli.main:main"
+logforge = "meltr.cli.main:main"  # compat alias during LogForge → MELTr transition
 
 [project.urls]
-Homepage = "https://github.com/Fulcrum-Technology-Solutions/LogForge"
-Documentation = "https://docs.logforge.io"
-Repository = "https://github.com/Fulcrum-Technology-Solutions/LogForge.git"
-Issues = "https://github.com/Fulcrum-Technology-Solutions/LogForge/issues"
+Homepage = "https://github.com/Fulcrum-Technology-Solutions/MELTr"
+Documentation = "https://github.com/Fulcrum-Technology-Solutions/MELTr#readme"
+Repository = "https://github.com/Fulcrum-Technology-Solutions/MELTr.git"
+Issues = "https://github.com/Fulcrum-Technology-Solutions/MELTr/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.dynamic]
-version = {attr = "logforge.__version__"}
+version = {attr = "meltr.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-logforge = ["data/*.yaml"]
+meltr = ["data/*.yaml"]
 
 [tool.black]
 line-length = 100
@@ -120,7 +121,7 @@ asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "--strict-markers",
-    "--cov=logforge",
+    "--cov=meltr",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-fail-under=80",

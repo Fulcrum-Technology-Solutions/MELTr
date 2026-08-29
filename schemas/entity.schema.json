@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://logforge.dev/schemas/entity.schema.json",
+    "$id": "https://meltr.dev/schemas/entity.schema.json",
     "title": "Entity Registry Schema",
     "description": "Schema for entity registry YAML files used by LogForge synthetic log generator",
     "type": "object",

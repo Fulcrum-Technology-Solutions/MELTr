@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from logforge.core.config import OutputDefinition, RetryConfig
-from logforge.outputs.base import OutputHandler
-from logforge.outputs.console import ConsoleOutputHandler
-from logforge.outputs.file import FileOutputHandler
-from logforge.outputs.factory import create_output_handlers
-from logforge.outputs.http import HTTPOutputHandler
-from logforge.outputs.tcp import TCPOutputHandler
+from meltr.core.config import OutputDefinition, RetryConfig
+from meltr.outputs.base import OutputHandler
+from meltr.outputs.console import ConsoleOutputHandler
+from meltr.outputs.file import FileOutputHandler
+from meltr.outputs.factory import create_output_handlers
+from meltr.outputs.http import HTTPOutputHandler
+from meltr.outputs.tcp import TCPOutputHandler
 
 
 def test_console_handler_json_format():

@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from logforge.cli import templates
-from logforge.cli.main import app
+from meltr.cli import templates
+from meltr.cli.main import app
 
 
 _META = """vendor: acme
@@ -28,8 +28,8 @@ def _write_default_template(home: Path, template_id: str, body: str) -> None:
 
 
 def test_templates_diff_errors_without_custom(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
-    from logforge.core.config import create_default_config, save_config
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    from meltr.core.config import create_default_config, save_config
 
     save_config(create_default_config(tmp_path))
     tid = "acme/prod/ds/t1"
@@ -42,8 +42,8 @@ def test_templates_diff_errors_without_custom(tmp_path, monkeypatch) -> None:
 
 
 def test_templates_diff_merge_roundtrip(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
-    from logforge.core.config import create_default_config, save_config
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    from meltr.core.config import create_default_config, save_config
 
     save_config(create_default_config(tmp_path))
     tid = "acme/prod/ds/t1"
@@ -69,8 +69,8 @@ def test_templates_diff_merge_roundtrip(tmp_path, monkeypatch) -> None:
 
 
 def test_templates_merge_errors_without_custom_and_no_force(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
-    from logforge.core.config import create_default_config, save_config
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    from meltr.core.config import create_default_config, save_config
 
     save_config(create_default_config(tmp_path))
     tid = "acme/prod/ds/t1"
@@ -82,8 +82,8 @@ def test_templates_merge_errors_without_custom_and_no_force(tmp_path, monkeypatc
 
 
 def test_templates_merge_force_creates_custom(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
-    from logforge.core.config import create_default_config, save_config
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    from meltr.core.config import create_default_config, save_config
 
     save_config(create_default_config(tmp_path))
     tid = "acme/prod/ds/t1"
@@ -97,8 +97,8 @@ def test_templates_merge_force_creates_custom(tmp_path, monkeypatch) -> None:
 
 
 def test_templates_create_writes_custom_files(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
-    from logforge.core.config import create_default_config, save_config
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    from meltr.core.config import create_default_config, save_config
 
     save_config(create_default_config(tmp_path))
     tid = "acme/prod/ds/newtpl"

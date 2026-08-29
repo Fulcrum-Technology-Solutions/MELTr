@@ -1,29 +1,43 @@
 # AGENTS.md
 
-## Cursor Cloud specific instructions
+## Spec & parity
 
-### Project overview
+| Field | Value |
+|-------|-------|
+| **SPEC_SOURCE** | Live FastAPI/OpenAPI (`/docs`), entity import schema, and CLI + YAML behavior under `MELTR_HOME`. Greenfield features: the approved plan doc is the spec. |
+| **PARITY_MODE** | When pointed at a reference (OpenAPI, design doc, legacy LogForge path), that reference defines "done." Audit DONE / PARTIAL / MISSING; do not invent behavior. Name deliberate deviations in the PR. |
+| **PLANNING_MODE** | No external reference → decompose with explicit acceptance criteria; those criteria define done. |
 
-LogForge is a single-package Python application (FastAPI + Typer CLI) for synthetic log generation. No external services, databases, or Docker are required. All state is stored in YAML files under `LOGFORGE_HOME` (defaults to `~/.logforge`).
+Global review gate: `~/.cursor/rules/review-gate.mdc` (≥2 specialists by risk).
 
-### Development setup
+## Project overview
 
-See `README.md` "Development / from source" section. The standard workflow is:
+**MELTr** is a single-package Python application (FastAPI + Typer) for synthetic log generation. Formerly **LogForge OSS**. State lives under `MELTR_HOME` (defaults to `~/.meltr`). Compat: `LOGFORGE_HOME` still accepted.
+
+Canonical roadmap: `docs/superpowers/plans/2026-08-29-meltr-v2-completion.md`
+
+## Local Cursor skills
+
+Under `.cursor/skills/` (use when relevant):
+
+| Skill | Use for |
+|-------|---------|
+| `creating-pr` | Feature/fix PRs into `main` |
+| `writing-commit-messages` | Conventional commits |
+| `reviewing-code` | Diff reviews (Python/FastAPI) |
+| `auditing-security` | Security pass / OWASP-style audit |
+| `security-baseline` | FTSC CI/secret-scan/Dependabot baseline |
+| `grill-with-docs` | Stress-test plans against domain language |
+| `suggesting-cursor-rules` / `suggesting-cursor-hooks` | Encode repeated corrections / checks |
+| `writing-guidelines` | Prose/docs voice review |
+
+## Development setup
 
 ```
 python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
 ```
 
-The venv must be activated (`source /workspace/.venv/bin/activate`) before running any commands.
-
-### Running the application
-
-```bash
-logforge init --force   # Initialize ~/.logforge (config.yaml, entities.yaml, dirs)
-logforge start          # Start FastAPI server on 127.0.0.1:8080 (foreground)
-```
-
-### Key commands (see README.md for full list)
+## Key commands
 
 | Task | Command |
 |------|---------|
@@ -31,12 +45,11 @@ logforge start          # Start FastAPI server on 127.0.0.1:8080 (foreground)
 | Format check | `black --check .` |
 | Type check | `mypy src` |
 | Tests | `pytest` |
-| Start service | `logforge start` |
+| Start service | `meltr start` |
 
-### Non-obvious caveats
+## Non-obvious caveats
 
-- `pytest` exits non-zero even when all tests pass because `--cov-fail-under=80` is configured in `pyproject.toml` and current coverage is ~24%. All 48 tests do pass.
-- `python3.12-venv` system package must be installed for `python3 -m venv` to work (not pre-installed on Ubuntu 24.04 minimal).
-- The entity import API (`POST /api/entities/import`) expects a JSON body with the full entity schema (organization, users, devices, services), not a file path. Users require `full_name`, devices require `ip_address` and `mac_address`, services require `port` and `protocol`.
-- `ruff`, `black`, and `mypy` all report pre-existing issues in the codebase — this is expected.
-- The `logforge start` command runs in the foreground; background it with `&` for non-interactive use.
+- `pytest` may exit non-zero due to `--cov-fail-under` until coverage climbs (see v2.0 plan).
+- Community registry default remains `https://logforge.io/api/v1` until that stack is rebranded.
+- LLM template authoring is **not** in this OSS product (Enterprise-only).
+- Only create git commits when explicitly asked.

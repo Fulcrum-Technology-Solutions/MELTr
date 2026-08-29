@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://logforge.dev/schemas/product.schema.json",
+    "$id": "https://meltr.dev/schemas/product.schema.json",
     "title": "Product Metadata Schema",
     "description": "Schema for product.meta.yaml files in template repositories",
     "type": "object",

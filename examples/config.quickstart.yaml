@@ -22,7 +22,7 @@ templates:
 
 logging:
   level: INFO
-  file: ${LOGFORGE_HOME}/logforge.log
+  file: ${LOGFORGE_HOME}/meltr.log
 
 outputs:
   definitions:

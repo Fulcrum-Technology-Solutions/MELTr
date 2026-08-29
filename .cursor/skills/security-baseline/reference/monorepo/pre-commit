@@ -1,0 +1,28 @@
+# Monorepo variant: Husky lives in web/.husky, but the hook runs from the git
+# root (cwd = repo root). Place this at web/.husky/pre-commit.
+# Root package.json (or web/package.json) prepare script:
+#   "prepare": "cd .. && husky web/.husky || true"
+# The "|| true" keeps `npm install` / Vercel builds from failing if husky setup
+# can't run in a given environment.
+
+# 1) Secret scan of staged changes (whole repo)
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "❌ gitleaks not installed. Install it: brew install gitleaks"
+  exit 1
+fi
+gitleaks git --staged --redact . || {
+  echo "❌ Commit blocked: gitleaks found a secret in staged changes."
+  exit 1
+}
+
+# 2) Block committing secret files: .env*, and .dev.vars (Cloudflare local secrets).
+#    Allow .env.example / .env.template.
+if git diff --cached --name-only \
+   | grep -E '(^|/)(\.env(\..*)?|\.dev\.vars)$' \
+   | grep -vE '\.(example|template)$' >/dev/null; then
+  echo "❌ Commit blocked: a secret file (.env* or .dev.vars) is staged. Unstage it: git reset HEAD <file>"
+  exit 1
+fi
+
+# 3) Lint staged files in the web app
+cd web && npx lint-staged

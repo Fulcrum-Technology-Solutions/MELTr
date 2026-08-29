@@ -10,10 +10,10 @@ import pytest
 
 @pytest.fixture
 def temp_home(monkeypatch) -> Generator[Path, None, None]:
-    """Create a temporary LOGFORGE_HOME directory."""
+    """Create a temporary MELTR_HOME directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         home = Path(tmpdir)
-        monkeypatch.setenv('LOGFORGE_HOME', str(home))
+        monkeypatch.setenv('MELTR_HOME', str(home))
         yield home
 
 

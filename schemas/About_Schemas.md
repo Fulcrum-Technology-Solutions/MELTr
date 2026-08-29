@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document defines the structure and schemas for LogForge template repositories. Template repositories are collections of vendor-specific log templates organized in a standardized, community-driven format that enables easy sharing, validation, and integration.
+This document defines the structure and schemas for MELTr template repositories. Template repositories are collections of vendor-specific log templates organized in a standardized, community-driven format that enables easy sharing, validation, and integration.
 
 ### Purpose
 
@@ -153,7 +153,7 @@ documentation_url: "https://docs.paloaltonetworks.com/wildfire"
 {
   "name": "paloalto-wildfire",
   "version": "1.0.0",
-  "description": "LogForge templates for Palo Alto WildFire threat detection logs",
+  "description": "MELTr templates for Palo Alto WildFire threat detection logs",
   "maintainers": [
     {
       "name": "John Owen",
@@ -247,7 +247,7 @@ All metadata files **must validate** against their respective JSON schemas befor
 | `collection.json` | `schemas/collection.schema.json` |
 | `{template_name}.meta.yaml` | `schemas/template.schema.json` |
 
-**Note**: The `schemas/entity.schema.json` file defines the schema for LogForge entity registry files (`entities.yaml`), which are used by the LogForge application itself for synthetic log generation. This is separate from template repository schemas.
+**Note**: The `schemas/entity.schema.json` file defines the schema for MELTr entity registry files (`entities.yaml`), which are used by the MELTr application itself for synthetic log generation. This is separate from template repository schemas.
 
 ### Validation Tools
 
@@ -461,7 +461,7 @@ repository-root/
 
 ## Entity Registry Schema
 
-The `entity.schema.json` file defines the schema for LogForge entity registry files (`entities.yaml`). This schema is used by the LogForge application itself for synthetic log generation, separate from template repository schemas.
+The `entity.schema.json` file defines the schema for MELTr entity registry files (`entities.yaml`). This schema is used by the MELTr application itself for synthetic log generation, separate from template repository schemas.
 
 ### Purpose
 
@@ -505,9 +505,9 @@ Entity registry files define the organizational structure, users, devices, and s
 
 ### Validation
 
-Entity registry files are validated by the LogForge application using both:
+Entity registry files are validated by the MELTr application using both:
 - JSON Schema validation (`entity.schema.json`)
-- Programmatic validation (`src/logforge/entities/validator.py`)
+- Programmatic validation (`src/meltr/entities/validator.py`)
 
 The programmatic validator enforces additional constraints:
 - Uniqueness checks (usernames, emails, hostnames, service names)
@@ -560,7 +560,7 @@ pip install pyyaml jsonschema
 python -c "import yaml, json, jsonschema; data = yaml.safe_load(open('entities.yaml')); schema = json.load(open('schemas/entity.schema.json')); jsonschema.validate(data, schema)"
 ```
 
-**Using LogForge CLI**:
+**Using MELTr CLI**:
 ```bash
 logforge entities validate
 ```

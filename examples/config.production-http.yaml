@@ -46,7 +46,7 @@ templates:
 # Logging settings
 logging:
   level: INFO
-  file: ${LOGFORGE_HOME}/logforge.log
+  file: ${LOGFORGE_HOME}/meltr.log
   rotation:
     max_size: 52428800  # 50MB
     backup_count: 5

@@ -3,7 +3,7 @@
 import typer
 from rich.console import Console
 
-from logforge.cli import restart as r
+from meltr.cli import restart as r
 
 
 def test_restart_uses_systemd_when_unit_exists_and_restart_ok(monkeypatch):

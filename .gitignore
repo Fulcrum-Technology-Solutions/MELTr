@@ -36,8 +36,10 @@ htmlcov/
 .tox/
 .hypothesis/
 
-# IDEs
-.cursor/
+# IDEs — keep shared skills; ignore local Cursor state
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
 .vscode/
 .idea/
 *.swp
@@ -45,9 +47,11 @@ htmlcov/
 *~
 .DS_Store
 
-# LogForge specific
+# MELTr / LogForge home dirs
+.meltr/
 .logforge/
 logforge/              # Local installation directory
+meltr/                 # Local installation directory
 *.log
 *.log.*
 *.log.gz

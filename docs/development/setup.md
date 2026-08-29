@@ -1,6 +1,6 @@
 # Development environment
 
-Use this guide to run LogForge from a **source checkout**. Production installs that mirror a Cribl-style layout use the **official Linux `.tar.gz`** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases); see [linux-tarball.md](../deployment/linux-tarball.md).
+Use this guide to run MELTr from a **source checkout**. Production installs that mirror a Cribl-style layout use the **official Linux `.tar.gz`** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/MELTr/releases); see [linux-tarball.md](../deployment/linux-tarball.md).
 
 ## Requirements
 
@@ -48,7 +48,7 @@ python -m pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
-This performs an **editable install** of LogForge and installs runtime + dev dependencies.
+This performs an **editable install** of MELTr and installs runtime + dev dependencies.
 
 **Alternative (uv):** `uv pip install -e ".[dev]"` after creating a venv with `uv venv`, if you use [uv](https://github.com/astral-sh/uv).
 

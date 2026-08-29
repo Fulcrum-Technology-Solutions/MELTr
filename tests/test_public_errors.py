@@ -1,6 +1,6 @@
 """Tests for client-safe API error helpers."""
 
-from logforge.utils.public_errors import public_failure_message, sanitize_stored_error
+from meltr.utils.public_errors import public_failure_message, sanitize_stored_error
 
 
 def test_public_failure_message() -> None:

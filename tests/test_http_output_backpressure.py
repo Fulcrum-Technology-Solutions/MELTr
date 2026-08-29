@@ -2,8 +2,8 @@
 
 from unittest.mock import MagicMock
 
-from logforge.core.config import OutputDefinition
-from logforge.outputs.http import HTTPOutputHandler
+from meltr.core.config import OutputDefinition
+from meltr.outputs.http import HTTPOutputHandler
 
 
 def test_http_batch_buffer_drop_newest_when_full_counts_drops() -> None:

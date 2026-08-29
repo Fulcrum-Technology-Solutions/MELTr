@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from logforge.cli import dashboard as dash
+from meltr.cli import dashboard as dash
 
 
 class _FakeResponse:

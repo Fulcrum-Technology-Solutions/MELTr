@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build logforge-{version}-linux-x86_64.tar.gz (unpacks to ./logforge/): embedded CPython (python-build-standalone)
-# + pip --prefix install of the wheel + portable bin/logforge wrapper.
+# Build logforge-{version}-linux-x86_64.tar.gz (unpacks to ./meltr/): embedded CPython (python-build-standalone)
+# + pip --prefix install of the wheel + portable bin/meltr wrapper.
 #
 # Requires: Linux x86_64, bash, curl, tar, gzip, sha256sum, python3 (build host only for bootstrap if needed).
 #
@@ -96,16 +96,16 @@ mkdir -p "$APP_PREFIX/bin"
 SITE_PACKAGES="$(find "$APP_PREFIX/lib" -maxdepth 2 -type d -name site-packages 2>/dev/null | head -1)"
 [[ -n "$SITE_PACKAGES" && -d "$SITE_PACKAGES" ]] || die "site-packages not found under $APP_PREFIX/lib"
 
-cat > "$APP_PREFIX/bin/logforge" << 'WRAPPER'
+cat > "$APP_PREFIX/bin/meltr" << 'WRAPPER'
 #!/usr/bin/env sh
-# Portable launcher: tarball may be installed under any path (e.g. /opt/logforge).
+# Portable launcher: tarball may be installed under any path (e.g. /opt/meltr).
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PY="$ROOT/python/bin/python3.11"
 SITE="$ROOT/app/lib/python3.11/site-packages"
 export PYTHONPATH="$SITE${PYTHONPATH:+:$PYTHONPATH}"
 exec "$PY" -m logforge "$@"
 WRAPPER
-chmod 755 "$APP_PREFIX/bin/logforge"
+chmod 755 "$APP_PREFIX/bin/meltr"
 
 # License files
 if [[ -f "$ROOT/LICENSE" ]]; then
@@ -150,15 +150,15 @@ cat > "$OUT_ROOT/README-TARBALL.md" << EOF
 # LogForge ${VERSION} (Linux x86_64 bundle)
 
 This archive contains an embedded CPython build (see PYTHON_PSF_LICENSE.txt), LogForge application
-code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/logforge\` launcher.
+code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/meltr\` launcher.
 
 **Source:** https://github.com/Fulcrum-Technology-Solutions/LogForge — build from tag \`v${VERSION}\`.
 
 ## Quick use
 
 \`\`\`bash
-sudo tar xzf ${ARCHIVE_BASENAME}.tar.gz -C /opt   # creates /opt/logforge
-export PATH=/opt/logforge/app/bin:\$PATH
+sudo tar xzf ${ARCHIVE_BASENAME}.tar.gz -C /opt   # creates /opt/meltr
+export PATH=/opt/meltr/app/bin:\$PATH
 logforge init --force
 logforge start   # backgrounds on Linux; use --foreground to attach; or \`service install\` + systemctl
 \`\`\`

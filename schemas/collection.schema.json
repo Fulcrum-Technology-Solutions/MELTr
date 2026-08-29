@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://logforge.dev/schemas/collection.schema.json",
+    "$id": "https://meltr.dev/schemas/collection.schema.json",
     "title": "Template Collection Schema",
     "description": "Schema for collection.json files that index templates for a product",
     "type": "object",

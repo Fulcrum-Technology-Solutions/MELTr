@@ -7,15 +7,15 @@ from typing import List
 
 import pytest
 
-from logforge.core.config import (
+from meltr.core.config import (
     InternalLogsConfig,
     OutputDefinition,
     create_default_config,
 )
-from logforge.core.engine import Engine
-from logforge.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME, InternalLogGenerator
-from logforge.entities.registry import EntityRegistry
-from logforge.outputs.base import OutputHandler
+from meltr.core.engine import Engine
+from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME, InternalLogGenerator
+from meltr.entities.registry import EntityRegistry
+from meltr.outputs.base import OutputHandler
 
 
 class MockOutputHandler(OutputHandler):
@@ -55,7 +55,7 @@ def test_internal_log_generator_lifecycle():
 
 def test_engine_loads_internal_log_generator_when_configured(tmp_path, monkeypatch):
     """Test that Engine adds internal-logs generator when config.internal_logs is enabled."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     config = create_default_config(tmp_path)
     config.internal_logs = InternalLogsConfig(enabled=True, outputs=["stdout"])
     config.outputs.definitions.append(
@@ -70,7 +70,7 @@ def test_engine_loads_internal_log_generator_when_configured(tmp_path, monkeypat
 
 def test_engine_does_not_load_internal_log_generator_when_disabled(tmp_path, monkeypatch):
     """Test that Engine does not add internal-logs when internal_logs.enabled is False."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     config = create_default_config(tmp_path)
     assert config.internal_logs.enabled is False
     registry = EntityRegistry(config)
@@ -79,7 +79,7 @@ def test_engine_does_not_load_internal_log_generator_when_disabled(tmp_path, mon
 
 
 def test_internal_log_generator_forwards_logforge_records_to_outputs():
-    """Running internal-logs generator should deliver logforge.* records to output handlers."""
+    """Running internal-logs generator should deliver meltr.* records to output handlers."""
     token = f"lf-internal-forward-{uuid.uuid4()}"
     handler = MockOutputHandler("out1")
     gen = InternalLogGenerator(output_handlers=[handler])
