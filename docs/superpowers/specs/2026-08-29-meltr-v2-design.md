@@ -76,7 +76,7 @@ State remains YAML under `MELTR_HOME` (compat `LOGFORGE_HOME`). Single process; 
 
 ### Updates
 
-- Populate `version` / `remote_version` on template list/detail API (replace `None` TODOs) via local metadata vs community API.
+- Populate `version` / `remote_version` on template list/detail API (replace existing `None` stubs) via local metadata vs community API.
 - `GET /api/community/updates` — stale packages: `{ product_id, local_version, remote_version, … }`.
 - CLI: `meltr templates check-updates` (reuse comparison helpers already used in CLI).
 - **Detection only** — no auto-upgrade in v2.0.
