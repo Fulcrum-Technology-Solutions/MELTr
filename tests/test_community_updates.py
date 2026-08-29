@@ -127,9 +127,7 @@ def test_get_remote_collection_version_soft_fail_returns_none() -> None:
     mock_client = MagicMock()
     mock_client.get_product_detail.side_effect = CommunityAPIError("registry unavailable")
 
-    result = get_remote_collection_version(
-        mock_client, VENDOR_ID, PRODUCT_ID, soft_fail=True
-    )
+    result = get_remote_collection_version(mock_client, VENDOR_ID, PRODUCT_ID, soft_fail=True)
 
     assert result is None
 
@@ -208,7 +206,7 @@ def test_get_template_includes_version_fields(updates_client: TestClient) -> Non
 def test_cli_check_updates_prints_stale_list(tmp_path, monkeypatch) -> None:
     from meltr.cli.templates import app as templates_app
 
-    templates_root = _write_installed_product(tmp_path / "templates", version="1.0.0")
+    _write_installed_product(tmp_path / "templates", version="1.0.0")
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
 
     with patch(
@@ -226,7 +224,7 @@ def test_cli_check_updates_prints_stale_list(tmp_path, monkeypatch) -> None:
 def test_cli_check_updates_exit_zero_when_none(tmp_path, monkeypatch) -> None:
     from meltr.cli.templates import app as templates_app
 
-    templates_root = _write_installed_product(tmp_path / "templates", version="1.0.0")
+    _write_installed_product(tmp_path / "templates", version="1.0.0")
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
 
     mock_client = MagicMock()

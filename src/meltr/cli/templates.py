@@ -856,7 +856,7 @@ def templates_preview(
 
 @app.command("check-updates")
 def templates_check_updates(
-    api_url: Optional[str] = typer.Option(
+    api_url: str | None = typer.Option(
         None,
         "--api-url",
         envvar="MELTR_COMMUNITY_API_URL",

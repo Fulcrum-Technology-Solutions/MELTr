@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional
 
 from meltr.community.client import (
     CommunityAPIClient,
@@ -34,10 +34,10 @@ def get_remote_collection_version(
     client: CommunityAPIClient,
     vendor_id: str,
     product_id: str,
-    cache: Optional[dict[tuple[str, str], Optional[str]]] = None,
+    cache: dict[tuple[str, str], str | None] | None = None,
     *,
     soft_fail: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """Fetch remote collection version, optionally using a per-request cache.
 
     When ``soft_fail`` is True, registry errors return ``None`` instead of raising.
@@ -46,7 +46,7 @@ def get_remote_collection_version(
     if cache is not None and key in cache:
         return cache[key]
 
-    remote_version: Optional[str] = None
+    remote_version: str | None = None
     try:
         product_info = client.get_product_detail(vendor_id, product_id)
         raw = product_info.get("collection_version")
@@ -68,9 +68,9 @@ def get_remote_collection_version(
 def find_stale_updates(
     client: CommunityAPIClient,
     templates_path: Path,
-) -> list[dict[str, Optional[str]]]:
+) -> list[dict[str, str | None]]:
     """Return installed products whose remote collection version is newer."""
-    stale: list[dict[str, Optional[str]]] = []
+    stale: list[dict[str, str | None]] = []
 
     for vendor_id, product_id in iter_installed_products(templates_path):
         local_version = get_local_collection_version(vendor_id, product_id, templates_path)
@@ -95,16 +95,16 @@ class ProductVersionLookup:
     def __init__(
         self,
         templates_path: Path,
-        client: Optional[CommunityAPIClient] = None,
+        client: CommunityAPIClient | None = None,
     ) -> None:
         self.templates_path = templates_path
         self.client = client
-        self._remote_cache: dict[tuple[str, str], Optional[str]] = {}
+        self._remote_cache: dict[tuple[str, str], str | None] = {}
 
-    def local_version(self, vendor_id: str, product_id: str) -> Optional[str]:
+    def local_version(self, vendor_id: str, product_id: str) -> str | None:
         return get_local_collection_version(vendor_id, product_id, self.templates_path)
 
-    def remote_version(self, vendor_id: str, product_id: str) -> Optional[str]:
+    def remote_version(self, vendor_id: str, product_id: str) -> str | None:
         if self.client is None:
             return None
         return get_remote_collection_version(
@@ -115,7 +115,5 @@ class ProductVersionLookup:
             soft_fail=True,
         )
 
-    def for_product(self, vendor_id: str, product_id: str) -> tuple[Optional[str], Optional[str]]:
-        return self.local_version(vendor_id, product_id), self.remote_version(
-            vendor_id, product_id
-        )
+    def for_product(self, vendor_id: str, product_id: str) -> tuple[str | None, str | None]:
+        return self.local_version(vendor_id, product_id), self.remote_version(vendor_id, product_id)

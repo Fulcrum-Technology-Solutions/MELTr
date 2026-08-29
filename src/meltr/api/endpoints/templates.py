@@ -1,10 +1,10 @@
 """Template management API endpoints."""
 
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from pathlib import Path
 
 from meltr.api.auth import require_api_key
 from meltr.api.endpoints.entities import get_registry
