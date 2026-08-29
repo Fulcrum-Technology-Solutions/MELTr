@@ -26,6 +26,8 @@ jobs:
       - name: Pytest
         env:
           MELTR_HOME: ${{ runner.temp }}/meltr-home
+          COLUMNS: "200"
+          TERM: dumb
         run: pytest -q
 
   # Formatting/lint debt is a follow-up chore; pytest is the required merge gate.
