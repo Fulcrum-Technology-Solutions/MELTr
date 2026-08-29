@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from typing import Callable
+from collections.abc import Callable
 
 import typer
 from rich.console import Console
@@ -65,4 +65,3 @@ def restart(
             raise
 
     api_start(foreground=foreground)
-

@@ -43,6 +43,26 @@ meltr start                  # daemon on POSIX; use --foreground / -f to stay at
 
 Compat: `LOGFORGE_HOME` and `LOGFORGE_API_KEY` still work if `MELTR_*` is unset. The `logforge` CLI entry point is a temporary alias for `meltr`.
 
+## API authentication
+
+Management routes require a Bearer token when authentication is active. **Key-implies-auth:** setting `MELTR_API_KEY` (or `LOGFORGE_API_KEY`) enables auth even if `api.auth.enabled` is false in config.
+
+| Route | Auth required |
+|-------|---------------|
+| `GET /api/health` | No (public liveness) |
+| All other `/api/*` routes | Yes, when auth is active |
+
+Configure in `config.yaml`:
+
+```yaml
+api:
+  auth:
+    enabled: true   # requires a key at startup
+    key: "your-secret"  # optional if MELTR_API_KEY is set
+```
+
+If `api.auth.enabled: true` and no key is configured (env or config), the API refuses to start. Send requests with `Authorization: Bearer <key>`.
+
 ## Environment
 
 | Variable | Purpose |

@@ -3,7 +3,7 @@ import os
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -20,23 +20,19 @@ def telemetry_enabled() -> bool:
 
     - MELTR_TELEMETRY=0 / false disables (LOGFORGE_TELEMETRY still accepted)
     """
-    v = (
-        os.getenv("MELTR_TELEMETRY")
-        or os.getenv("LOGFORGE_TELEMETRY")
-        or ""
-    ).strip().lower()
+    v = (os.getenv("MELTR_TELEMETRY") or os.getenv("LOGFORGE_TELEMETRY") or "").strip().lower()
     if v in {"0", "false", "no", "off"}:
         return False
     return True
 
 
-def _telemetry_state_path(home: Optional[Path] = None) -> Path:
+def _telemetry_state_path(home: Path | None = None) -> Path:
     if home is None:
         home = get_logforge_home()
     return home / "telemetry.json"
 
 
-def get_actor_id(home: Optional[Path] = None) -> str:
+def get_actor_id(home: Path | None = None) -> str:
     """
     Anonymous stable client identifier stored under MELTR_HOME.
     """
@@ -64,12 +60,12 @@ def get_actor_id(home: Optional[Path] = None) -> str:
 @dataclass(frozen=True)
 class TelemetryEvent:
     event_type: str
-    vendor_id: Optional[str] = None
-    product_id: Optional[str] = None
-    data_source_id: Optional[str] = None
-    template_id: Optional[str] = None
-    collection_version: Optional[str] = None
-    properties: Optional[Dict[str, Any]] = None
+    vendor_id: str | None = None
+    product_id: str | None = None
+    data_source_id: str | None = None
+    template_id: str | None = None
+    collection_version: str | None = None
+    properties: dict[str, Any] | None = None
 
 
 class TelemetryClient:
@@ -81,7 +77,7 @@ class TelemetryClient:
         # Templates-UI: POST /api/v1/telemetry/events
         return f"{self.base_api_url}/telemetry/events"
 
-    def post_events(self, *, actor_id: str, events: List[TelemetryEvent]) -> None:
+    def post_events(self, *, actor_id: str, events: list[TelemetryEvent]) -> None:
         if not telemetry_enabled():
             return
 
@@ -116,4 +112,3 @@ class TelemetryClient:
                 logger.debug("Telemetry ingest failed: %s %s", resp.status_code, resp.text[:500])
         except Exception:
             logger.debug("Telemetry ingest request failed", exc_info=True)
-

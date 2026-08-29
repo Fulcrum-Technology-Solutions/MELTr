@@ -68,4 +68,3 @@ def test_safe_render_tick_returns_error_layout_when_render_raises(monkeypatch):
     layout2 = dash.safe_render_tick(client, refresh_count=2)
     assert layout2 is not None
     assert calls["n"] == 2
-

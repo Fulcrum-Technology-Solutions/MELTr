@@ -1,7 +1,7 @@
 """Performance dashboard CLI command."""
 
 import time
-from typing import Any, Optional
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -21,8 +21,8 @@ console = Console()
 def dashboard_callback(
     ctx: typer.Context,
     refresh_rate: float = typer.Option(1.0, "--refresh", "-r", help="Refresh rate in seconds"),
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    api_url: str | None = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
 ) -> None:
     """Display real-time performance dashboard.
 
@@ -107,15 +107,14 @@ def render_status_snapshot(snapshot: dict[str, Any], refresh_count: int = 0) -> 
     cpu_bar = "█" * int(cpu_percent / 2) + "░" * (50 - int(cpu_percent / 2))
     system_table.add_row(
         "CPU:",
-        f"[{cpu_color}]{cpu_percent:5.1f}%[/{cpu_color}] [{cpu_color}]{cpu_bar}[/{cpu_color}]"
+        f"[{cpu_color}]{cpu_percent:5.1f}%[/{cpu_color}] [{cpu_color}]{cpu_bar}[/{cpu_color}]",
     )
 
     # Memory
     memory_gb = memory_mb / 1024
     memory_color = _get_memory_color(memory_mb)
     system_table.add_row(
-        "Memory:",
-        f"[{memory_color}]{memory_mb:6d} MB[/{memory_color}] ({memory_gb:.2f} GB)"
+        "Memory:", f"[{memory_color}]{memory_mb:6d} MB[/{memory_color}] ({memory_gb:.2f} GB)"
     )
 
     # Threads
@@ -129,9 +128,7 @@ def render_status_snapshot(snapshot: dict[str, Any], refresh_count: int = 0) -> 
     system_table.add_row("Refresh:", f"[dim]#{refresh_count}[/dim]")
 
     system_panel = Panel(
-        system_table,
-        title="[bold blue]System Metrics[/bold blue]",
-        border_style="blue"
+        system_table, title="[bold blue]System Metrics[/bold blue]", border_style="blue"
     )
 
     # Middle section: Generators
@@ -195,13 +192,13 @@ def render_status_snapshot(snapshot: dict[str, Any], refresh_count: int = 0) -> 
         ),
         "",
         "",
-        style="bold"
+        style="bold",
     )
 
     generators_panel = Panel(
         generators_table,
         title=f"[bold green]Generators[/bold green] ({len(generators)} total)",
-        border_style="green"
+        border_style="green",
     )
 
     # Bottom section: Summary stats
@@ -212,15 +209,17 @@ def render_status_snapshot(snapshot: dict[str, Any], refresh_count: int = 0) -> 
     summary_table.add_row("Total Events:", f"[bold cyan]{total_events:,}[/bold cyan]")
     error_style = "bold red" if total_errors > 0 else "bold green"
     summary_table.add_row("Total Errors:", f"[{error_style}]{total_errors:,}[/{error_style}]")
-    summary_table.add_row("Running Generators:", f"[bold green]{running_count}[/bold green] / [dim]{len(generators)}[/dim]")
+    summary_table.add_row(
+        "Running Generators:",
+        f"[bold green]{running_count}[/bold green] / [dim]{len(generators)}[/dim]",
+    )
 
     # Calculate average rate
     if generators:
         uptime_gens = [g for g in generators if g.get("uptime", 0) > 0]
         if uptime_gens:
             avg_rate = sum(
-                gen.get("events_generated", 0) / gen.get("uptime", 1)
-                for gen in uptime_gens
+                gen.get("events_generated", 0) / gen.get("uptime", 1) for gen in uptime_gens
             ) / len(uptime_gens)
             summary_table.add_row(
                 "Avg Event Rate:",
@@ -228,9 +227,7 @@ def render_status_snapshot(snapshot: dict[str, Any], refresh_count: int = 0) -> 
             )
 
     summary_panel = Panel(
-        summary_table,
-        title="[bold yellow]Summary[/bold yellow]",
-        border_style="yellow"
+        summary_table, title="[bold yellow]Summary[/bold yellow]", border_style="yellow"
     )
 
     # Arrange layout
@@ -267,8 +264,8 @@ def safe_render_tick(client, refresh_count: int) -> Layout:
 @app.command("show")
 def dashboard_show(
     refresh_rate: float = typer.Option(1.0, "--refresh", "-r", help="Refresh rate in seconds"),
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    api_url: str | None = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
 ) -> None:
     """Display real-time performance dashboard.
 
@@ -286,7 +283,7 @@ def dashboard_show(
             safe_render_tick(client, refresh_count),
             refresh_per_second=1.0 / refresh_rate if refresh_rate > 0 else 1.0,
             screen=True,
-            redirect_stderr=False
+            redirect_stderr=False,
         ) as live:
             while True:
                 time.sleep(refresh_rate)
@@ -297,4 +294,3 @@ def dashboard_show(
     except Exception as e:
         console.print(f"\n[red]Error: {escape(str(e))}[/red]")
         raise typer.Exit(code=1) from None
-

@@ -3,12 +3,11 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 from meltr.core.paths import get_pidfile_path
 
 
-def write_service_pidfile(pid: Optional[int] = None, home: Optional[Path] = None) -> Path:
+def write_service_pidfile(pid: int | None = None, home: Path | None = None) -> Path:
     """Create run/ and write the current (or given) PID."""
     pid = pid or os.getpid()
     path = get_pidfile_path(home)
@@ -17,7 +16,7 @@ def write_service_pidfile(pid: Optional[int] = None, home: Optional[Path] = None
     return path
 
 
-def read_service_pid(home: Optional[Path] = None) -> Optional[int]:
+def read_service_pid(home: Path | None = None) -> int | None:
     """Read PID from file, or None if missing/unreadable."""
     path = get_pidfile_path(home)
     if not path.is_file():
@@ -28,7 +27,7 @@ def read_service_pid(home: Optional[Path] = None) -> Optional[int]:
         return None
 
 
-def remove_service_pidfile(home: Optional[Path] = None) -> None:
+def remove_service_pidfile(home: Path | None = None) -> None:
     """Unconditionally remove the PID file if present."""
     path = get_pidfile_path(home)
     try:

@@ -2,13 +2,13 @@
 
 import threading
 import time
-from typing import Optional
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
+from meltr.api.auth import resolve_api_key
 from meltr.core.config import Config
 from meltr.utils.logging import get_logger
 
@@ -26,15 +26,16 @@ class APIServer:
         """
         self.config = config
         from meltr import __version__
+
         self.app = FastAPI(
             title="MELTr Management API",
             version=__version__,
             description="API for managing LogForge synthetic event log generation",
         )
-        self.server_thread: Optional[threading.Thread] = None
-        self.server: Optional[uvicorn.Server] = None
-        self.start_time: Optional[float] = None
-        self._thread_error: Optional[BaseException] = None
+        self.server_thread: threading.Thread | None = None
+        self.server: uvicorn.Server | None = None
+        self.start_time: float | None = None
+        self._thread_error: BaseException | None = None
         self._setup_middleware()
         self._setup_routes()
 
@@ -64,17 +65,25 @@ class APIServer:
         @self.app.get("/api/metrics", response_class=PlainTextResponse)
         async def metrics(request: Request) -> str:
             """Prometheus metrics endpoint."""
+            from meltr.api.auth import require_api_key
+
+            await require_api_key(request)
             lines = ["# LogForge output pipeline metrics"]
             engine = getattr(request.app.state, "engine", None)
             if engine:
                 try:
                     from meltr.api.endpoints.health import _collect_output_handlers
+
                     for h in _collect_output_handlers(engine):
                         if hasattr(h, "get_statistics"):
                             st = h.get_statistics()
                             name = st.get("name", getattr(h, "name", "unknown")).replace('"', '\\"')
-                            lines.append(f'logforge_output_backlog_size{{output="{name}"}} {st.get("backlog_size", 0)}')
-                            lines.append(f'logforge_output_dropped_total{{output="{name}"}} {st.get("dropped_count", 0)}')
+                            lines.append(
+                                f'logforge_output_backlog_size{{output="{name}"}} {st.get("backlog_size", 0)}'
+                            )
+                            lines.append(
+                                f'logforge_output_dropped_total{{output="{name}"}} {st.get("dropped_count", 0)}'
+                            )
                 except Exception:
                     pass
             return "\n".join(lines) + "\n"
@@ -104,6 +113,9 @@ class APIServer:
             logger.info("API server disabled in configuration")
             return
 
+        if self.config.api.auth.enabled and resolve_api_key(self.config) is None:
+            raise RuntimeError("API auth enabled but no API key configured")
+
         self._thread_error = None
 
         def run_server() -> None:
@@ -125,9 +137,7 @@ class APIServer:
                 logger.error(f"API server error: {e}", exc_info=True)
 
         self.server_thread = threading.Thread(
-            target=run_server,
-            daemon=True,
-            name="logforge-api-server"
+            target=run_server, daemon=True, name="logforge-api-server"
         )
         self.server_thread.start()
 
@@ -159,4 +169,3 @@ class APIServer:
         if self._thread_error is not None:
             return False
         return self.server_thread is not None and self.server_thread.is_alive()
-

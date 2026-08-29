@@ -32,4 +32,3 @@ def test_render_status_snapshot_total_row_markup_is_valid():
     console = Console()
     # Rich will raise MarkupError here if any generated markup is invalid.
     console.render_lines(layout, console.options)
-

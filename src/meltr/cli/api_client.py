@@ -1,7 +1,6 @@
 """API client for CLI commands."""
 
 import os
-from typing import Optional
 
 import requests
 import typer
@@ -18,30 +17,28 @@ def _get_default_api_url() -> str:
         API URL string (e.g., 'http://127.0.0.1:8080')
     """
     # Check environment variable first
-    env_url = os.getenv('MELTR_API_URL') or os.getenv('LOGFORGE_API_URL')
+    env_url = os.getenv("MELTR_API_URL") or os.getenv("LOGFORGE_API_URL")
     if env_url:
         return env_url
 
     # Try to load from config file
     try:
         from meltr.core.config import load_config
+
         config = load_config(create_if_missing=False)
         host = config.api.host
         port = config.api.port
-        return f'http://{host}:{port}'
+        return f"http://{host}:{port}"
     except Exception:
         # Fall back to default if config can't be loaded
-        return 'http://127.0.0.1:8080'
+        return "http://127.0.0.1:8080"
 
 
 class APIClient:
     """Client for communicating with MELTr management API."""
 
     def __init__(
-        self,
-        api_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-        timeout: int = 5
+        self, api_url: str | None = None, api_key: str | None = None, timeout: int = 5
     ) -> None:
         """Initialize API client.
 
@@ -51,28 +48,25 @@ class APIClient:
             timeout: Request timeout in seconds
         """
         self.api_url = api_url or _get_default_api_url()
-        self.api_key = api_key or os.getenv('MELTR_API_KEY') or os.getenv('LOGFORGE_API_KEY')
+        self.api_key = api_key or os.getenv("MELTR_API_KEY") or os.getenv("LOGFORGE_API_KEY")
         self.timeout = timeout
         self.session = requests.Session()
 
         if self.api_key:
-            self.session.headers['Authorization'] = f'Bearer {self.api_key}'
+            self.session.headers["Authorization"] = f"Bearer {self.api_key}"
             # Transitional client identity
-            self.session.headers.setdefault('X-MELTr-Client', 'cli')
+            self.session.headers.setdefault("X-MELTr-Client", "cli")
         else:
-            self.session.headers.setdefault('X-MELTr-Client', 'cli')
+            self.session.headers.setdefault("X-MELTr-Client", "cli")
 
-    def check_health(self) -> tuple[bool, Optional[str]]:
+    def check_health(self) -> tuple[bool, str | None]:
         """Check if API is healthy and service is running.
 
         Returns:
             Tuple of (is_healthy, error_message)
         """
         try:
-            response = self.session.get(
-                f'{self.api_url}/api/health',
-                timeout=self.timeout
-            )
+            response = self.session.get(f"{self.api_url}/api/health", timeout=self.timeout)
             if response.status_code == 200:
                 return True, None
             return False, f"HTTP {response.status_code}"
@@ -108,7 +102,7 @@ class APIClient:
             console.print("     meltr --api-url http://127.0.0.1:8090 generators list")
             raise typer.Exit(code=1)
 
-    def get(self, endpoint: str, timeout: Optional[int] = None, **kwargs) -> requests.Response:
+    def get(self, endpoint: str, timeout: int | None = None, **kwargs) -> requests.Response:
         """Make GET request to API.
 
         Args:
@@ -122,11 +116,11 @@ class APIClient:
         Raises:
             requests.RequestException: On request failure
         """
-        url = f'{self.api_url}{endpoint}'
+        url = f"{self.api_url}{endpoint}"
         request_timeout = timeout if timeout is not None else self.timeout
         return self.session.get(url, timeout=request_timeout, **kwargs)
 
-    def post(self, endpoint: str, timeout: Optional[int] = None, **kwargs) -> requests.Response:
+    def post(self, endpoint: str, timeout: int | None = None, **kwargs) -> requests.Response:
         """Make POST request to API.
 
         Args:
@@ -140,15 +134,12 @@ class APIClient:
         Raises:
             requests.RequestException: On request failure
         """
-        url = f'{self.api_url}{endpoint}'
+        url = f"{self.api_url}{endpoint}"
         request_timeout = timeout if timeout is not None else self.timeout
         return self.session.post(url, timeout=request_timeout, **kwargs)
 
 
-def get_api_client(
-    api_url: Optional[str] = None,
-    api_key: Optional[str] = None
-) -> APIClient:
+def get_api_client(api_url: str | None = None, api_key: str | None = None) -> APIClient:
     """Get API client instance.
 
     Args:
@@ -159,4 +150,3 @@ def get_api_client(
         APIClient instance
     """
     return APIClient(api_url=api_url, api_key=api_key)
-

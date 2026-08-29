@@ -2,7 +2,6 @@
 
 import os
 import sys
-from typing import Optional
 
 import click.exceptions
 import typer
@@ -52,9 +51,9 @@ def _detach_from_terminal() -> None:
 
 @app.command("start")
 def api_start(
-    host: Optional[str] = typer.Option(None, "--host", help="API server host"),
-    port: Optional[int] = typer.Option(None, "--port", help="API server port"),
-    config: Optional[str] = typer.Option(None, "--config", help="Config file path"),
+    host: str | None = typer.Option(None, "--host", help="API server host"),
+    port: int | None = typer.Option(None, "--port", help="API server port"),
+    config: str | None = typer.Option(None, "--config", help="Config file path"),
     foreground: bool = typer.Option(
         False,
         "--foreground",
@@ -91,6 +90,7 @@ def api_start(
         console.print("\n[yellow]Shutting down...[/yellow]")
     except Exception as e:
         import traceback
+
         console.print(f"[red]Error: {e}[/red]")
         # Print full traceback for debugging
         console.print("[red]Traceback:[/red]")
@@ -149,9 +149,7 @@ def api_stop(
         raise typer.Exit(code=1) from None
 
     if not cmdline_suggests_logforge(pid):
-        console.print(
-            f"[red]PID {pid} does not appear to be LogForge; refusing to kill.[/red]"
-        )
+        console.print(f"[red]PID {pid} does not appear to be LogForge; refusing to kill.[/red]")
         raise typer.Exit(code=1)
 
     console.print(f"[green]Stopping LogForge (PID {pid})...[/green]")
@@ -179,4 +177,3 @@ def api_stop(
         pass
     remove_service_pidfile(home)
     console.print("[green]LogForge stopped.[/green]")
-

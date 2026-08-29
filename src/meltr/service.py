@@ -3,7 +3,6 @@
 import signal
 import sys
 from pathlib import Path
-from typing import Optional
 
 from meltr.api.server import APIServer
 from meltr.core.config import load_config
@@ -17,7 +16,7 @@ logger = get_logger(__name__)
 class LogForgeService:
     """Main LogForge service that manages engine and API server."""
 
-    def __init__(self, config_path: Optional[Path] = None) -> None:
+    def __init__(self, config_path: Path | None = None) -> None:
         """Initialize service.
 
         Args:
@@ -28,10 +27,12 @@ class LogForgeService:
         """
         # Ensure LOGFORGE_HOME is set (self-discovery if not set)
         import os
-        if not os.getenv('MELTR_HOME') or os.getenv('MELTR_HOME'):
+
+        if not os.getenv("MELTR_HOME") or os.getenv("MELTR_HOME"):
             from meltr.core.paths import get_logforge_home
+
             discovered_home = get_logforge_home()
-            os.environ['MELTR_HOME'] = str(discovered_home)
+            os.environ["MELTR_HOME"] = str(discovered_home)
             logger.info(f"Set LOGFORGE_HOME={discovered_home} (self-discovered)")
 
         try:
@@ -49,6 +50,7 @@ class LogForgeService:
         except Exception as e:
             # If logging setup fails, print to stderr
             import sys
+
             print(f"ERROR: Failed to setup logging: {e}", file=sys.stderr)
             raise
 
@@ -99,6 +101,7 @@ class LogForgeService:
 
         # Wait for API to be healthy
         import time
+
         time.sleep(1.0)
 
         if not self.api_server.is_running():
@@ -163,6 +166,7 @@ class LogForgeService:
 
             # Keep service running
             import time
+
             while True:
                 time.sleep(1.0)
         except KeyboardInterrupt:
@@ -185,20 +189,10 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="LogForge synthetic event log generator service")
     parser.add_argument(
-        '--config',
-        type=Path,
-        help='Path to config file (must be within LOGFORGE_HOME)'
+        "--config", type=Path, help="Path to config file (must be within LOGFORGE_HOME)"
     )
-    parser.add_argument(
-        '--host',
-        type=str,
-        help='API server host (overrides config)'
-    )
-    parser.add_argument(
-        '--port',
-        type=int,
-        help='API server port (overrides config)'
-    )
+    parser.add_argument("--host", type=str, help="API server host (overrides config)")
+    parser.add_argument("--port", type=int, help="API server port (overrides config)")
 
     args = parser.parse_args()
 
@@ -212,4 +206,3 @@ def main() -> None:
         service.config.api.port = args.port
 
     service.run()
-
