@@ -117,12 +117,14 @@ def test_public_errors_message():
 def test_create_http_output_cribl_preset_fields(monkeypatch):
     from meltr.cli import config_editor
 
-    prompt_answers = iter([
-        "https://cribl.example/cribl/_bulk",
-        "POST",
-        "Bearer",
-        "cribl-token",
-    ])
+    prompt_answers = iter(
+        [
+            "https://cribl.example/cribl/_bulk",
+            "POST",
+            "Bearer",
+            "cribl-token",
+        ]
+    )
     int_answers = iter([100, 5, 30])
     confirm_answers = iter([True, True])
 
@@ -138,7 +140,6 @@ def test_create_http_output_cribl_preset_fields(monkeypatch):
 def test_api_health_endpoint(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from meltr import __version__
     from meltr.api.server import APIServer
 
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))

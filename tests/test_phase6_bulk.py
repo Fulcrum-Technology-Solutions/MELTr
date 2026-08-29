@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from meltr.community.updates import (
     ProductVersionLookup,
@@ -34,7 +32,6 @@ from meltr.templates.filters import (
     timestamp_to_iso,
 )
 from meltr.templates.validator import validate_template
-
 
 FIXTURES = Path(__file__).parent / "fixtures" / "templates"
 PREVIEW_J2 = FIXTURES / "testvendor" / "testproduct" / "events" / "preview.j2"
@@ -94,9 +91,7 @@ def test_file_handler_from_config_path_template():
 def _write_product(base: Path, version: str = "1.0.0") -> None:
     product = base / "default" / "vendor_a" / "product_b"
     product.mkdir(parents=True)
-    (product / "collection.json").write_text(
-        json.dumps({"version": version}), encoding="utf-8"
-    )
+    (product / "collection.json").write_text(json.dumps({"version": version}), encoding="utf-8")
 
 
 def test_iter_installed_products(tmp_path):

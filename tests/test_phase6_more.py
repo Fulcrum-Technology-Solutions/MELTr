@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import socket
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -12,7 +11,7 @@ import yaml
 
 from meltr.community.package import get_local_collection_version
 from meltr.core.config import GeneratorConfig, OutputDefinition, create_default_config, load_config
-from meltr.entities.validator import validate_entities, _validate_entities_structure
+from meltr.entities.validator import _validate_entities_structure, validate_entities
 from meltr.outputs.syslog import SyslogOutputHandler
 from meltr.outputs.tcp import TCPOutputHandler
 from meltr.templates.renderer import TemplateRenderer
@@ -73,8 +72,9 @@ def test_validate_entities_rejects_bad_email(tmp_path):
 
 def test_template_renderer_renders_json(tmp_path, monkeypatch):
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    from meltr.core.config import save_config
     import shutil
+
+    from meltr.core.config import save_config
 
     shutil.copy(SAMPLE_ENTITIES, tmp_path / "entities.yaml")
     cfg = create_default_config(tmp_path)

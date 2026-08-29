@@ -8,7 +8,9 @@ from meltr.cli import config_editor
 def test_create_file_output_with_rotation(monkeypatch):
     prompts = iter(["/tmp/{generator}.log", "size", "50MB"])
     confirms = iter([True, True])
-    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompts, k.get("default", "size")))
+    monkeypatch.setattr(
+        config_editor.Prompt, "ask", lambda *a, **k: next(prompts, k.get("default", "size"))
+    )
     monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: 5)
     monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: next(confirms))
 
@@ -30,8 +32,12 @@ def test_create_console_output_json(monkeypatch):
 def test_create_tcp_output(monkeypatch):
     prompts = iter(["collector.local"])
     int_prompts = iter([9000])
-    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompts, k.get("default", "\\n")))
-    monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: next(int_prompts, k.get("default", 514)))
+    monkeypatch.setattr(
+        config_editor.Prompt, "ask", lambda *a, **k: next(prompts, k.get("default", "\\n"))
+    )
+    monkeypatch.setattr(
+        config_editor.IntPrompt, "ask", lambda *a, **k: next(int_prompts, k.get("default", 514))
+    )
     monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
 
     output = config_editor._create_tcp_output("tcp-out")
@@ -42,8 +48,12 @@ def test_create_tcp_output(monkeypatch):
 def test_create_syslog_output(monkeypatch):
     prompts = iter(["syslog.local", "tcp", "local1", "warning"])
     int_prompts = iter([5514])
-    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompts, k.get("default", "udp")))
-    monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: next(int_prompts, k.get("default", 514)))
+    monkeypatch.setattr(
+        config_editor.Prompt, "ask", lambda *a, **k: next(prompts, k.get("default", "udp"))
+    )
+    monkeypatch.setattr(
+        config_editor.IntPrompt, "ask", lambda *a, **k: next(int_prompts, k.get("default", 514))
+    )
 
     output = config_editor._create_syslog_output("syslog-out")
     assert output.host == "syslog.local"

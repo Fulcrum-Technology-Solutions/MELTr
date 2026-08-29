@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
-import json
 import tarfile
 from datetime import datetime, time, timedelta
 from pathlib import Path
@@ -13,7 +11,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 import requests
-import yaml
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
@@ -25,7 +22,6 @@ from meltr.community.client import (
 )
 from meltr.community.package import (
     PackageError,
-    PackageValidationError,
     extract_forge_package,
     validate_package_structure,
 )
@@ -53,7 +49,6 @@ from meltr.outputs.http import HTTPOutputHandler
 from meltr.outputs.syslog import SyslogOutputHandler
 from meltr.templates.filters import DateTimeWrapper, register_filters
 from meltr.templates.metadata import TemplateMetadata
-
 
 # --- frequency ---
 
@@ -548,7 +543,10 @@ def test_cli_pipelines_list(tmp_path, monkeypatch):
             }
         ]
     }
-    with patch("meltr.cli.pipelines.get_api_client", return_value=_mock_api_client({("GET", "/api/pipelines"): {"payload": payload}})):
+    with patch(
+        "meltr.cli.pipelines.get_api_client",
+        return_value=_mock_api_client({("GET", "/api/pipelines"): {"payload": payload}}),
+    ):
         result = CliRunner().invoke(pipelines_app, ["list"])
     assert result.exit_code == 0
     assert "lab" in result.output
@@ -689,7 +687,9 @@ def test_datetime_wrapper_arithmetic():
 def test_register_filters_adds_now():
     from jinja2 import Environment
 
-    env = Environment()  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
+    env = (
+        Environment()
+    )  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     register_filters(env)
     assert "now" in env.globals
     assert "random_int" in env.filters

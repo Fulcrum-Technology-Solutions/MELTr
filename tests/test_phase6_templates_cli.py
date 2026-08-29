@@ -25,8 +25,13 @@ def _install_local_template(home: Path) -> str:
     tid = "testvendor/testproduct/events/preview"
     dest = home / "templates" / "default" / "testvendor" / "testproduct" / "events"
     dest.mkdir(parents=True, exist_ok=True)
-    shutil.copy(FIXTURES / "testvendor" / "testproduct" / "events" / "preview.j2", dest / "preview.j2")
-    shutil.copy(FIXTURES / "testvendor" / "testproduct" / "events" / "preview.meta.yaml", dest / "preview.meta.yaml")
+    shutil.copy(
+        FIXTURES / "testvendor" / "testproduct" / "events" / "preview.j2", dest / "preview.j2"
+    )
+    shutil.copy(
+        FIXTURES / "testvendor" / "testproduct" / "events" / "preview.meta.yaml",
+        dest / "preview.meta.yaml",
+    )
     (home / "templates" / "default" / "testvendor" / "testproduct" / "collection.json").write_text(
         json.dumps({"version": "1.0.0", "templates": ["events/preview"]}),
         encoding="utf-8",

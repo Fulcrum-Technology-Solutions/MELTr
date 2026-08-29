@@ -43,7 +43,15 @@ from meltr.templates.filters import (
 from meltr.templates.metadata import parse_metadata
 
 SAMPLE_ENTITIES = Path(__file__).parent.parent / "src" / "meltr" / "data" / "entities.sample.yaml"
-PREVIEW_META = Path(__file__).parent / "fixtures" / "templates" / "testvendor" / "testproduct" / "events" / "preview.meta.yaml"
+PREVIEW_META = (
+    Path(__file__).parent
+    / "fixtures"
+    / "templates"
+    / "testvendor"
+    / "testproduct"
+    / "events"
+    / "preview.meta.yaml"
+)
 
 
 # --- version ---
@@ -109,7 +117,7 @@ def test_validate_entities_sample_file():
 
 
 def test_sanitize_filename_component():
-    assert sanitize_filename_component('bad/name?') == "bad_name_"
+    assert sanitize_filename_component("bad/name?") == "bad_name_"
     assert sanitize_filename_component("  ok  ") == "ok"
 
 
@@ -365,7 +373,9 @@ def test_http_get_statistics_keys():
 def test_register_filters_smoke():
     from jinja2 import Environment
 
-    env = Environment()  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
+    env = (
+        Environment()
+    )  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     register_filters(env)
     rendered = env.from_string("{{ random_int(1, 10) }}").render()
     assert rendered.isdigit()
