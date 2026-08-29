@@ -4,13 +4,18 @@ from typing import Annotated, Any, Dict, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
+from meltr.api.auth import require_api_key
 from meltr.api.errors import log_api_exception
 from meltr.entities.registry import EntityRegistry
 from meltr.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/entities", tags=["entities"])
+router = APIRouter(
+    prefix="/api/entities",
+    tags=["entities"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 def get_registry(request: Request) -> EntityRegistry:

@@ -4,10 +4,15 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from meltr.api.auth import require_api_key
 from meltr.templates.cache import TemplateCache
 from meltr.templates.loader import TemplateLoader
 
-router = APIRouter(prefix="/api/templates", tags=["templates"])
+router = APIRouter(
+    prefix="/api/templates",
+    tags=["templates"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 def get_template_cache(request: Request) -> TemplateCache:

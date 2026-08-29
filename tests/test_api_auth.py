@@ -127,3 +127,70 @@ async def test_require_api_key_503_when_enabled_without_key(tmp_path, monkeypatc
     with pytest.raises(HTTPException) as exc_info:
         await require_api_key(_make_request(cfg, {"Authorization": "Bearer anything"}))
     assert exc_info.value.status_code == 503
+
+
+# --- Integration tests (TestClient against APIServer) ---
+
+
+@pytest.fixture
+def auth_api_client(tmp_path, monkeypatch):
+    """APIServer TestClient with auth enabled via env key."""
+    from unittest.mock import MagicMock
+
+    from fastapi.testclient import TestClient
+
+    from meltr.api.server import APIServer
+
+    monkeypatch.setenv("MELTR_API_KEY", "test-secret")
+    cfg = create_default_config(tmp_path)
+    cfg.api.auth = AuthConfig(enabled=False, key=None)
+    server = APIServer(cfg)
+    registry = MagicMock()
+    registry.get_organization.return_value = {"name": "Acme", "domain": "acme.test"}
+    registry.get_all_users.return_value = []
+    registry.get_all_devices.return_value = []
+    registry.get_all_services.return_value = []
+    server.app.state.registry = registry
+    return TestClient(server.app)
+
+
+def test_health_public_when_auth_enabled(auth_api_client):
+    response = auth_api_client.get("/api/health")
+    assert response.status_code == 200
+
+
+def test_entities_401_without_bearer(auth_api_client):
+    response = auth_api_client.get("/api/entities")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or missing API key"
+
+
+def test_entities_200_with_bearer(auth_api_client):
+    response = auth_api_client.get(
+        "/api/entities",
+        headers={"Authorization": "Bearer test-secret"},
+    )
+    assert response.status_code == 200
+
+
+def test_status_401_without_bearer(auth_api_client):
+    response = auth_api_client.get("/api/status")
+    assert response.status_code == 401
+
+
+def test_metrics_401_without_bearer(auth_api_client):
+    response = auth_api_client.get("/api/metrics")
+    assert response.status_code == 401
+
+
+def test_api_start_refuses_when_enabled_without_key(tmp_path, monkeypatch):
+    from meltr.api.server import APIServer
+
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
+    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    cfg = create_default_config(tmp_path)
+    cfg.api.auth = AuthConfig(enabled=True, key=None)
+    cfg.api.enabled = True
+    server = APIServer(cfg)
+    with pytest.raises(RuntimeError, match="API auth enabled but no API key"):
+        server.start()

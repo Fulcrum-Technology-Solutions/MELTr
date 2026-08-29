@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
+from meltr.api.auth import resolve_api_key
 from meltr.core.config import Config
 from meltr.utils.logging import get_logger
 
@@ -64,6 +65,9 @@ class APIServer:
         @self.app.get("/api/metrics", response_class=PlainTextResponse)
         async def metrics(request: Request) -> str:
             """Prometheus metrics endpoint."""
+            from meltr.api.auth import require_api_key
+
+            await require_api_key(request)
             lines = ["# LogForge output pipeline metrics"]
             engine = getattr(request.app.state, "engine", None)
             if engine:
@@ -103,6 +107,9 @@ class APIServer:
         if not api_config.enabled:
             logger.info("API server disabled in configuration")
             return
+
+        if self.config.api.auth.enabled and resolve_api_key(self.config) is None:
+            raise RuntimeError("API auth enabled but no API key configured")
 
         self._thread_error = None
 

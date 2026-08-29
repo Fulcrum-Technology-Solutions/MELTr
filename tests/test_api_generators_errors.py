@@ -7,12 +7,20 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from meltr.api.endpoints import generators as generators_module
+from meltr.core.config import AuthConfig, create_default_config
 
 
 @pytest.fixture
-def generator_client() -> TestClient:
+def generator_client(tmp_path, monkeypatch) -> TestClient:
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     app = FastAPI()
     app.include_router(generators_module.router)
+
+    config = create_default_config(tmp_path)
+    config.api.auth = AuthConfig(enabled=False, key=None)
+    server = MagicMock()
+    server.config = config
+    app.state.server = server
 
     engine = MagicMock()
     gen = MagicMock()

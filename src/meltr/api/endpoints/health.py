@@ -4,6 +4,7 @@ from typing import Annotated, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from meltr.api.auth import require_api_key
 from meltr.api.errors import log_api_exception
 from meltr.api.server import APIServer
 from meltr.core.engine import Engine
@@ -105,7 +106,7 @@ async def health(server: Annotated[APIServer, Depends(get_server)]) -> dict:
     return result
 
 
-@router.get("/status")
+@router.get("/status", dependencies=[Depends(require_api_key)])
 async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
     """Detailed status endpoint.
     
@@ -192,7 +193,7 @@ async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
     }
 
 
-@router.post("/config/reload")
+@router.post("/config/reload", dependencies=[Depends(require_api_key)])
 async def reload_config(
     server: Annotated[APIServer, Depends(get_server)],
     engine: Annotated[Engine, Depends(get_engine)]

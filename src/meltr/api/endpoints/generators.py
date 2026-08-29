@@ -4,13 +4,18 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from meltr.api.auth import require_api_key
 from meltr.api.errors import log_api_exception
 from meltr.core.engine import Engine
 from meltr.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/generators", tags=["generators"])
+router = APIRouter(
+    prefix="/api/generators",
+    tags=["generators"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 def get_engine(request: Request) -> Engine:
