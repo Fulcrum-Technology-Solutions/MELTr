@@ -247,9 +247,9 @@ def _minimal_valid_entities() -> dict:
 def _load_bundled_sample_entities() -> Optional[dict]:
     """Load packaged entities.sample.yaml if present."""
     try:
-        from importlib.resources import files
+        import meltr as _pkg
 
-        path = files("meltr").joinpath("data", "entities.sample.yaml")
+        path = Path(_pkg.__file__).resolve().parent / "data" / "entities.sample.yaml"
         content = path.read_text(encoding="utf-8")
         return yaml.safe_load(content)
     except Exception:
