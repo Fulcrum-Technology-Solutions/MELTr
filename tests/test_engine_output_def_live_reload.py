@@ -1,19 +1,19 @@
 """Engine reload tests for output-definition driven generator recreation."""
 
-from logforge.core.config import (
+from meltr.core.config import (
     GeneratorConfig,
     InternalLogsConfig,
     OutputDefinition,
     create_default_config,
 )
-from logforge.core.engine import Engine
-from logforge.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
-from logforge.entities.registry import EntityRegistry
-from logforge.templates.cache import TemplateCache
+from meltr.core.engine import Engine
+from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
+from meltr.entities.registry import EntityRegistry
+from meltr.templates.cache import TemplateCache
 
 
 def test_engine_reload_updates_generator_when_output_definition_changes(tmp_path, monkeypatch):
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
 
     # Bypass template discovery/validation (engine only checks truthiness).
     monkeypatch.setattr(TemplateCache, "get_template", lambda *a, **k: object())
@@ -57,7 +57,7 @@ def test_engine_reload_updates_generator_when_output_definition_changes(tmp_path
 
 
 def test_engine_reload_updates_internal_logs_when_output_definition_changes(tmp_path, monkeypatch):
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
 
     config = create_default_config(tmp_path)
     config.outputs.definitions = [

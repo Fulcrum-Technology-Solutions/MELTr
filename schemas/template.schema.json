@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://logforge.dev/schemas/template.schema.json",
+    "$id": "https://meltr.dev/schemas/template.schema.json",
     "title": "Template Metadata Schema",
     "description": "Schema for template_name.meta.yaml files that describe individual templates",
     "type": "object",

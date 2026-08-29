@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://logforge.dev/schemas/vendor.schema.json",
+    "$id": "https://meltr.dev/schemas/vendor.schema.json",
     "title": "Vendor Metadata Schema",
     "description": "Schema for vendor.meta.yaml files in template repositories",
     "type": "object",

@@ -2,7 +2,7 @@
 
 from typer.testing import CliRunner
 
-from logforge.cli.main import app
+from meltr.cli.main import app
 
 
 def test_init_command_exists():

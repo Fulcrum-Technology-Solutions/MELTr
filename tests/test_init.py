@@ -9,8 +9,8 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from logforge.cli.main import app
-from logforge.cli.init import init
+from meltr.cli.main import app
+from meltr.cli.init import init
 
 
 def _run_init(runner: CliRunner, tmp_path: Path):
@@ -20,7 +20,7 @@ def _run_init(runner: CliRunner, tmp_path: Path):
 
 def test_init_creates_directory_structure(tmp_path, monkeypatch):
     """Test that init creates required directory structure."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     runner = CliRunner()
     result = _run_init(runner, tmp_path)
     assert result.exit_code == 0, result.output
@@ -35,7 +35,7 @@ def test_init_creates_directory_structure(tmp_path, monkeypatch):
 
 def test_init_creates_config_file(tmp_path, monkeypatch):
     """Test that init creates config.yaml."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     runner = CliRunner()
     result = _run_init(runner, tmp_path)
     assert result.exit_code == 0, result.output
@@ -51,7 +51,7 @@ def test_init_creates_config_file(tmp_path, monkeypatch):
 
 def test_init_creates_entities_file(tmp_path, monkeypatch):
     """Test that init creates entities.yaml."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     runner = CliRunner()
     result = _run_init(runner, tmp_path)
     assert result.exit_code == 0, result.output
@@ -69,7 +69,7 @@ def test_init_creates_entities_file(tmp_path, monkeypatch):
 
 def test_init_respects_force_flag(tmp_path, monkeypatch):
     """Test that --force overwrites existing config."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     config_path = tmp_path / "config.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text("existing: config")
@@ -84,7 +84,7 @@ def test_init_respects_force_flag(tmp_path, monkeypatch):
 
 def test_init_sets_file_permissions(tmp_path, monkeypatch):
     """Test that init sets secure file permissions."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     runner = CliRunner()
     result = _run_init(runner, tmp_path)
     assert result.exit_code == 0, result.output
@@ -101,9 +101,9 @@ def test_init_sets_file_permissions(tmp_path, monkeypatch):
 
 
 def test_init_without_create_user_flags_defaults_to_non_root_behavior(tmp_path, monkeypatch):
-    """Omitting --create-user/--no-create-user uses non-root default (no logmgr) when euid != 0."""
-    monkeypatch.setenv("LOGFORGE_HOME", str(tmp_path))
-    monkeypatch.setattr("logforge.cli.init.os.geteuid", lambda: 1000)
+    """Omitting --create-user/--no-create-user uses non-root default (no meltr) when euid != 0."""
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    monkeypatch.setattr("meltr.cli.init.os.geteuid", lambda: 1000)
     runner = CliRunner()
     result = runner.invoke(app, ["init", "--force", "--directory", str(tmp_path)])
     assert result.exit_code == 0, result.output

@@ -3,8 +3,8 @@
 import threading
 from unittest.mock import Mock
 
-from logforge.core.engine import Engine
-from logforge.core.generator import GeneratorState
+from meltr.core.engine import Engine
+from meltr.core.generator import GeneratorState
 
 
 class _FutureStub:

@@ -1,7 +1,7 @@
 """Regression tests for generator state transitions."""
 
-from logforge.core.config import GeneratorConfig
-from logforge.core.generator import Generator, GeneratorState
+from meltr.core.config import GeneratorConfig
+from meltr.core.generator import Generator, GeneratorState
 
 
 class _DummyTemplateLoader:

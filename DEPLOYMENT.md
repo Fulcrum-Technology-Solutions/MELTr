@@ -1,26 +1,26 @@
-# LogForge Deployment & Update Guide
+# MELTr Deployment & Update Guide
 
 **First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**. For the **`.tar.gz` bundle** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)**.
 
-**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** or **wheel** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases) (see [linux-tarball.md](docs/deployment/linux-tarball.md)), or an **editable install** from source for development. Install wheels with `pip install ./logforge-*.whl` (not from PyPI — the `logforge` name is taken by another project). Config and data live under **LOGFORGE_HOME**. For `logforge service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/logforge` → **`LOGFORGE_HOME=/opt/logforge`**; otherwise same rules as `get_logforge_home()`). The service user is **logmgr**. Uninstalling the systemd service (`logforge service uninstall`) removes only the unit file; it does not delete LOGFORGE_HOME or application data.
+**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** or **wheel** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/MELTr/releases) (see [linux-tarball.md](docs/deployment/linux-tarball.md)), or an **editable install** from source for development. Install wheels with `pip install ./logforge-*.whl` (not from PyPI — the `logforge` name is taken by another project). Config and data live under **MELTR_HOME**. For `meltr service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/meltr` → **`MELTR_HOME=/opt/meltr`**; otherwise same rules as `get_logforge_home()`). The service user is **meltr**. Uninstalling the systemd service (`meltr service uninstall`) removes only the unit file; it does not delete MELTR_HOME or application data.
 
 ## Updating the official Linux `.tar.gz` (GitHub Releases)
 
-Use this when LogForge was installed from **`logforge-{version}-linux-x86_64.tar.gz`** (embedded Python under e.g. `/opt/logforge`). Details: [docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md).
+Use this when MELTr was installed from **`logforge-{version}-linux-x86_64.tar.gz`** (embedded Python under e.g. `/opt/meltr`). Details: [docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md).
 
-1. **Stop** the service: `sudo systemctl stop logforge`
-2. **Back up** `LOGFORGE_HOME` (e.g. `/opt/logforge` or `/var/lib/logforge`), for example:  
+1. **Stop** the service: `sudo systemctl stop meltr`
+2. **Back up** `MELTR_HOME` (e.g. `/opt/meltr` or `/var/lib/logforge`), for example:  
    `sudo tar czf ~/logforge-home-backup.tgz -C /opt logforge`  
    (adjust `-C` and paths to match your layout; preserve `config.yaml`, `entities.yaml`, `templates/`, etc.).
-3. **Download** the new `logforge-{version}-linux-x86_64.tar.gz` and verify checksums from [Releases](https://github.com/Fulcrum-Technology-Solutions/LogForge/releases).
+3. **Download** the new `logforge-{version}-linux-x86_64.tar.gz` and verify checksums from [Releases](https://github.com/Fulcrum-Technology-Solutions/MELTr/releases).
 4. **Replace the install tree** (`python/`, `app/`) without deleting your data directory:
-   - If **`LOGFORGE_HOME`** is **outside** the unpacked bundle, remove the old `python` and `app` directories (or the whole previous bundle folder) and unpack the new tarball into the same install root.
-   - If **`LOGFORGE_HOME`** is **`/opt/logforge`** (state alongside `app/` and `python/`), move state aside before replacing the install tree, for example:  
-     `sudo mv /opt/logforge/config.yaml /tmp/ && sudo mv /opt/logforge/entities.yaml /tmp/ && …`  
+   - If **`MELTR_HOME`** is **outside** the unpacked bundle, remove the old `python` and `app` directories (or the whole previous bundle folder) and unpack the new tarball into the same install root.
+   - If **`MELTR_HOME`** is **`/opt/meltr`** (state alongside `app/` and `python/`), move state aside before replacing the install tree, for example:  
+     `sudo mv /opt/meltr/config.yaml /tmp/ && sudo mv /opt/meltr/entities.yaml /tmp/ && …`  
      or archive the whole directory except the install subdirs you replace; then restore after unpacking.
-5. Ensure **`PATH`** includes `/opt/logforge/app/bin` and that **systemd** still uses the bundled binary if you installed with  
-   `logforge service install --binary /opt/logforge/app/bin/logforge ...`.
-6. **Start** the service: `sudo systemctl start logforge`
+5. Ensure **`PATH`** includes `/opt/meltr/app/bin` and that **systemd** still uses the bundled binary if you installed with  
+   `meltr service install --binary /opt/meltr/app/bin/meltr ...`.
+6. **Start** the service: `sudo systemctl start meltr`
 
 ## Update Process for Test Machines
 
@@ -39,10 +39,10 @@ git push
 **On the test machine:**
 ```bash
 # Navigate to installation directory
-cd /opt/logforge
+cd /opt/meltr
 
 # Stop the service
-sudo systemctl stop logforge
+sudo systemctl stop meltr
 
 # Backup current installation (optional but recommended)
 sudo cp -r src src.backup.$(date +%Y%m%d_%H%M%S)
@@ -55,10 +55,10 @@ source .venv/bin/activate
 pip install -e . --upgrade
 
 # Restart the service
-sudo systemctl start logforge
+sudo systemctl start meltr
 
 # Verify it's running
-sudo systemctl status logforge
+sudo systemctl status meltr
 logforge --version
 ```
 
@@ -67,7 +67,7 @@ logforge --version
 **On your development machine:**
 ```bash
 # Create a tarball of the source
-cd /path/to/LogForge
+cd /path/to/MELTr
 tar czf logforge-update.tar.gz src/ pyproject.toml README.md LICENSE
 
 # Transfer to test machine (scp, rsync, USB, etc.)
@@ -77,14 +77,14 @@ scp logforge-update.tar.gz user@test-machine:/tmp/
 **On the test machine:**
 ```bash
 # Stop the service
-sudo systemctl stop logforge
+sudo systemctl stop meltr
 
 # Backup current installation
-cd /opt/logforge
+cd /opt/meltr
 sudo cp -r src src.backup.$(date +%Y%m%d_%H%M%S)
 
 # Extract new files
-cd /opt/logforge
+cd /opt/meltr
 sudo tar xzf /tmp/logforge-update.tar.gz
 
 # Reinstall the package
@@ -92,10 +92,10 @@ source .venv/bin/activate
 pip install -e . --upgrade
 
 # Restart the service
-sudo systemctl start logforge
+sudo systemctl start meltr
 
 # Verify
-sudo systemctl status logforge
+sudo systemctl status meltr
 logforge --version
 ```
 
@@ -104,36 +104,36 @@ logforge --version
 **On the test machine:**
 ```bash
 # Stop and uninstall service
-sudo systemctl stop logforge
-sudo systemctl disable logforge
-sudo logforge service uninstall
+sudo systemctl stop meltr
+sudo systemctl disable meltr
+sudo meltr service uninstall
 
 # Backup your data (config, entities, templates)
-sudo cp -r /var/lib/logforge /var/lib/logforge.backup.$(date +%Y%m%d_%H%M%S)
+sudo cp -r /var/lib/logforge /var/lib/meltr.backup.$(date +%Y%m%d_%H%M%S)
 
 # For wheel install: download the new wheel from GitHub Releases; data stays in /var/lib/logforge
 pip install ./logforge-*.whl --upgrade
 
 # Reinstall service (only if you removed it)
-sudo logforge service install --user logmgr --group logmgr --home /var/lib/logforge
+sudo meltr service install --user meltr --group meltr --home /var/lib/logforge
 
 # For source install: remove old tree, clone/copy, pip install -e ., then service install --home /var/lib/logforge
 # Restore from backup to /var/lib/logforge if you moved data
 
 # Start service
-sudo systemctl start logforge
-sudo systemctl enable logforge
+sudo systemctl start meltr
+sudo systemctl enable meltr
 ```
 
 ## What Gets Preserved During Updates
 
-**Preserved (in LOGFORGE_HOME):**
+**Preserved (in MELTR_HOME):**
 - ✅ `config.yaml` - Your configuration
 - ✅ `entities.yaml` - Your entity registry
 - ✅ `templates/custom/` - Your custom templates
 - ✅ `templates/default/` - Community templates (unless you reinstall them)
 - ✅ `outputs/` - Output files
-- ✅ `logs/logforge.log` - Application logs (bundle default: under `<install_root>/logs`, e.g. `/opt/logforge/logs/`; override with `LOGFORGE_LOG_FILE`)
+- ✅ `logs/meltr.log` - Application logs (bundle default: under `<install_root>/logs`, e.g. `/opt/meltr/logs/`; override with `LOGFORGE_LOG_FILE`)
 
 **Replaced:**
 - 🔄 Python source code (`src/`)
@@ -146,21 +146,21 @@ Create this script on your test machine for easy updates:
 
 ```bash
 #!/bin/bash
-# /opt/logforge/update.sh
+# /opt/meltr/update.sh
 
 set -e
 
-echo "=== LogForge Update Script ==="
+echo "=== MELTr Update Script ==="
 echo ""
 
 # Stop service
 echo "Stopping service..."
-sudo systemctl stop logforge
+sudo systemctl stop meltr
 
 # Backup
 BACKUP_DIR="src.backup.$(date +%Y%m%d_%H%M%S)"
 echo "Creating backup: $BACKUP_DIR"
-cd /opt/logforge
+cd /opt/meltr
 sudo cp -r src "$BACKUP_DIR"
 
 # Update code
@@ -181,11 +181,11 @@ pip install -e . --upgrade
 
 # Restart
 echo "Restarting service..."
-sudo systemctl start logforge
+sudo systemctl start meltr
 
 # Verify
 sleep 2
-if sudo systemctl is-active --quiet logforge; then
+if sudo systemctl is-active --quiet meltr; then
     echo "✓ Service started successfully"
     logforge --version
 else
@@ -197,12 +197,12 @@ fi
 
 Make it executable:
 ```bash
-chmod +x /opt/logforge/update.sh
+chmod +x /opt/meltr/update.sh
 ```
 
 Usage:
 ```bash
-sudo /opt/logforge/update.sh
+sudo /opt/meltr/update.sh
 ```
 
 ## Update Checklist
@@ -214,9 +214,9 @@ Before updating:
 - [ ] Note any running generators (they'll restart automatically)
 
 After updating:
-- [ ] Verify service is running: `sudo systemctl status logforge`
-- [ ] Check version: `logforge --version`
-- [ ] Verify generators: `logforge generators list`
+- [ ] Verify service is running: `sudo systemctl status meltr`
+- [ ] Check version: `meltr --version`
+- [ ] Verify generators: `meltr generators list`
 - [ ] Check logs: `sudo journalctl -u logforge -n 50`
 - [ ] Test API: `curl http://127.0.0.1:8080/api/health`
 
@@ -226,10 +226,10 @@ If an update causes issues:
 
 ```bash
 # Stop service
-sudo systemctl stop logforge
+sudo systemctl stop meltr
 
 # Restore backup
-cd /opt/logforge
+cd /opt/meltr
 sudo rm -rf src
 sudo mv src.backup.YYYYMMDD_HHMMSS src
 
@@ -238,7 +238,7 @@ source .venv/bin/activate
 pip install -e . --upgrade
 
 # Restart
-sudo systemctl start logforge
+sudo systemctl start meltr
 ```
 
 ## Configuration Migration
@@ -247,7 +247,7 @@ If the config schema changes between versions:
 
 1. **Backup your config:**
    ```bash
-   cp /opt/logforge/logforge/config.yaml /opt/logforge/logforge/config.yaml.backup
+   cp /opt/meltr/logforge/config.yaml /opt/meltr/logforge/config.yaml.backup
    ```
 
 2. **Validate config after update:**
@@ -263,7 +263,7 @@ If the config schema changes between versions:
 
 4. **Merge changes manually or regenerate:**
    ```bash
-   # Option 1: Let LogForge create new default and merge manually
+   # Option 1: Let MELTr create new default and merge manually
    mv config.yaml config.yaml.old
    logforge init --force  # Creates new default
    # Manually merge your customizations
@@ -273,7 +273,7 @@ If the config schema changes between versions:
 
 ## Best Practices
 
-1. **Always backup before updating** - Your data in `LOGFORGE_HOME` is safe, but backup anyway
+1. **Always backup before updating** - Your data in `MELTR_HOME` is safe, but backup anyway
 2. **Test updates on a non-production machine first**
 3. **Check release notes** - If there are breaking changes, plan accordingly
 4. **Use version control** - Keep your config and entities in git if possible

@@ -8,7 +8,7 @@ import pytest
 import requests
 import yaml
 
-from logforge.core.config import Config, create_default_config, load_config
+from meltr.core.config import Config, create_default_config, load_config
 
 
 def test_create_default_config():
@@ -25,8 +25,8 @@ def test_create_default_config():
 
 def test_load_config(tmp_path, monkeypatch):
     """Test config loading from file."""
-    # Set LOGFORGE_HOME to temp directory
-    monkeypatch.setenv('LOGFORGE_HOME', str(tmp_path))
+    # Set MELTR_HOME to temp directory
+    monkeypatch.setenv('MELTR_HOME', str(tmp_path))
     
     config_path = tmp_path / 'config.yaml'
     
@@ -67,8 +67,8 @@ def test_default_config_includes_internal_logs():
 
 def test_edit_output_updates_existing_output_without_recreate(tmp_path, monkeypatch):
     """In-place output edit must replace the same list slot (no delete/recreate)."""
-    from logforge.cli import config_editor
-    from logforge.core.config import OutputDefinition
+    from meltr.cli import config_editor
+    from meltr.core.config import OutputDefinition
 
     config = create_default_config(tmp_path)
     http_out = OutputDefinition(
@@ -96,7 +96,7 @@ def test_edit_output_updates_existing_output_without_recreate(tmp_path, monkeypa
 
 def test_create_http_output_bearer_stores_plaintext_token(monkeypatch):
     """HTTP output create flow stores plaintext bearer token."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     prompt_answers = iter([
         "https://collector.example/v1/events",  # HTTP URL
@@ -125,7 +125,7 @@ def test_create_http_output_bearer_stores_plaintext_token(monkeypatch):
 
 def test_create_http_output_splunk_stores_plaintext_token(monkeypatch):
     """HTTP output create flow stores plaintext Splunk HEC token."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     prompt_answers = iter([
         "https://collector.example/v1/events",
@@ -154,7 +154,7 @@ def test_create_http_output_splunk_stores_plaintext_token(monkeypatch):
 
 def test_create_http_output_api_key_stores_plaintext_token(monkeypatch):
     """HTTP output create flow stores plaintext API key token."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     prompt_answers = iter([
         "https://collector.example/v1/events",
@@ -184,8 +184,8 @@ def test_create_http_output_api_key_stores_plaintext_token(monkeypatch):
 
 def test_edit_http_output_rebuild_auth_stores_plaintext_token(monkeypatch):
     """HTTP output edit rebuild path stores plaintext bearer token."""
-    from logforge.cli import config_editor
-    from logforge.core.config import OutputDefinition
+    from meltr.cli import config_editor
+    from meltr.core.config import OutputDefinition
 
     existing = OutputDefinition(
         name="http1",
@@ -229,7 +229,7 @@ def test_edit_http_output_rebuild_auth_stores_plaintext_token(monkeypatch):
 
 def test_plaintext_token_prompt_rejects_empty_and_dollar_brace(monkeypatch):
     """Token prompt rejects empty and ${...} values, then returns valid token."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     prompt_answers = iter(["   ", "${BAD}", "  valid-token  "])
     monkeypatch.setattr(
@@ -242,7 +242,7 @@ def test_plaintext_token_prompt_rejects_empty_and_dollar_brace(monkeypatch):
 
 def test_save_config_service_down_local_connection_refused_is_info(monkeypatch, tmp_path):
     """Local connection-refused should be treated as info-only (save still succeeds)."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     cfg = create_default_config(tmp_path)
     rendered = []
@@ -264,7 +264,7 @@ def test_save_config_service_down_local_connection_refused_is_info(monkeypatch, 
             raise AssertionError("reload should not be attempted when service is down")
 
     fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
-    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+    monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
@@ -275,7 +275,7 @@ def test_save_config_service_down_local_connection_refused_is_info(monkeypatch, 
 
 def test_save_config_service_up_calls_reload(monkeypatch, tmp_path):
     """When service is healthy, config reload endpoint is called."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     cfg = create_default_config(tmp_path)
     calls = {"post": 0}
@@ -306,7 +306,7 @@ def test_save_config_service_up_calls_reload(monkeypatch, tmp_path):
             return _Response(status_code=200, data={"results": {"added": [], "removed": [], "updated": [], "errors": []}})
 
     fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
-    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+    monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     assert calls["post"] == 1
@@ -314,7 +314,7 @@ def test_save_config_service_up_calls_reload(monkeypatch, tmp_path):
 
 def test_save_config_timeout_keeps_warning_guidance(monkeypatch, tmp_path):
     """Timeout should continue to show warning-style manual reload guidance."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     cfg = create_default_config(tmp_path)
     rendered = []
@@ -331,7 +331,7 @@ def test_save_config_timeout_keeps_warning_guidance(monkeypatch, tmp_path):
             raise requests.exceptions.Timeout("timed out")
 
     fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
-    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+    monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
@@ -341,7 +341,7 @@ def test_save_config_timeout_keeps_warning_guidance(monkeypatch, tmp_path):
 
 def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path):
     """Unexpected apply exceptions should remain warning-style."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     cfg = create_default_config(tmp_path)
     rendered = []
@@ -358,7 +358,7 @@ def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path)
             raise RuntimeError("boom")
 
     fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
-    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+    monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
@@ -368,7 +368,7 @@ def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path)
 
 def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_path):
     """Non-local connection failures should keep warning path, not info-only skip."""
-    from logforge.cli import config_editor
+    from meltr.cli import config_editor
 
     cfg = create_default_config(tmp_path)
     rendered = []
@@ -385,7 +385,7 @@ def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_p
             raise requests.exceptions.ConnectionError("temporary DNS failure")
 
     fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
-    monkeypatch.setitem(__import__("sys").modules, "logforge.cli.api_client", fake_api_module)
+    monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
