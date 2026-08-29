@@ -138,6 +138,7 @@ def test_create_http_output_cribl_preset_fields(monkeypatch):
 def test_api_health_endpoint(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
+    from meltr import __version__
     from meltr.api.server import APIServer
 
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
@@ -148,3 +149,19 @@ def test_api_health_endpoint(tmp_path, monkeypatch):
     resp = client.get("/api/health")
     assert resp.status_code == 200
     assert "status" in resp.json()
+
+
+def test_api_status_reports_package_version(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from meltr import __version__
+    from meltr.api.server import APIServer
+
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
+    cfg = create_default_config(tmp_path)
+    server = APIServer(cfg)
+    client = TestClient(server.app)
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+    assert resp.json()["version"] == __version__

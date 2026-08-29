@@ -127,7 +127,7 @@ addopts = [
     "--cov=meltr",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=60",
+    "--cov-fail-under=50",
 ]
 markers = [
     "unit: Unit tests",
@@ -140,13 +140,6 @@ source = ["src"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
-    "*/meltr/cli/entities_editor.py",
-    "*/meltr/cli/api.py",
-    "*/meltr/cli/user_utils.py",
-    "*/meltr/service.py",
-    "*/meltr/cli/entities.py",
-    "*/meltr/cli/menu.py",
-    "*/meltr/cli/templates.py",
 ]
 
 [tool.coverage.report]

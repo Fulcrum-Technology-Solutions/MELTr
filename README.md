@@ -108,7 +108,7 @@ Registry errors exit non-zero from the CLI and return 502 from the API — local
 
 ## Pipelines
 
-Multi-template **pipelines** share outputs and an optional schedule. Each stream is a weighted template; the engine spawns child generators (`pipeline-name::0`, `pipeline-name::1`, …).
+Multi-template **pipelines** share outputs and an optional schedule. Each stream maps to one template; the engine spawns child generators (`pipeline-name::0`, `pipeline-name::1`, …). The `streams[].weight` field is accepted in config but **not yet applied** — all streams run at equal rate until weighted selection lands in a future release.
 
 ```bash
 meltr pipelines list
@@ -174,6 +174,15 @@ PyPI releases use [Trusted Publishing](https://docs.pypi.org/trusted-publishers/
 - [Development setup](docs/development/setup.md)
 - [Linux tarball deployment](docs/deployment/linux-tarball.md)
 - [v2.0 completion plan](docs/superpowers/plans/2026-08-29-meltr-v2-completion.md)
+- [v2.0.0 release notes](docs/release-notes-2.0.0.md)
+
+## Development
+
+```bash
+pytest   # requires MELTR_HOME (temp dir is fine); coverage gate is 50% on full src/meltr (no whole-file omits)
+```
+
+Phase 6 ships with **interim honest coverage (~50%)**; tracked follow-up is **≥60% without omits** (see [release notes](docs/release-notes-2.0.0.md)).
 
 ## License
 
