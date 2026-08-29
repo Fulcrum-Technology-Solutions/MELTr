@@ -179,6 +179,49 @@ class FrequencyConfig(BaseModel):
     variation: list[FrequencyVariation] | None = Field(default=None, description="Rate variations")
 
 
+class ScheduleConfig(BaseModel):
+    """Schedule gate configuration (continuous, window, or burst)."""
+
+    mode: str = Field(
+        default="continuous", description="Schedule mode: continuous, window, or burst"
+    )
+    days: list[str] | None = Field(default=None, description="Days of week for window mode")
+    time: str | None = Field(
+        default=None, description="Time range (e.g., '09:00-17:00') for window mode"
+    )
+    timezone: str | None = Field(default=None, description="Timezone for schedule evaluation")
+    count: int | None = Field(default=None, description="Event count limit for burst mode")
+    duration: str | None = Field(
+        default=None, description="Duration limit for burst mode (e.g., '5m')"
+    )
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, v: str) -> str:
+        allowed = {"continuous", "window", "burst"}
+        if v not in allowed:
+            raise ValueError(f"mode must be one of {allowed}, got {v!r}")
+        return v
+
+
+class PipelineStreamConfig(BaseModel):
+    """Pipeline stream (template + weight)."""
+
+    template: str = Field(description="Template ID")
+    weight: float = Field(default=1.0, description="Stream weight for event distribution")
+
+
+class PipelineConfig(BaseModel):
+    """Multi-template pipeline definition."""
+
+    name: str = Field(description="Pipeline name")
+    enabled: bool = Field(default=True, description="Pipeline enabled")
+    timezone: str | None = Field(default=None, description="Timezone override")
+    outputs: list[str] = Field(description="Output destination names")
+    schedule: ScheduleConfig = Field(default_factory=ScheduleConfig, description="Schedule gate")
+    streams: list[PipelineStreamConfig] = Field(description="Template streams")
+
+
 class GeneratorConfig(BaseModel):
     """Generator definition.
 
@@ -194,6 +237,7 @@ class GeneratorConfig(BaseModel):
         default=None,
         description="Timezone override (e.g., 'America/New_York'). Takes precedence over organization timezone.",
     )
+    schedule: ScheduleConfig | None = Field(default=None, description="Optional schedule gate")
 
 
 class InternalLogsConfig(BaseModel):
@@ -217,6 +261,9 @@ class Config(BaseModel):
     outputs: OutputsConfig = Field(default_factory=OutputsConfig, description="Output settings")
     generators: list[GeneratorConfig] = Field(
         default_factory=list, description="Generator definitions"
+    )
+    pipelines: list[PipelineConfig] = Field(
+        default_factory=list, description="Pipeline definitions"
     )
     internal_logs: InternalLogsConfig = Field(
         default_factory=lambda: InternalLogsConfig(enabled=False, outputs=[]),
@@ -430,5 +477,6 @@ def create_default_config(home: Path | None = None) -> Config:
         ),
         outputs=OutputsConfig(),
         generators=[],
+        pipelines=[],
         internal_logs=InternalLogsConfig(enabled=False, outputs=[]),
     )

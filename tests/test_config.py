@@ -4,10 +4,94 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import requests
 import yaml
 
-from meltr.core.config import Config, create_default_config, load_config
+from meltr.core.config import (
+    Config,
+    PipelineConfig,
+    ScheduleConfig,
+    create_default_config,
+    load_config,
+    save_config,
+)
+
+
+def test_default_config_includes_empty_pipelines(tmp_path, monkeypatch):
+    """Default config should include an empty pipelines list."""
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+    config = create_default_config(tmp_path)
+    assert config.pipelines == []
+
+
+def test_pipeline_yaml_round_trip(tmp_path, monkeypatch):
+    """Pipeline and schedule config should survive YAML load/save round-trip."""
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+
+    config = create_default_config(tmp_path)
+    config.pipelines = [
+        PipelineConfig(
+            name="identity-lab",
+            enabled=True,
+            timezone="America/New_York",
+            outputs=["http-cribl", "file-out"],
+            schedule=ScheduleConfig(
+                mode="window",
+                days=["mon", "tue", "wed", "thu", "fri"],
+                time="09:00-17:00",
+                timezone="America/New_York",
+            ),
+            streams=[
+                {"template": "vendor/product/datasource/event_a", "weight": 1.0},
+                {"template": "vendor/product/datasource/event_b", "weight": 2.5},
+            ],
+        )
+    ]
+
+    config_path = tmp_path / "config.yaml"
+    save_config(config, config_path)
+    loaded = load_config(config_path, create_if_missing=False)
+
+    assert len(loaded.pipelines) == 1
+    pipeline = loaded.pipelines[0]
+    assert pipeline.name == "identity-lab"
+    assert pipeline.enabled is True
+    assert pipeline.timezone == "America/New_York"
+    assert pipeline.outputs == ["http-cribl", "file-out"]
+    assert pipeline.schedule.mode == "window"
+    assert pipeline.schedule.days == ["mon", "tue", "wed", "thu", "fri"]
+    assert pipeline.schedule.time == "09:00-17:00"
+    assert pipeline.schedule.timezone == "America/New_York"
+    assert len(pipeline.streams) == 2
+    assert pipeline.streams[0].template == "vendor/product/datasource/event_a"
+    assert pipeline.streams[0].weight == 1.0
+    assert pipeline.streams[1].weight == 2.5
+
+
+def test_schedule_mode_validation():
+    """Schedule mode must be continuous, window, or burst."""
+    with pytest.raises(ValueError, match="mode must be one of"):
+        ScheduleConfig(mode="invalid")
+
+    for mode in ("continuous", "window", "burst"):
+        assert ScheduleConfig(mode=mode).mode == mode
+
+
+def test_generator_optional_schedule():
+    """Standalone generators may include an optional schedule."""
+    from meltr.core.config import GeneratorConfig
+
+    gen = GeneratorConfig(
+        name="solo",
+        template="vendor/product/datasource/event",
+        outputs=["file-out"],
+        schedule=ScheduleConfig(mode="burst", count=100, duration="5m"),
+    )
+    assert gen.schedule is not None
+    assert gen.schedule.mode == "burst"
+    assert gen.schedule.count == 100
+    assert gen.schedule.duration == "5m"
 
 
 def test_create_default_config():
