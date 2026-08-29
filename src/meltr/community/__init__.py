@@ -17,6 +17,7 @@ from meltr.community.package import (
     install_package,
     validate_package_structure,
 )
+from meltr.community.updates import find_stale_updates
 from meltr.community.version import (
     compare_versions,
     format_version_status,
@@ -39,6 +40,8 @@ __all__ = [
     "get_local_collection_version",
     "install_package",
     "validate_package_structure",
+    # Updates
+    "find_stale_updates",
     # Version
     "compare_versions",
     "format_version_status",

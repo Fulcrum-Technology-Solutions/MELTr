@@ -29,6 +29,7 @@ from meltr.community.package import (
     download_and_install_vendor,
     get_local_collection_version,
 )
+from meltr.community.updates import find_stale_updates
 from meltr.community.version import compare_versions, format_version_status
 from meltr.core.config import load_config
 from meltr.core.paths import get_logforge_home
@@ -846,6 +847,51 @@ def templates_preview(
         for index, event in enumerate(data.get("events", []), start=1):
             console.print(f"[dim]--- Event {index} ---[/dim]")
             console.print(event)
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("check-updates")
+def templates_check_updates(
+    api_url: str | None = typer.Option(
+        None,
+        "--api-url",
+        envvar="MELTR_COMMUNITY_API_URL",
+        help="Community API URL",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print raw JSON response"),
+) -> None:
+    """Check installed community packages for available updates (detection only).
+
+    Exit code is 0 when the check completes successfully, even if updates are available.
+    Exit code is 1 only when the community registry cannot be reached.
+    """
+    try:
+        config = load_config()
+        if api_url is None:
+            api_url = config.templates.community_api_url
+
+        client = CommunityAPIClient(base_url=api_url)
+        updates = find_stale_updates(client, Path(config.templates.local_path))
+
+        if json_output:
+            console.print(json.dumps({"updates": updates}, indent=2))
+            return
+
+        if not updates:
+            console.print("[green]All installed packages are up to date[/green]")
+            return
+
+        console.print(f"[yellow]{len(updates)} update(s) available[/yellow]\n")
+        for row in updates:
+            status = format_version_status(row["local_version"], row["remote_version"])
+            console.print(f"  [cyan]{row['vendor_id']}/{row['product_id']}:[/cyan] {status}")
+    except CommunityAPIError as e:
+        console.print(f"[red]API error: {e}[/red]")
+        raise typer.Exit(code=1)
     except typer.Exit:
         raise
     except Exception as e:
