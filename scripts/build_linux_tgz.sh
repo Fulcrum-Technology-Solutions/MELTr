@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Build logforge-{version}-linux-x86_64.tar.gz (unpacks to ./meltr/): embedded CPython (python-build-standalone)
+# Build meltr-{version}-linux-x86_64.tar.gz (unpacks to ./meltr/): embedded CPython (python-build-standalone)
 # + pip --prefix install of the wheel + portable bin/meltr wrapper.
 #
 # Requires: Linux x86_64, bash, curl, tar, gzip, sha256sum, python3 (build host only for bootstrap if needed).
 #
 # Usage: scripts/build_linux_tgz.sh <version> [dist_dir]
-#   version  — package version (e.g. 1.2.3), must match logforge-{version}-py3-none-any.whl in dist/
+#   version  — package version (e.g. 1.2.3), must match meltr-{version}-py3-none-any.whl in dist/
 #   dist_dir — where the wheel lives (default: dist)
 
 set -euo pipefail
@@ -37,7 +37,7 @@ require_cmds curl tar sha256sum mktemp find head tee
 VERSION="${1:?usage: $0 <version> [dist_dir]}"
 DIST_DIR="${2:-dist}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WHEEL="${ROOT}/${DIST_DIR}/logforge-${VERSION}-py3-none-any.whl"
+WHEEL="${ROOT}/${DIST_DIR}/meltr-${VERSION}-py3-none-any.whl"
 
 [[ -f "$WHEEL" ]] || die "Wheel not found: $WHEEL (run python -m build first)"
 
@@ -72,8 +72,8 @@ EXTRACTED_PY="$STAGING/python/bin/python3.11"
 [[ -x "$EXTRACTED_PY" ]] || die "Expected embedded Python at $EXTRACTED_PY"
 
 # Top-level directory inside the tarball (stable path for `tar -C /opt`).
-BUNDLE_DIR="${BUNDLE_DIR:-logforge}"
-ARCHIVE_BASENAME="logforge-${VERSION}-linux-x86_64"
+BUNDLE_DIR="${BUNDLE_DIR:-meltr}"
+ARCHIVE_BASENAME="meltr-${VERSION}-linux-x86_64"
 OUT_ROOT="$STAGING/${BUNDLE_DIR}"
 mkdir -p "$OUT_ROOT"
 
@@ -103,7 +103,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PY="$ROOT/python/bin/python3.11"
 SITE="$ROOT/app/lib/python3.11/site-packages"
 export PYTHONPATH="$SITE${PYTHONPATH:+:$PYTHONPATH}"
-exec "$PY" -m logforge "$@"
+exec "$PY" -m meltr "$@"
 WRAPPER
 chmod 755 "$APP_PREFIX/bin/meltr"
 
@@ -159,8 +159,8 @@ code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/meltr\
 \`\`\`bash
 sudo tar xzf ${ARCHIVE_BASENAME}.tar.gz -C /opt   # creates /opt/meltr
 export PATH=/opt/meltr/app/bin:\$PATH
-logforge init --force
-logforge start   # backgrounds on Linux; use --foreground to attach; or \`service install\` + systemctl
+meltr init --force
+meltr start   # backgrounds on Linux; use --foreground to attach; or \`service install\` + systemctl
 \`\`\`
 
 See \`docs/deployment/linux-tarball.md\` in the source tree for full operator documentation.
