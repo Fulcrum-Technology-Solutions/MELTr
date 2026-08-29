@@ -132,11 +132,18 @@ async def test_require_api_key_503_when_enabled_without_key(tmp_path, monkeypatc
 # --- Integration tests (TestClient against APIServer) ---
 
 
+def _stub_registry():
+    registry = MagicMock()
+    registry.get_organization.return_value = {"name": "Acme", "domain": "acme.test"}
+    registry.get_all_users.return_value = []
+    registry.get_all_devices.return_value = []
+    registry.get_all_services.return_value = []
+    return registry
+
+
 @pytest.fixture
 def auth_api_client(tmp_path, monkeypatch):
     """APIServer TestClient with auth enabled via env key."""
-    from unittest.mock import MagicMock
-
     from fastapi.testclient import TestClient
 
     from meltr.api.server import APIServer
@@ -145,12 +152,23 @@ def auth_api_client(tmp_path, monkeypatch):
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=False, key=None)
     server = APIServer(cfg)
-    registry = MagicMock()
-    registry.get_organization.return_value = {"name": "Acme", "domain": "acme.test"}
-    registry.get_all_users.return_value = []
-    registry.get_all_devices.return_value = []
-    registry.get_all_services.return_value = []
-    server.app.state.registry = registry
+    server.app.state.registry = _stub_registry()
+    return TestClient(server.app)
+
+
+@pytest.fixture
+def no_auth_api_client(tmp_path, monkeypatch):
+    """APIServer TestClient with auth fully disabled (no env key, auth.enabled=false)."""
+    from fastapi.testclient import TestClient
+
+    from meltr.api.server import APIServer
+
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
+    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    cfg = create_default_config(tmp_path)
+    cfg.api.auth = AuthConfig(enabled=False, key=None)
+    server = APIServer(cfg)
+    server.app.state.registry = _stub_registry()
     return TestClient(server.app)
 
 
@@ -181,6 +199,20 @@ def test_status_401_without_bearer(auth_api_client):
 def test_metrics_401_without_bearer(auth_api_client):
     response = auth_api_client.get("/api/metrics")
     assert response.status_code == 401
+
+
+def test_entities_200_when_auth_disabled(no_auth_api_client):
+    response = no_auth_api_client.get("/api/entities")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["organization"]["name"] == "Acme"
+    assert data["users"] == 0
+
+
+def test_metrics_200_when_auth_disabled(no_auth_api_client):
+    response = no_auth_api_client.get("/api/metrics")
+    assert response.status_code == 200
+    assert "# LogForge output pipeline metrics" in response.text
 
 
 def test_api_start_refuses_when_enabled_without_key(tmp_path, monkeypatch):
