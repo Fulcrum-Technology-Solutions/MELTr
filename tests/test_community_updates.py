@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from meltr.api.server import APIServer
 from meltr.community.client import CommunityAPIError
+from meltr.community.updates import get_remote_collection_version
 from meltr.core.config import AuthConfig, create_default_config
 from meltr.entities.registry import EntityRegistry
 from meltr.templates.cache import TemplateCache
@@ -120,6 +121,59 @@ def test_community_updates_api_error_returns_502(updates_client: TestClient) -> 
         response = updates_client.get("/api/community/updates")
 
     assert response.status_code == 502
+
+
+def test_get_remote_collection_version_soft_fail_returns_none() -> None:
+    mock_client = MagicMock()
+    mock_client.get_product_detail.side_effect = CommunityAPIError("registry unavailable")
+
+    result = get_remote_collection_version(
+        mock_client, VENDOR_ID, PRODUCT_ID, soft_fail=True
+    )
+
+    assert result is None
+
+
+def test_get_remote_collection_version_propagates_api_error_by_default() -> None:
+    mock_client = MagicMock()
+    mock_client.get_product_detail.side_effect = CommunityAPIError("registry unavailable")
+
+    with pytest.raises(CommunityAPIError, match="registry unavailable"):
+        get_remote_collection_version(mock_client, VENDOR_ID, PRODUCT_ID)
+
+
+def test_list_templates_registry_down_soft_fails(updates_client: TestClient) -> None:
+    mock_client = MagicMock()
+    mock_client.get_product_detail.side_effect = CommunityAPIError("registry unavailable")
+
+    with patch(
+        "meltr.api.endpoints.templates.CommunityAPIClient",
+        return_value=mock_client,
+    ):
+        response = updates_client.get("/api/templates")
+
+    assert response.status_code == 200
+    templates = response.json()["templates"]
+    match = [t for t in templates if t["id"] == TEMPLATE_ID]
+    assert len(match) == 1
+    assert match[0]["version"] == "1.0.0"
+    assert match[0]["remote_version"] is None
+
+
+def test_get_template_registry_down_soft_fails(updates_client: TestClient) -> None:
+    mock_client = MagicMock()
+    mock_client.get_product_detail.side_effect = CommunityAPIError("registry unavailable")
+
+    with patch(
+        "meltr.api.endpoints.templates.CommunityAPIClient",
+        return_value=mock_client,
+    ):
+        response = updates_client.get(f"/api/templates/{TEMPLATE_ID}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["version"] == "1.0.0"
+    assert data["remote_version"] is None
 
 
 def test_list_templates_includes_version_fields(updates_client: TestClient) -> None:

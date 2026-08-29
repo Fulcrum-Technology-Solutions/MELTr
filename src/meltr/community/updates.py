@@ -7,10 +7,11 @@ from typing import Iterator, Optional
 
 from meltr.community.client import (
     CommunityAPIClient,
+    CommunityAPIError,
     CommunityAPINotFoundError,
 )
 from meltr.community.package import get_local_collection_version
-from meltr.community.version import compare_versions, is_update_available
+from meltr.community.version import is_update_available
 
 
 def iter_installed_products(templates_path: Path) -> Iterator[tuple[str, str]]:
@@ -34,8 +35,13 @@ def get_remote_collection_version(
     vendor_id: str,
     product_id: str,
     cache: Optional[dict[tuple[str, str], Optional[str]]] = None,
+    *,
+    soft_fail: bool = False,
 ) -> Optional[str]:
-    """Fetch remote collection version, optionally using a per-request cache."""
+    """Fetch remote collection version, optionally using a per-request cache.
+
+    When ``soft_fail`` is True, registry errors return ``None`` instead of raising.
+    """
     key = (vendor_id, product_id)
     if cache is not None and key in cache:
         return cache[key]
@@ -48,6 +54,11 @@ def get_remote_collection_version(
             remote_version = str(raw)
     except CommunityAPINotFoundError:
         remote_version = None
+    except CommunityAPIError:
+        if soft_fail:
+            remote_version = None
+        else:
+            raise
 
     if cache is not None:
         cache[key] = remote_version
@@ -101,6 +112,7 @@ class ProductVersionLookup:
             vendor_id,
             product_id,
             cache=self._remote_cache,
+            soft_fail=True,
         )
 
     def for_product(self, vendor_id: str, product_id: str) -> tuple[Optional[str], Optional[str]]:
