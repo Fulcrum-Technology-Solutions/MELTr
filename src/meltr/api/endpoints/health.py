@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from meltr import __version__
 from meltr.api.auth import require_api_key
 from meltr.api.errors import log_api_exception
 from meltr.api.server import APIServer
@@ -191,7 +192,7 @@ async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
 
     return {
         "uptime": server.get_uptime(),
-        "version": "1.0.0",
+        "version": __version__,
         "generators": generators_list,
         "outputs": outputs_list,
         "system": {

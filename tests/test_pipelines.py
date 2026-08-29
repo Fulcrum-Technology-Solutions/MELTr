@@ -116,8 +116,10 @@ def test_pipeline_two_streams_write_to_file_outputs(tmp_path, monkeypatch) -> No
         else:
             pytest.fail("timed out waiting for pipeline file outputs")
 
-        assert "stream-a" in file_a.read_text() or "stream-b" in file_a.read_text()
-        assert "stream-a" in file_b.read_text() or "stream-b" in file_b.read_text()
+        text_a = file_a.read_text()
+        text_b = file_b.read_text()
+        assert "stream-a" in text_a and "stream-b" in text_a
+        assert "stream-a" in text_b and "stream-b" in text_b
     finally:
         engine.stop_pipeline("lab-pipeline")
         engine.shutdown()

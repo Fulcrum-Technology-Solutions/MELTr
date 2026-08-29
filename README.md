@@ -65,13 +65,15 @@ meltr init --force
 meltr start --foreground
 ```
 
-### PyPI (coming with v2.0)
+### PyPI
 
 ```bash
 pip install meltr
+meltr init --force
+meltr start --foreground
 ```
 
-The `logforge` name was taken on PyPI; **`meltr` is the published package name**.
+Requires **Python ≥3.10**. The `logforge` name was taken on PyPI; **`meltr` is the published package name**. Pre-release builds may be tagged `v2.0.0a*` before the stable v2.0.0 release.
 
 ## Quick start
 
@@ -84,6 +86,48 @@ meltr start                  # daemon on POSIX; use --foreground / -f to stay at
 ```
 
 Compat: `LOGFORGE_HOME` and `LOGFORGE_API_KEY` still work if `MELTR_*` is unset. The `logforge` CLI entry point is a temporary alias for `meltr`.
+
+## Templates: preview and updates
+
+Preview renders sample events **without** starting generators (service must be running for CLI; API works standalone):
+
+```bash
+meltr start --foreground          # or daemonized: meltr start
+meltr templates preview testvendor/testproduct/events/preview --count 3
+# API: POST /api/templates/{id}/preview  {"count": 3}
+```
+
+Check installed community packages against the registry ([logforge.io](https://logforge.io) by default):
+
+```bash
+meltr templates check-updates
+# API: GET /api/community/updates
+```
+
+Registry errors exit non-zero from the CLI and return 502 from the API — local installs are never modified.
+
+## Pipelines
+
+Multi-template **pipelines** share outputs and an optional schedule. Each stream maps to one template; the engine spawns child generators (`pipeline-name::0`, `pipeline-name::1`, …). The `streams[].weight` field is accepted in config but **not yet applied** — all streams run at equal rate until weighted selection lands in a future release.
+
+```bash
+meltr pipelines list
+meltr pipelines start identity-lab
+meltr pipelines status identity-lab
+meltr pipelines stop identity-lab
+```
+
+Configure under `pipelines:` in `config.yaml` (see [Schedule](#schedule) below). Standalone `generators:` remain supported for backward compatibility.
+
+## What's not in OSS
+
+MELTr is the **single-node** open-source product. These capabilities live in **LogForge Enterprise** (or a future MELTr Enterprise) only:
+
+- Distributed **worker fleet** and leader–worker job dispatch
+- **LLM-assisted** template authoring in the web UI
+- Postgres-backed manager and multi-tenant UI
+
+See [ecosystem glossary](docs/ecosystem-glossary.md) for shared terminology.
 
 ## API authentication
 
@@ -125,9 +169,20 @@ PyPI releases use [Trusted Publishing](https://docs.pypi.org/trusted-publishers/
 
 ## Docs
 
+- [Ecosystem glossary](docs/ecosystem-glossary.md)
+- [HTTP destination presets (Cribl / Splunk HEC)](docs/deployment/destination-presets.md)
 - [Development setup](docs/development/setup.md)
 - [Linux tarball deployment](docs/deployment/linux-tarball.md)
 - [v2.0 completion plan](docs/superpowers/plans/2026-08-29-meltr-v2-completion.md)
+- [v2.0.0 release notes](docs/release-notes-2.0.0.md)
+
+## Development
+
+```bash
+pytest   # requires MELTR_HOME (temp dir is fine); coverage gate is 50% on full src/meltr (no whole-file omits)
+```
+
+Phase 6 ships with **interim honest coverage (~50%)**; tracked follow-up is **≥60% without omits** (see [release notes](docs/release-notes-2.0.0.md)).
 
 ## License
 
