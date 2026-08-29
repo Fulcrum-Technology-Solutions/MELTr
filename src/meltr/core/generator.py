@@ -301,6 +301,7 @@ class Generator:
                         if schedule_decision.reason == "burst_complete":
                             logger.info(f"Generator {self.name}: Burst schedule complete, stopping")
                             self._stop_event.set()
+                            self._finish_burst_stop()
                             break
                         logger.debug(
                             f"Generator {self.name}: Schedule gate blocked emit ({schedule_decision.reason})"
@@ -427,6 +428,21 @@ class Generator:
         except Exception as e:
             logger.error(f"Generator {self.name}: Generation loop error: {e}", exc_info=True)
             self._transition_to(GeneratorState.ERROR)
+
+    def _finish_burst_stop(self) -> None:
+        """Transition to STOPPED after a burst schedule completes."""
+        if self.state in (GeneratorState.STOPPED, GeneratorState.STOPPING):
+            return
+        if not self._transition_to(GeneratorState.STOPPING):
+            return
+        if self._schedule_state is None:
+            for handler in self.output_handlers:
+                try:
+                    handler.close()
+                except Exception as e:
+                    logger.error(f"Generator {self.name}: Error closing output handler: {e}")
+        self._transition_to(GeneratorState.STOPPED)
+        logger.info(f"Generator {self.name} stopped (burst schedule complete)")
 
     def _evaluate_schedule_gate(self):
         """Evaluate schedule gate when configured."""

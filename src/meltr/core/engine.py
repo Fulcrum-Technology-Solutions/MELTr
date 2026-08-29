@@ -562,35 +562,35 @@ class Engine:
                 )
                 logger.info(f"Created thread pool with {pool_size} workers")
 
-            # Start generator
-            try:
-                generator.start()
+        # Release _generators_lock before submit/sleep so done callbacks cannot deadlock.
+        try:
+            generator.start()
 
-                # Submit generation loop to thread pool
-                future = self._thread_pool.submit(generator._generate_loop)
-                future.add_done_callback(
-                    lambda done_future, generator_name=name: self._handle_generator_future_done(
-                        generator_name, done_future
-                    )
+            future = self._thread_pool.submit(generator._generate_loop)
+            future.add_done_callback(
+                lambda done_future, generator_name=name: self._handle_generator_future_done(
+                    generator_name, done_future
                 )
+            )
+            with self._generators_lock:
                 self._generator_futures[name] = future
 
-                import time
+            import time
 
-                time.sleep(0.1)
-                if future.done():
-                    try:
-                        future.result()
-                    except Exception as e:
-                        logger.error(
-                            f"Generator {name} loop crashed immediately: {e}", exc_info=True
-                        )
-                        generator._transition_to(GeneratorState.ERROR)
-                        raise RuntimeError(f"Generator {name} loop failed to start: {e}") from e
+            time.sleep(0.1)
+            if future.done():
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(
+                        f"Generator {name} loop crashed immediately: {e}", exc_info=True
+                    )
+                    generator._transition_to(GeneratorState.ERROR)
+                    raise RuntimeError(f"Generator {name} loop failed to start: {e}") from e
 
-            except Exception as e:
-                logger.error(f"Failed to start generator {name}: {e}", exc_info=True)
-                raise
+        except Exception as e:
+            logger.error(f"Failed to start generator {name}: {e}", exc_info=True)
+            raise
 
     def _handle_generator_future_done(self, name: str, future: Future) -> None:
         """Handle completed generator future and mark failures immediately."""

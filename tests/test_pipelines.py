@@ -234,6 +234,39 @@ def test_reload_config_preserves_pipeline_child_generators(tmp_path, monkeypatch
         engine.shutdown()
 
 
+def test_pipeline_burst_schedule_auto_stops_to_stopped(tmp_path, monkeypatch) -> None:
+    """Burst schedule should stop all child generators and report pipeline STOPPED."""
+    file_a = tmp_path / "burst-out-a.log"
+    file_b = tmp_path / "burst-out-b.log"
+    config, registry, engine, _stream_a, _stream_b = _setup_home(
+        tmp_path, monkeypatch, file_a=file_a, file_b=file_b
+    )
+    config.pipelines[0].schedule = ScheduleConfig(mode="burst", count=5)
+    engine = Engine(config, registry)
+
+    try:
+        engine.start_pipeline("lab-pipeline")
+
+        deadline = time.time() + 15.0
+        final_status = None
+        while time.time() < deadline:
+            final_status = engine.get_pipeline_status("lab-pipeline")
+            if final_status["state"] == GeneratorState.STOPPED.value:
+                break
+            time.sleep(0.1)
+        else:
+            pytest.fail(
+                f"timed out waiting for burst pipeline to stop; last status={final_status!r}"
+            )
+
+        assert final_status["state"] == GeneratorState.STOPPED.value
+        assert final_status["statistics"]["events_generated"] >= 5
+        for stream in final_status["streams"]:
+            assert stream["state"] == GeneratorState.STOPPED.value
+    finally:
+        engine.shutdown()
+
+
 def test_pipeline_child_name_collision_rejected_atomically(tmp_path, monkeypatch) -> None:
     """Pipeline load must fail atomically when a child name already exists."""
     file_a = tmp_path / "out-a.log"
