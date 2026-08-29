@@ -1,13 +1,12 @@
+# Entity Registry: Dunder Mifflin (schema-lean)
+# Fields limited to schemas/entity.schema.json documented properties.
+
 organization:
   name: Dunder Mifflin Paper Company, Inc.
   domain: dundermifflin.com
   netbios_domain: DUNDERMIFFLIN
   timezone: America/New_York
   industry: Paper Sales and Distribution
-  founded: 1949
-  ticker_symbol: DMPC
-  motto: Limitless Paper in a Paperless World
-  corporate_status: regional_paper_supplier
   location:
     address: 1725 Slough Avenue
     city: Scranton
@@ -16,48 +15,10 @@ organization:
     country: USA
     lat: 41.409
     long: -75.6624
-  secondary_locations:
-  - name: Corporate Headquarters
-    address: 633 5th Avenue
-    city: New York
-    state: New York
-    zip: '10022'
-    country: USA
-    purpose: Corporate Management
-    status: active
-  - name: Stamford Branch
-    address: 1000 Business Park Drive
-    city: Stamford
-    state: Connecticut
-    zip: 06902
-    country: USA
-    purpose: Regional Sales Office
-    status: closed
-  - name: Utica Branch
-    address: 200 Commerce Street
-    city: Utica
-    state: New York
-    zip: '13501'
-    country: USA
-    purpose: Regional Sales Office
-    status: active
-  - name: Warehouse
-    address: 1725 Slough Avenue - Building B
-    city: Scranton
-    state: Pennsylvania
-    zip: '18505'
-    country: USA
-    purpose: Paper Storage and Distribution
-    status: active
   contacts:
     security: security@dundermifflin.com
     it_support: support@dundermifflin.com
     hr: hr@dundermifflin.com
-    sales: sales@dundermifflin.com
-    accounting: accounting@dundermifflin.com
-    warehouse: warehouse@dundermifflin.com
-    corporate: corporate@dundermifflin.com
-    party_planning: ppc@dundermifflin.com
   settings:
     password_expiry_days: 180
     account_lockout_threshold: 5
@@ -65,12 +26,6 @@ organization:
     max_login_attempts: 10
     min_password_length: 6
     require_mfa: false
-    office_prank_tolerance: high
-    paper_sales_priority: maximum
-    birthday_party_frequency: monthly
-    fire_drill_preparedness: questionable
-    beet_farm_integration: false
-    dundies_award_system: true
 network_ranges:
 - cidr: 192.168.1.0/24
   name: scranton_office
@@ -103,7 +58,6 @@ network_ranges:
   name: stamford_branch
   description: Former Stamford branch network
   location: Stamford, CT
-  status: decommissioned
 - cidr: 10.200.0.0/16
   name: utica_branch
   description: Utica branch office network
@@ -113,11 +67,10 @@ network_ranges:
   name: guest_network
   description: Guest and vendor access network
   location: Multi-branch
-  access_level: limited
 users:
 - username: mscott
-  full_name: Michael Gary Scott
   email: mscott@dundermifflin.com
+  full_name: Michael Gary Scott
   user_id: U0001
   department: Management
   title: Regional Manager
@@ -128,13 +81,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: regional_manager
-  world_best_boss: self_proclaimed
-  comedy_skills: questionable
-  paper_sales_expertise: surprisingly_good
 - username: dschrute
-  full_name: Dwight K. Schrute
   email: dschrute@dundermifflin.com
+  full_name: Dwight K. Schrute
   user_id: U0002
   department: Sales
   title: Assistant Regional Manager
@@ -145,13 +94,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: assistant_to_regional_manager
-  beet_farm_owner: true
-  paper_sales_performance: top_performer
-  survival_skills: expert
 - username: jhalpert
-  full_name: James 'Jim' Halpert
   email: jhalpert@dundermifflin.com
+  full_name: James 'Jim' Halpert
   user_id: U0003
   department: Sales
   title: Sales Representative
@@ -162,13 +107,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: standard
-  prank_expertise: master_level
-  camera_awareness: high
-  relationship_status: married_to_pam
 - username: pbeesly
-  full_name: Pamela Morgan Beesly-Halpert
   email: pbeesly@dundermifflin.com
+  full_name: Pamela Morgan Beesly-Halpert
   user_id: U0004
   department: Reception
   title: Receptionist / Office Administrator
@@ -179,13 +120,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: reception
-  art_skills: developing
-  office_information_hub: true
-  relationship_status: married_to_jim
 - username: smartin
-  full_name: Stanley Hudson
   email: smartin@dundermifflin.com
+  full_name: Stanley Hudson
   user_id: U0005
   department: Sales
   title: Sales Representative
@@ -196,13 +133,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: standard
-  crossword_expertise: daily
-  pretzel_day_enthusiasm: maximum
-  florida_retirement_planning: true
 - username: amartin
-  full_name: Angela Martin
   email: amartin@dundermifflin.com
+  full_name: Angela Martin
   user_id: U0006
   department: Accounting
   title: Senior Accountant
@@ -213,13 +146,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: accounting
-  party_planning_committee: head
-  cat_obsession: extreme
-  judgment_level: maximum
 - username: kmalone
-  full_name: Kevin Malone
   email: kmalone@dundermifflin.com
+  full_name: Kevin Malone
   user_id: U0007
   department: Accounting
   title: Accountant
@@ -230,13 +159,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: limited
-  math_skills: questionable
-  chili_spilling_incidents: 1
-  band_membership: scrantonicity
 - username: okapoor
-  full_name: Oscar Martinez
   email: okapoor@dundermifflin.com
+  full_name: Oscar Martinez
   user_id: U0008
   department: Accounting
   title: Senior Accountant
@@ -247,12 +172,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Scranton Branch
-  security_clearance: accounting
-  fact_checking_role: office_voice_of_reason
-  trivia_knowledge: extensive
 - username: tflenderson
-  full_name: Toby Flenderson
   email: tflenderson@dundermifflin.com
+  full_name: Toby Flenderson
   user_id: U0009
   department: Human Resources
   title: HR Representative
@@ -263,13 +185,9 @@ users:
     state: Pennsylvania
     country: USA
   organization: Corporate HR
-  security_clearance: hr
-  michael_scott_enemy_status: confirmed
-  costa_rica_adventures: true
-  novel_writing_attempts: ongoing
 - username: dphilbin
-  full_name: Darryl Philbin
   email: dphilbin@dundermifflin.com
+  full_name: Darryl Philbin
   user_id: U0010
   department: Warehouse
   title: Warehouse Foreman
@@ -280,10 +198,6 @@ users:
     state: Pennsylvania
     country: USA
   organization: Warehouse Operations
-  security_clearance: warehouse
-  forklift_certification: true
-  music_production_skills: true
-  office_relationship: complicated
 devices:
 - hostname: MICHAEL-OFFICE-PC
   fqdn: MICHAEL-OFFICE-PC.dundermifflin.com
@@ -297,11 +211,6 @@ devices:
   model: Dell OptiPlex GX280
   department: Management
   status: active
-  custom_asset_tag: MANAGER-PC-001
-  custom_location: Scranton Office, Michael's Office
-  solitaire_installed: true
-  minesweeper_high_scores: true
-  world_best_boss_screensaver: true
 - hostname: DWIGHT-DESK-PC
   fqdn: DWIGHT-DESK-PC.dundermifflin.com
   ip_address: 192.168.1.101
@@ -314,11 +223,6 @@ devices:
   model: Dell OptiPlex GX270
   department: Sales
   status: active
-  custom_asset_tag: SALES-PC-002
-  custom_location: Scranton Office, Dwight's Desk
-  beet_farming_software: true
-  survival_guide_pdfs: true
-  bear_attack_protocols: true
 - hostname: JIM-DESK-PC
   fqdn: JIM-DESK-PC.dundermifflin.com
   ip_address: 192.168.1.102
@@ -331,11 +235,6 @@ devices:
   model: Dell OptiPlex GX260
   department: Sales
   status: active
-  custom_asset_tag: SALES-PC-003
-  custom_location: Scranton Office, Jim's Desk
-  prank_planning_documents: true
-  dwight_surveillance_footage: true
-  teapot_inventory_system: true
 - hostname: RECEPTION-DESK
   fqdn: RECEPTION-DESK.dundermifflin.com
   ip_address: 192.168.1.50
@@ -348,11 +247,6 @@ devices:
   model: HP Pavilion
   department: Reception
   status: active
-  custom_asset_tag: RECEPTION-004
-  custom_location: Scranton Office, Reception Desk
-  visitor_management_system: true
-  phone_system_integration: true
-  art_design_software: true
 - hostname: ACCOUNTING-SERVER
   fqdn: ACCOUNTING-SERVER.dundermifflin.com
   ip_address: 192.168.1.10
@@ -365,11 +259,6 @@ devices:
   model: Dell PowerEdge 2850
   department: Accounting
   status: active
-  custom_location: Scranton Office, Server Room
-  custom_service_tag: ACCT-SERVER-005
-  quickbooks_enterprise: true
-  party_planning_budget_tracker: true
-  cat_expense_categories: true
 - hostname: KEVIN-DESK-PC
   fqdn: KEVIN-DESK-PC.dundermifflin.com
   ip_address: 192.168.1.110
@@ -382,11 +271,6 @@ devices:
   model: Dell OptiPlex GX240
   department: Accounting
   status: active
-  custom_asset_tag: ACCT-PC-006
-  custom_location: Scranton Office, Kevin's Desk
-  calculator_software: basic
-  chili_recipe_documents: true
-  poker_game_tracker: true
 - hostname: CONFERENCE-ROOM-AV
   fqdn: CONFERENCE-ROOM-AV.dundermifflin.com
   ip_address: 192.168.1.200
@@ -399,11 +283,6 @@ devices:
   model: Custom Conference Room Setup
   department: Management
   status: active
-  custom_asset_tag: CONF-AV-007
-  custom_location: Scranton Office, Conference Room
-  powerpoint_templates: true
-  dundies_award_videos: true
-  that_what_she_said_soundboard: true
 - hostname: WAREHOUSE-TERMINAL
   fqdn: WAREHOUSE-TERMINAL.dundermifflin.com
   ip_address: 172.16.1.100
@@ -416,11 +295,6 @@ devices:
   model: Compaq Deskpro
   department: Warehouse
   status: active
-  custom_asset_tag: WAREHOUSE-008
-  custom_location: Scranton Warehouse, Foreman Office
-  inventory_management_system: true
-  forklift_safety_videos: true
-  shipping_label_printer: true
 - hostname: SCRANTON-DC-01
   fqdn: SCRANTON-DC-01.dundermifflin.com
   ip_address: 192.168.1.5
@@ -433,11 +307,6 @@ devices:
   model: Dell PowerEdge 1850
   department: IT Systems
   status: active
-  custom_location: Scranton Office, IT Closet
-  custom_service_tag: DOMAIN-CTRL-009
-  active_directory_server: true
-  email_exchange_server: true
-  file_sharing_services: true
 - hostname: COPY-MACHINE-01
   fqdn: COPY-MACHINE-01.dundermifflin.com
   ip_address: 192.168.1.150
@@ -450,11 +319,6 @@ devices:
   model: Xerox WorkCentre Pro
   department: Office Equipment
   status: active
-  custom_asset_tag: COPY-MACHINE-010
-  custom_location: Scranton Office, Copy Area
-  jam_frequency: high
-  toner_replacement_needed: constantly
-  michael_scott_butt_scans: archived
 services:
 - name: Paper Sales Management System
   port: 80
@@ -462,78 +326,57 @@ services:
   service_id: S0001
   description: Customer relationship and paper sales tracking
   owner: mscott
-  sales_performance_tracking: true
-  client_database_management: true
 - name: Employee Directory Service
   port: 389
   protocol: LDAP
   service_id: S0002
   description: Employee information and directory services
   owner: tflenderson
-  birthday_calendar_integration: true
-  emergency_contact_management: true
 - name: Inventory Management System
   port: 8080
   protocol: HTTP
   service_id: S0003
   description: Paper inventory and warehouse management
   owner: dphilbin
-  stock_level_monitoring: true
-  shipping_coordination: true
 - name: Accounting and Finance Portal
   port: 443
   protocol: HTTPS
   service_id: S0004
   description: Financial management and accounting systems
   owner: amartin
-  expense_report_processing: true
-  party_planning_budget: true
 - name: Corporate Email System
   port: 25
   protocol: SMTP
   service_id: S0005
   description: Internal and external email communications
   owner: tflenderson
-  joke_forwarding_filtering: true
-  hr_complaint_routing: true
 - name: Conference Room Booking
   port: 8000
   protocol: HTTP
   service_id: S0006
   description: Meeting room scheduling and resource management
   owner: pbeesly
-  michael_scott_meeting_priority: maximum
-  dundie_awards_scheduling: true
 - name: Customer Support Portal
   port: 8443
   protocol: HTTPS
   service_id: S0007
   description: Customer service and support ticket management
   owner: jhalpert
-  complaint_resolution_tracking: true
-  customer_satisfaction_surveys: true
 - name: Safety Training System
   port: 9000
   protocol: HTTP
   service_id: S0008
   description: Employee safety training and compliance tracking
   owner: dschrute
-  fire_drill_coordination: true
-  cpr_training_videos: true
 - name: Party Planning Committee Portal
   port: 7000
   protocol: HTTP
   service_id: S0009
   description: Office party planning and event coordination
   owner: amartin
-  birthday_party_scheduling: true
-  committee_meeting_minutes: true
 - name: Branch Performance Dashboard
   port: 5000
   protocol: HTTPS
   service_id: S0010
   description: Regional branch performance monitoring and reporting
   owner: mscott
-  sales_target_tracking: true
-  employee_performance_metrics: true
-  world_best_boss_confirmation: true

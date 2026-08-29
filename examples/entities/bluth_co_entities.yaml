@@ -1,13 +1,12 @@
+# Entity Registry: Bluth Co (schema-lean)
+# Fields limited to schemas/entity.schema.json documented properties.
+
 organization:
   name: The Bluth Company
   domain: bluthcompany.com
   netbios_domain: BLUTH
   timezone: America/Los_Angeles
   industry: Real Estate Development
-  founded: 1953
-  ticker_symbol: BLTH
-  motto: We Build Dreams... Poorly
-  corporate_status: family_business_disaster
   location:
     address: 700 Bluth Company Drive
     city: Newport Beach
@@ -16,39 +15,10 @@ organization:
     country: USA
     lat: 33.6189
     long: -117.9298
-  secondary_locations:
-  - name: Sudden Valley
-    address: Sudden Valley Development
-    city: Desert
-    state: California
-    zip: '92000'
-    country: USA
-    purpose: Failed Housing Development
-    status: abandoned
-  - name: Iraq Model Home
-    address: Forward Operating Base
-    city: Iraq
-    state: N/A
-    zip: '00000'
-    country: Iraq
-    purpose: International Expansion
-    status: questionable
-  - name: Model Home Office
-    address: 1 Model Home Circle
-    city: Newport Beach
-    state: California
-    zip: '92660'
-    country: USA
-    purpose: Corporate Headquarters
-    status: seized_by_government
   contacts:
     security: security@bluthcompany.com
     it_support: support@bluthcompany.com
-    legal: legal@bluthcompany.com
-    accounting: kitty@bluthcompany.com
     hr: hr@bluthcompany.com
-    family_therapy: therapy@bluthcompany.com
-    banana_stand: bananas@bluthcompany.com
   settings:
     password_expiry_days: 365
     account_lockout_threshold: 99
@@ -56,12 +26,6 @@ organization:
     max_login_attempts: 999
     min_password_length: 4
     require_mfa: false
-    corporate_dysfunction_level: maximum
-    family_secrets_classification: poorly_hidden
-    accounting_practices: creative
-    money_in_banana_stand: true
-    no_touching_policy: active
-    chicken_dance_frequency: high
 network_ranges:
 - cidr: 192.168.1.0/24
   name: model_home_office
@@ -78,38 +42,32 @@ network_ranges:
   name: sudden_valley
   description: Sudden Valley housing development network
   location: California Desert
-  status: failed_development
 - cidr: 10.100.0.0/16
   name: housing_developments
   description: Various housing development project networks
   location: Southern California
-  quality_level: questionable
 - start_ip: 192.168.100.0
   end_ip: 192.168.100.255
   name: banana_stand
   description: Frozen banana stand operations network
   location: Balboa Island
-  money_storage: confirmed
 - cidr: 10.200.0.0/16
   name: entertainment_ventures
   description: Various failed entertainment business networks
   location: Los Angeles Area
-  success_rate: zero_percent
 - start_ip: 172.20.0.0
   end_ip: 172.20.255.255
   name: iraq_operations
   description: International expansion network
   location: Iraq
-  legality_status: questionable
 - cidr: 192.168.200.0/24
   name: guest_access
   description: Guest and contractor access network
   location: Multi-location
-  access_level: limited
 users:
 - username: gbluth.sr
-  full_name: George Bluth Sr.
   email: george.sr@bluthcompany.com
+  full_name: George Bluth Sr.
   user_id: U0001
   department: Executive
   title: Founder and CEO
@@ -120,13 +78,9 @@ users:
     state: California
     country: USA
   organization: Executive Leadership
-  security_clearance: revoked
-  prison_status: incarcerated
-  light_treason_charges: true
-  building_houses_in_iraq: true
 - username: mbluth
-  full_name: Michael Bluth
   email: michael@bluthcompany.com
+  full_name: Michael Bluth
   user_id: U0002
   department: Executive
   title: President
@@ -137,13 +91,9 @@ users:
     state: California
     country: USA
   organization: Executive Leadership
-  security_clearance: maximum
-  sanity_level: questionable
-  only_competent_family_member: true
-  catch_phrase: come_on
 - username: lbluth
-  full_name: Lucille Bluth
   email: lucille@bluthcompany.com
+  full_name: Lucille Bluth
   user_id: U0003
   department: Executive
   title: Chairman of the Board
@@ -154,13 +104,9 @@ users:
     state: California
     country: USA
   organization: Board of Directors
-  security_clearance: high
-  alcohol_dependency: true
-  winking_problem: severe
-  maternal_instincts: absent
 - username: gob.bluth
-  full_name: George Oscar Bluth II
   email: gob@bluthcompany.com
+  full_name: George Oscar Bluth II
   user_id: U0004
   department: Entertainment
   title: Magician and VP of Operations
@@ -171,13 +117,9 @@ users:
     state: California
     country: USA
   organization: Operations
-  security_clearance: low
-  magic_skills: amateur
-  business_acumen: nonexistent
-  segway_enthusiast: true
 - username: lindsay.funke
-  full_name: Lindsay Bluth-Fünke
   email: lindsay@bluthcompany.com
+  full_name: Lindsay Bluth-Fünke
   user_id: U0005
   department: Public Relations
   title: Social Awareness Coordinator
@@ -188,13 +130,9 @@ users:
     state: California
     country: USA
   organization: Marketing
-  security_clearance: minimal
-  activism_effectiveness: zero
-  shopping_budget: unlimited
-  actual_job_duties: unclear
 - username: buster.bluth
-  full_name: Byron 'Buster' Bluth
   email: buster@bluthcompany.com
+  full_name: Byron 'Buster' Bluth
   user_id: U0006
   department: Research
   title: Academic Liaison
@@ -205,13 +143,9 @@ users:
     state: California
     country: USA
   organization: Research Division
-  security_clearance: supervised
-  academic_status: perpetual_student
-  juice_preference: unlimited
-  mother_dependency: extreme
 - username: tobias.funke
-  full_name: Dr. Tobias Fünke
   email: tobias@bluthcompany.com
+  full_name: Dr. Tobias Fünke
   user_id: U0007
   department: Human Resources
   title: Analrapist (Analyst/Therapist)
@@ -222,13 +156,9 @@ users:
     state: California
     country: USA
   organization: Human Resources
-  security_clearance: questionable
-  medical_license: revoked
-  acting_aspirations: true
-  never_nude_status: true
 - username: kitty.sanchez
-  full_name: Kitty Sanchez
   email: kitty@bluthcompany.com
+  full_name: Kitty Sanchez
   user_id: U0008
   department: Accounting
   title: Secretary/Assistant
@@ -239,13 +169,9 @@ users:
     state: California
     country: USA
   organization: Administration
-  security_clearance: high
-  loyalty_to_george_sr: absolute
-  spring_break_enthusiasm: permanent
-  top_wearing_frequency: inconsistent
 - username: oscar.bluth
-  full_name: Oscar Bluth
   email: oscar@bluthcompany.com
+  full_name: Oscar Bluth
   user_id: U0009
   department: Consulting
   title: Spiritual Advisor
@@ -256,13 +182,9 @@ users:
     state: California
     country: USA
   organization: Consulting
-  security_clearance: none
-  twin_brother_of_george: true
-  hippie_lifestyle: true
-  actual_father_of_buster: possibly
 - username: barry.zuckerkorn
-  full_name: Barry Zuckerkorn
   email: barry@zuckerkornlaw.com
+  full_name: Barry Zuckerkorn
   user_id: U0010
   department: Legal
   title: Family Attorney
@@ -273,10 +195,6 @@ users:
     state: California
     country: USA
   organization: External Legal
-  security_clearance: attorney_client_privilege
-  legal_competence: questionable
-  availability: inconsistent
-  billing_practices: creative
 devices:
 - hostname: MODEL-HOME-PC
   fqdn: MODEL-HOME-PC.bluthcompany.com
@@ -290,11 +208,6 @@ devices:
   model: Dell Dimension 4600
   department: Executive
   status: active
-  custom_asset_tag: MODEL-HOME-001
-  custom_location: Model Home, Michael's Office
-  stair_car_scheduling_software: true
-  family_meeting_calendar: true
-  frozen_banana_inventory: true
 - hostname: ACCOUNTING-SYSTEM
   fqdn: ACCOUNTING-SYSTEM.bluthcompany.com
   ip_address: 192.168.1.50
@@ -307,11 +220,6 @@ devices:
   model: Gateway 2000
   department: Accounting
   status: active
-  custom_asset_tag: ACCT-SYS-002
-  custom_location: Model Home, Kitty's Desk
-  creative_bookkeeping_software: true
-  offshore_account_access: true
-  money_laundering_spreadsheets: true
 - hostname: SUDDEN-VALLEY-KIOSK
   fqdn: SUDDEN-VALLEY-KIOSK.bluthcompany.com
   ip_address: 172.16.1.200
@@ -324,11 +232,6 @@ devices:
   model: Custom Sales Terminal
   department: Entertainment
   status: abandoned
-  custom_asset_tag: SUDDEN-VAL-003
-  custom_location: Sudden Valley Sales Office
-  property_showcase_videos: true
-  magic_trick_demonstrations: true
-  dust_accumulation: severe
 - hostname: BANANA-STAND-POS
   fqdn: BANANA-STAND-POS.bluthcompany.com
   ip_address: 192.168.100.10
@@ -341,11 +244,6 @@ devices:
   model: Frozen Banana Register System
   department: Entertainment
   status: burned_down
-  custom_asset_tag: BANANA-POS-004
-  custom_location: Balboa Island, Banana Stand
-  money_storage_compartment: true
-  banana_inventory_tracking: true
-  fire_damage: total
 - hostname: GOB-SEGWAY-COMP
   fqdn: GOB-SEGWAY-COMP.bluthcompany.com
   ip_address: 10.0.1.150
@@ -358,11 +256,6 @@ devices:
   model: Segway PT
   department: Entertainment
   status: active
-  custom_asset_tag: GOB-SEGWAY-005
-  custom_location: Mobile - Following GOB
-  magic_trick_integration: true
-  balance_assistance: required
-  business_meeting_transportation: true
 - hostname: BUSTER-LAPTOP
   fqdn: BUSTER-LAPTOP.bluthcompany.com
   ip_address: 192.168.1.25
@@ -375,11 +268,6 @@ devices:
   model: Compaq Presario
   department: Research
   status: active
-  custom_asset_tag: BUSTER-LAP-006
-  custom_location: Lucille's Apartment, Buster's Room
-  cartography_software: true
-  army_training_programs: true
-  juice_recipe_database: true
 - hostname: PRISON-VISITATION
   fqdn: PRISON-VISITATION.bluthcompany.com
   ip_address: 10.50.1.100
@@ -392,11 +280,6 @@ devices:
   model: Prison Video Conference System
   department: Executive
   status: monitored
-  custom_asset_tag: PRISON-VIS-007
-  custom_location: County Jail, Visitation Room
-  family_communication: true
-  guard_monitoring: constant
-  escape_planning_blocked: true
 - hostname: BARRY-LEGAL-PC
   fqdn: BARRY-LEGAL-PC.bluthcompany.com
   ip_address: 10.200.1.75
@@ -409,11 +292,6 @@ devices:
   model: IBM ThinkPad
   department: Legal
   status: questionable
-  custom_asset_tag: BARRY-LEGAL-008
-  custom_location: Zuckerkorn Law Office
-  legal_research_database: true
-  case_management_software: true
-  competency_level: minimal
 - hostname: TOBIAS-ACTING-PC
   fqdn: TOBIAS-ACTING-PC.bluthcompany.com
   ip_address: 192.168.1.75
@@ -426,11 +304,6 @@ devices:
   model: iMac G3
   department: Human Resources
   status: active
-  custom_asset_tag: TOBIAS-MAC-009
-  custom_location: Model Home, Tobias's Study
-  headshot_database: true
-  acting_resume_templates: true
-  blue_man_group_videos: true
 - hostname: STAIR-CAR-TERMINAL
   fqdn: STAIR-CAR-TERMINAL.bluthcompany.com
   ip_address: 10.0.2.200
@@ -443,12 +316,6 @@ devices:
   model: Stair Car Mobile Command Center
   department: Executive
   status: active
-  custom_asset_tag: STAIR-CAR-010
-  custom_location: Mobile - Parking Lots
-  family_transportation: true
-  business_meeting_venue: true
-  airport_access_stairs: true
-  dignity_level: minimal
 services:
 - name: Family Meeting Coordination
   port: 8080
@@ -456,78 +323,57 @@ services:
   service_id: S0001
   description: Family meeting scheduling and agenda management
   owner: mbluth
-  dysfunction_level: maximum
-  productivity_rating: zero
 - name: Creative Accounting System
   port: 1433
   protocol: SQL
   service_id: S0002
   description: Financial management and creative bookkeeping
   owner: kitty.sanchez
-  accounting_standards: flexible
-  audit_readiness: never
-  offshore_integration: true
 - name: Property Development Database
   port: 5432
   protocol: PostgreSQL
   service_id: S0003
   description: Housing development project management
   owner: gob.bluth
-  success_rate: zero_percent
-  quality_control: nonexistent
 - name: Legal Consultation Portal
   port: 443
   protocol: HTTPS
   service_id: S0004
   description: Family legal advice and representation coordination
   owner: barry.zuckerkorn
-  legal_competence: questionable
-  availability: sporadic
 - name: Banana Stand Operations
   port: 80
   protocol: HTTP
   service_id: S0005
   description: Frozen banana sales and money laundering management
   owner: mbluth
-  money_storage: confirmed
-  fire_insurance: insufficient
 - name: Prison Communication Network
   port: 9999
   protocol: Secure
   service_id: S0006
   description: Secure communication with incarcerated family members
   owner: gbluth.sr
-  monitoring_level: constant
-  escape_coordination: attempted
 - name: Magic Show Booking System
   port: 8888
   protocol: TCP
   service_id: S0007
   description: GOB's magic show and illusion performance scheduling
   owner: gob.bluth
-  booking_success_rate: minimal
-  trick_effectiveness: nonexistent
 - name: Therapy Session Management
   port: 7777
   protocol: HTTP
   service_id: S0008
   description: Family therapy and psychological consultation system
   owner: tobias.funke
-  therapeutic_effectiveness: negative
-  license_status: revoked
 - name: Social Activism Coordinator
   port: 6666
   protocol: TCP
   service_id: S0009
   description: Lindsay's social cause management and activism tracking
   owner: lindsay.funke
-  cause_commitment_level: superficial
-  actual_impact: zero
 - name: Academic Research Portal
   port: 3333
   protocol: HTTP
   service_id: S0010
   description: Buster's perpetual academic research and study coordination
   owner: buster.bluth
-  graduation_probability: zero
-  mother_dependency_tracking: true

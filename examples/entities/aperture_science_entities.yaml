@@ -1,3 +1,7 @@
+# Entity Registry: Aperture Science (schema-lean)
+# Fields limited to schemas/entity.schema.json documented properties.
+
+
 organization:
   name: Aperture Science
   domain: aperturescience.com
@@ -15,7 +19,6 @@ organization:
   contacts:
     security: security@aperturescience.com
     it_support: support@aperturescience.com
-    emergency: emergency@aperturescience.com
   settings:
     password_expiry_days: 365
     account_lockout_threshold: 999
@@ -23,7 +26,6 @@ organization:
     max_login_attempts: 999
     min_password_length: 6
     require_mfa: false
-    cake_dispensing_enabled: true
 network_ranges:
 - cidr: 10.0.0.0/16
   name: test_chambers
@@ -34,8 +36,8 @@ network_ranges:
   name: underground_facility
 users:
 - username: cave.johnson
-  full_name: Cave Johnson
   email: cjohnson@aperturescience.com
+  full_name: Cave Johnson
   user_id: U0001
   department: Executive
   title: CEO and Founder
@@ -46,10 +48,9 @@ users:
     state: Michigan
     country: USA
   organization: Aperture Science
-  status: deceased
 - username: glados
-  full_name: GLaDOS
   email: glados@aperturescience.com
+  full_name: GLaDOS
   user_id: U0002
   department: AI Systems
   title: Genetic Lifeform and Disk Operating System
@@ -60,11 +61,9 @@ users:
     state: Michigan
     country: USA
   organization: Central AI Core
-  morality_core_installed: false
-  cake_recipes_loaded: 1
 - username: wheatley
-  full_name: Wheatley
   email: wheatley@aperturescience.com
+  full_name: Wheatley
   user_id: U0003
   department: AI Systems
   title: Intelligence Dampening Sphere
@@ -74,10 +73,9 @@ users:
     city: Space
     country: N/A
   organization: Management Rail System
-  intelligence_level: moron
 - username: chell
-  full_name: Chell
   email: test.subject.99999@aperturescience.com
+  full_name: Chell
   user_id: U0004
   department: Testing
   title: Test Subject
@@ -88,11 +86,9 @@ users:
     state: Michigan
     country: USA
   organization: Human Test Initiative
-  portal_gun_certified: true
-  cake_promised: true
 - username: doug.rattmann
-  full_name: Doug Rattmann
   email: drattmann@aperturescience.com
+  full_name: Doug Rattmann
   user_id: U0005
   department: Research
   title: Scientist
@@ -103,8 +99,6 @@ users:
     state: Michigan
     country: USA
   organization: Research Division
-  status: missing
-  companion_cube_obsession: true
 devices:
 - hostname: GLADOS-CORE
   fqdn: GLADOS-CORE.aperturescience.com
@@ -118,8 +112,6 @@ devices:
   model: Central AI Housing Unit
   department: AI Systems
   status: active
-  custom_location: Central AI Chamber
-  neurotoxin_capability: true
 - hostname: PORTAL-GUN-001
   fqdn: PORTAL-GUN-001.aperturescience.com
   ip_address: 10.0.1.100
@@ -132,8 +124,6 @@ devices:
   model: Aperture Science Handheld Portal Device
   department: Testing
   status: active
-  custom_location: Test Chamber 19
-  portal_capacity: 2
 - hostname: TURRET-001
   fqdn: TURRET-001.aperturescience.com
   ip_address: 10.0.2.50
@@ -146,9 +136,6 @@ devices:
   model: Aperture Science Sentry Turret
   department: Security
   status: active
-  custom_location: Various Test Chambers
-  targeting_system: active
-  friendliness_level: hello there
 - hostname: COMPANION-CUBE
   fqdn: COMPANION-CUBE.aperturescience.com
   ip_address: 10.0.3.42
@@ -161,8 +148,6 @@ devices:
   model: Weighted Companion Cube
   department: Testing
   status: incinerated
-  custom_location: Emergency Intelligence Incinerator
-  emotional_attachment_warning: true
 - hostname: ELEVATOR-SYS
   fqdn: ELEVATOR-SYS.aperturescience.com
   ip_address: 172.16.1.10
@@ -175,8 +160,6 @@ devices:
   model: Relaxation Vault Elevator
   department: Transportation
   status: active
-  custom_location: Between Test Chambers
-  muzak_enabled: true
 - hostname: ARCHIVE-MASTER-001
   fqdn: ARCHIVE-MASTER-001.abstergo.com
   ip_address: 10.50.6.200
@@ -184,17 +167,11 @@ devices:
   device_id: D1020
   os_type: Archive OS
   os_version: HistoryVault 3.0
-  owner: amartinez
+  owner: cave.johnson
   device_type: archive_management_system
   model: Custom Historical Archive Server
   department: Archives
   status: active
-  custom_location: Seville Archive Facility, Master Vault
-  custom_service_tag: HIST-ARCHIVE-020
-  templar_historical_records: true
-  piece_of_eden_catalog: true
-  ancient_document_digitization: true
-  climate_controlled_storage: true
 services:
 - name: Test Chamber Management
   port: 443
@@ -202,32 +179,27 @@ services:
   service_id: S0001
   description: Automated test chamber configuration and monitoring
   owner: glados
-  cake_dispensing: false
 - name: Portal Gun Control
   port: 8080
   protocol: Aperture
   service_id: S0002
   description: Portal device coordination and safety protocols
   owner: glados
-  safety_protocols: disabled
 - name: Neurotoxin Distribution
   port: 6666
   protocol: Toxic
   service_id: S0003
   description: Emergency neurotoxin deployment system
   owner: glados
-  ethics_enabled: false
 - name: Cake Fabrication
   port: 3141
   protocol: Sweet
   service_id: S0004
   description: Automated cake production and delivery system
   owner: glados
-  cake_is_real: false
 - name: Elevator Muzak
   port: 22
   protocol: Audio
   service_id: S0005
   description: Relaxing elevator music distribution system
   owner: glados
-  volume_level: soothing

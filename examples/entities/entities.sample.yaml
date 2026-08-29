@@ -1,4 +1,5 @@
 # Sample Entity Registry for Synthetic Log Generator
+# Schema-lean sample: documented fields from schemas/entity.schema.json only.
 
 # Organization-wide configurations
 # These settings define global properties for the entire environment
@@ -139,9 +140,6 @@ devices:
     department: "IT"
     status: "active"
     last_updated: "2025-01-15"
-    custom_asset_tag: "IT-123456"
-    custom_purchase_date: "2024-01-15"
-    custom_warranty_expiry: "2027-01-15"
     
   - hostname: "WS002"
     fqdn: "WS002.example.com"
@@ -155,7 +153,6 @@ devices:
     model: "Dell XPS 13"
     department: "Finance"
     status: "active"
-    custom_location: "Chicago Office"
     
   - hostname: "WS003"
     fqdn: "WS003.example.com"
@@ -169,7 +166,6 @@ devices:
     model: "ThinkPad X1 Carbon"
     department: "Sales" 
     status: "active"
-    custom_notes: "International travel device"
     
   # Servers
   - hostname: "SRV001"
@@ -184,8 +180,6 @@ devices:
     model: "Dell PowerEdge R740"
     department: "IT"
     status: "active"
-    custom_location: "Primary Data Center, Rack A3"
-    custom_service_tag: "D740-SRV001"
     
   - hostname: "SRV002"
     fqdn: "SRV002.example.com"
@@ -199,8 +193,6 @@ devices:
     model: "Dell PowerEdge R740"
     department: "IT"
     status: "active"
-    custom_location: "Primary Data Center, Rack A3"
-    custom_service_tag: "D740-SRV002"
 
 services:
   - name: "Web Server"
