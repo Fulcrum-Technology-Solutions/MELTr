@@ -51,7 +51,7 @@ class APIServer:
 
     def _setup_routes(self) -> None:
         """Register API routes."""
-        from meltr.api.endpoints import entities, generators, health, templates
+        from meltr.api.endpoints import community, entities, generators, health, templates
 
         # Store server instance in app state for dependency injection
         self.app.state.server = self
@@ -60,6 +60,7 @@ class APIServer:
         self.app.include_router(health.router)
         self.app.include_router(entities.router)
         self.app.include_router(templates.router)
+        self.app.include_router(community.router)
         self.app.include_router(generators.router)
 
         @self.app.get("/api/metrics", response_class=PlainTextResponse)

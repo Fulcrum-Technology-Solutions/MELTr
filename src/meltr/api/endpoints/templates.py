@@ -4,9 +4,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from pathlib import Path
 
 from meltr.api.auth import require_api_key
 from meltr.api.endpoints.entities import get_registry
+from meltr.community.client import CommunityAPIClient
+from meltr.community.updates import ProductVersionLookup
+from meltr.core.config import Config
 from meltr.entities.registry import EntityRegistry
 from meltr.templates.cache import TemplateCache
 from meltr.templates.renderer import TemplateRenderer
@@ -30,9 +34,23 @@ def get_template_cache(request: Request) -> TemplateCache:
     return request.app.state.template_cache
 
 
+def get_config(request: Request) -> Config:
+    """Dependency to read server configuration from app state."""
+    return request.app.state.server.config
+
+
+def get_version_lookup(
+    config: Annotated[Config, Depends(get_config)],
+) -> ProductVersionLookup:
+    """Build a version lookup backed by the configured community API."""
+    client = CommunityAPIClient(base_url=config.templates.community_api_url)
+    return ProductVersionLookup(Path(config.templates.local_path), client=client)
+
+
 @router.get("")
 async def list_templates(
     cache: Annotated[TemplateCache, Depends(get_template_cache)],
+    version_lookup: Annotated[ProductVersionLookup, Depends(get_version_lookup)],
     local_only: bool = False,
     remote_only: bool = False,
 ) -> dict:
@@ -62,6 +80,10 @@ async def list_templates(
             continue
 
         metadata = template_info.metadata
+        local_version, remote_version = version_lookup.for_product(
+            template_info.vendor,
+            template_info.product,
+        )
 
         templates_list.append(
             {
@@ -74,9 +96,9 @@ async def list_templates(
                 "vendor": template_info.vendor,
                 "product": template_info.product,
                 "data_source": template_info.data_source,
-                "version": None,  # TODO: Get version from metadata if available
+                "version": local_version,
                 "local": True,
-                "remote_version": None,  # TODO: Check remote version
+                "remote_version": remote_version,
                 "location": template_info.location,
                 "format": metadata.format,
             }
@@ -89,6 +111,7 @@ async def list_templates(
 async def get_template(
     template_id: str,
     cache: Annotated[TemplateCache, Depends(get_template_cache)],
+    version_lookup: Annotated[ProductVersionLookup, Depends(get_version_lookup)],
 ) -> dict:
     """Get detailed template information.
 
@@ -105,6 +128,10 @@ async def get_template(
         raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
 
     metadata = template_info.metadata
+    local_version, remote_version = version_lookup.for_product(
+        template_info.vendor,
+        template_info.product,
+    )
 
     return {
         "id": template_id,
@@ -113,10 +140,10 @@ async def get_template(
         "vendor": template_info.vendor,
         "product": template_info.product,
         "data_source": template_info.data_source,
-        "version": None,  # TODO: Get version if available
+        "version": local_version,
         "format": metadata.format,
         "local": True,
-        "remote_version": None,  # TODO: Check remote version
+        "remote_version": remote_version,
         "location": template_info.location,
         "metadata": {
             "frequency": metadata.frequency,
