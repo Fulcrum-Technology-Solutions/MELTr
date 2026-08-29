@@ -59,15 +59,15 @@ jobs:
       - name: Smoke test Linux bundle
         run: |
           set -euo pipefail
-          TGZ="dist/logforge-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz"
+          TGZ="dist/meltr-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz"
           test -f "$TGZ"
           D=$(mktemp -d)
           tar xzf "$TGZ" -C "$D"
-          B="$D/logforge"
+          B="$D/meltr"
           test -x "$B/app/bin/meltr"
           export PATH="$B/app/bin:$PATH"
-          logforge --version
-          logforge init --directory "$D/lfhome" --force
+          meltr --version
+          meltr init --directory "$D/lfhome" --force
           test -f "$D/lfhome/config.yaml"
       
       - name: Create checksums

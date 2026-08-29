@@ -52,6 +52,15 @@ Compat: `LOGFORGE_HOME` and `LOGFORGE_API_KEY` still work if `MELTR_*` is unset.
 | `MELTR_API_KEY` | Bearer token when API auth is enabled |
 | `MELTR_TELEMETRY` | Set `0` / `false` to disable telemetry |
 
+## Publishing
+
+PyPI releases use [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) — no long-lived API tokens in GitHub secrets.
+
+- Create an empty **`meltr`** project on [pypi.org](https://pypi.org) (or claim it if reserved).
+- In project settings → **Publishing**, add a Trusted Publisher: GitHub, org/repo **`Fulcrum-Technology-Solutions/MELTr`**, workflow **`publish-pypi.yml`**, environment **`pypi`**.
+- In this repo, add a GitHub **environment** named `pypi` (Settings → Environments); optional protection rules for production releases.
+- Push a tag matching `v*` (e.g. `v2.0.0a1`) or run **Publish to PyPI** manually via workflow dispatch after Trusted Publisher is linked.
+
 ## Docs
 
 - [Development setup](docs/development/setup.md)

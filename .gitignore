@@ -1,3 +1,7 @@
+# Local worktrees and agent task artifacts
+.worktrees/
+.superpowers/
+
 # Python
 __pycache__/
 *.py[cod]
