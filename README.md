@@ -11,6 +11,48 @@ MELTr is a synthetic event log generator for SOC, DFIR, and platform teams who n
 - Community template install (`default/` / `custom/`)
 - Pluggable outputs: file, console, HTTP, TCP, syslog
 - Prometheus metrics and resilient output buffering
+- Multi-template pipelines with schedule gates (`continuous`, `window`, `burst`)
+
+## Schedule
+
+Generators and pipelines can gate emission with a `schedule` block. Frequency/variation still controls rate; the schedule decides whether emission is allowed.
+
+| Mode | Behavior |
+|------|----------|
+| `continuous` | Emit whenever started (default) |
+| `window` | Emit only inside tz-aware `days` + `time`; stay running but emit zero outside the window |
+| `burst` | Emit until `count` events **or** `duration`, then auto-stop |
+
+Pipeline example:
+
+```yaml
+pipelines:
+  - name: lab-burst
+    enabled: true
+    outputs: [file-out]
+    schedule:
+      mode: burst
+      count: 1000
+      duration: 5m
+    streams:
+      - template: vendor/product/source/event
+        weight: 1.0
+```
+
+Optional on standalone generators:
+
+```yaml
+generators:
+  - name: business-hours
+    template: vendor/product/source/event
+    enabled: true
+    outputs: [file-out]
+    schedule:
+      mode: window
+      days: [mon, tue, wed, thu, fri]
+      time: "09:00-17:00"
+      timezone: America/New_York
+```
 
 ## Install
 
