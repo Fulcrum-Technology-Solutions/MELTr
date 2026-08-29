@@ -807,8 +807,8 @@ def templates_list(
 def templates_preview(
     template_id: str = typer.Argument(..., help="Template ID to preview"),
     count: int = typer.Option(1, "--count", min=1, max=20, help="Number of sample events"),
-    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    api_url: str | None = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
     json_output: bool = typer.Option(False, "--json", help="Print raw JSON response"),
 ) -> None:
     """Render sample events from a template via the management API."""
@@ -840,7 +840,9 @@ def templates_preview(
             console.print(json.dumps(data, indent=2))
             return
 
-        console.print(f"\n[bold]Preview: {template_id}[/bold] ({data.get('count', count)} event(s))\n")
+        console.print(
+            f"\n[bold]Preview: {template_id}[/bold] ({data.get('count', count)} event(s))\n"
+        )
         for index, event in enumerate(data.get("events", []), start=1):
             console.print(f"[dim]--- Event {index} ---[/dim]")
             console.print(event)

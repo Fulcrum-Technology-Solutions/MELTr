@@ -48,7 +48,7 @@ def auth_preview_client(preview_client, monkeypatch) -> TestClient:
 
 def test_preview_route_missing_returns_404(preview_client: TestClient) -> None:
     response = preview_client.post(
-        f"/api/templates/unknown/vendor/ds/t/preview",
+        "/api/templates/unknown/vendor/ds/t/preview",
         json={"count": 1},
     )
     assert response.status_code == 404
@@ -118,7 +118,9 @@ def test_preview_does_not_start_generators(preview_client: TestClient) -> None:
         json={"count": 1},
     )
     assert response.status_code == 200
-    assert not hasattr(preview_client.app.state, "engine") or preview_client.app.state.engine is None
+    assert (
+        not hasattr(preview_client.app.state, "engine") or preview_client.app.state.engine is None
+    )
 
 
 def test_cli_preview_calls_api(tmp_path, monkeypatch) -> None:

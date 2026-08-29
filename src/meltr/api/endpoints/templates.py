@@ -9,11 +9,7 @@ from meltr.api.auth import require_api_key
 from meltr.api.endpoints.entities import get_registry
 from meltr.entities.registry import EntityRegistry
 from meltr.templates.cache import TemplateCache
-<<<<<<< HEAD
-=======
-from meltr.templates.loader import TemplateLoader
 from meltr.templates.renderer import TemplateRenderer
->>>>>>> 29a4a82 (feat: add template preview API and CLI command)
 
 router = APIRouter(
     prefix="/api/templates",
