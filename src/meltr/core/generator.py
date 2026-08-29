@@ -4,7 +4,10 @@ import threading
 import time
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from meltr.core.pipeline import ScheduleSharedState
 from zoneinfo import ZoneInfo
 
 from meltr.core.config import GeneratorConfig
@@ -58,6 +61,7 @@ class Generator:
         template_loader: TemplateLoader,
         registry: EntityRegistry,
         output_handlers: list[OutputHandler],
+        schedule_state: "ScheduleSharedState | None" = None,
     ) -> None:
         """Initialize generator.
 
@@ -73,6 +77,9 @@ class Generator:
         self.template_loader = template_loader
         self.registry = registry
         self.output_handlers = output_handlers
+        self._schedule_state = schedule_state
+        self._schedule_started_at: datetime | None = None
+        self._schedule_events_emitted = 0
 
         # State management
         self._state = GeneratorState.STOPPED
@@ -200,6 +207,10 @@ class Generator:
                     logger.error(f"Generator {self.name}: Failed to initialize output handler: {e}")
                     raise
 
+            if self.config.schedule and self._schedule_state is None:
+                self._schedule_started_at = datetime.now(ZoneInfo(self.get_timezone()))
+                self._schedule_events_emitted = 0
+
             # Clear stop event (generation loop will be started by engine)
             logger.info(
                 f"Generator {self.name}: Clearing stop_event (was set={self._stop_event.is_set()})"
@@ -284,6 +295,20 @@ class Generator:
                         break
                     continue
 
+                schedule_decision = self._evaluate_schedule_gate()
+                if schedule_decision is not None:
+                    if not schedule_decision.emit:
+                        if schedule_decision.reason == "burst_complete":
+                            logger.info(f"Generator {self.name}: Burst schedule complete, stopping")
+                            self._stop_event.set()
+                            break
+                        logger.debug(
+                            f"Generator {self.name}: Schedule gate blocked emit ({schedule_decision.reason})"
+                        )
+                        if self._stop_event.wait(timeout=1.0):
+                            break
+                        continue
+
                 # Calculate sleep interval (events per second)
                 sleep_interval = 1.0 / rate
                 logger.info(
@@ -313,6 +338,7 @@ class Generator:
                             logger.info(
                                 f"Generator {self.name}: Event #{self._events_generated} generated successfully"
                             )
+                        self._record_schedule_emit()
                     else:
                         logger.warning(
                             f"Generator {self.name}: _render_event() returned None, skipping output"
@@ -401,6 +427,38 @@ class Generator:
         except Exception as e:
             logger.error(f"Generator {self.name}: Generation loop error: {e}", exc_info=True)
             self._transition_to(GeneratorState.ERROR)
+
+    def _evaluate_schedule_gate(self):
+        """Evaluate schedule gate when configured."""
+        if not self.config.schedule:
+            return None
+
+        from meltr.core.schedule import evaluate_schedule
+
+        tz = ZoneInfo(self.get_timezone())
+        now = datetime.now(tz)
+        if self._schedule_state is not None:
+            started_at = self._schedule_state.started_at.astimezone(tz)
+            events_emitted = self._schedule_state.events_emitted
+        else:
+            started_at = self._schedule_started_at or now
+            events_emitted = self._schedule_events_emitted
+
+        return evaluate_schedule(
+            self.config.schedule,
+            now=now,
+            events_emitted=events_emitted,
+            started_at=started_at,
+        )
+
+    def _record_schedule_emit(self) -> None:
+        """Increment schedule counters after a successful emit."""
+        if not self.config.schedule:
+            return
+        if self._schedule_state is not None:
+            self._schedule_state.increment()
+        else:
+            self._schedule_events_emitted += 1
 
     def _render_event(self) -> str | None:
         """Render a single event from template.

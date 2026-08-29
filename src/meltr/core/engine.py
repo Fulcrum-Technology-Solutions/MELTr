@@ -13,6 +13,7 @@ from meltr.core.internal_log_generator import (
     INTERNAL_LOGS_GENERATOR_NAME,
     InternalLogGenerator,
 )
+from meltr.core.pipeline import Pipeline
 from meltr.entities.registry import EntityRegistry
 from meltr.outputs.factory import create_output_handlers
 from meltr.templates.cache import TemplateCache
@@ -43,6 +44,10 @@ class Engine:
         self._generators: dict[str, Generator | InternalLogGenerator] = {}
         self._generators_lock = threading.Lock()
 
+        # Pipelines (orchestrate child generators)
+        self._pipelines: dict[str, Pipeline] = {}
+        self._pipelines_lock = threading.Lock()
+
         # Thread pool
         self._thread_pool: ThreadPoolExecutor | None = None
         self._generator_futures: dict[str, Future] = {}
@@ -51,6 +56,7 @@ class Engine:
 
         # Load generators from config
         self.load_generators_from_config()
+        self.load_pipelines_from_config()
 
         # Start background exception monitoring
         self._start_exception_monitoring()
@@ -128,6 +134,95 @@ class Engine:
                     logger.error(
                         f"Failed to load {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True
                     )
+
+    def load_pipelines_from_config(self) -> None:
+        """Load pipeline configurations and register child generators."""
+        with self._pipelines_lock:
+            for pipeline in self._pipelines.values():
+                for child_name in pipeline.child_generator_names:
+                    with self._generators_lock:
+                        child = self._generators.get(child_name)
+                        if child and child.state != GeneratorState.STOPPED:
+                            child.stop()
+                        self._generators.pop(child_name, None)
+                        self._generator_futures.pop(child_name, None)
+            self._pipelines.clear()
+
+        generator_names = {gen.name for gen in self.config.generators}
+
+        for pipe_config in self.config.pipelines:
+            if pipe_config.name in generator_names:
+                logger.error(
+                    f"Pipeline {pipe_config.name}: name collides with standalone generator"
+                )
+                continue
+
+            try:
+                pipeline = Pipeline.create(
+                    pipe_config,
+                    template_cache=self.template_cache,
+                    template_loader=TemplateLoader(self.config),
+                    registry=self.registry,
+                    output_definitions=self.config.outputs.definitions,
+                    retry_config=self.config.outputs.retry,
+                    buffer_size=self.config.outputs.buffer_size,
+                )
+
+                with self._pipelines_lock:
+                    self._pipelines[pipe_config.name] = pipeline
+
+                with self._generators_lock:
+                    for child_name, child_gen in zip(
+                        pipeline.child_generator_names, pipeline.generators
+                    ):
+                        if child_name in self._generators:
+                            logger.error(
+                                f"Pipeline {pipe_config.name}: child name {child_name} already exists"
+                            )
+                            continue
+                        self._generators[child_name] = child_gen
+
+                logger.info(f"Loaded pipeline: {pipe_config.name}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to load pipeline {pipe_config.name}: {e}", exc_info=True
+                )
+
+    def start_pipeline(self, name: str) -> None:
+        """Start all child generators for a pipeline."""
+        with self._pipelines_lock:
+            if name not in self._pipelines:
+                raise KeyError(f"Pipeline not found: {name}")
+            pipeline = self._pipelines[name]
+
+        pipeline.reset_schedule()
+        for child_name in pipeline.child_generator_names:
+            self.start_generator(child_name)
+
+    def stop_pipeline(self, name: str) -> None:
+        """Stop all child generators for a pipeline."""
+        with self._pipelines_lock:
+            if name not in self._pipelines:
+                logger.warning(f"Pipeline not found: {name}")
+                return
+            pipeline = self._pipelines[name]
+
+        for child_name in pipeline.child_generator_names:
+            self.stop_generator(child_name)
+
+    def list_pipelines(self) -> list[dict]:
+        """List all pipelines with status."""
+        with self._pipelines_lock:
+            pipelines = list(self._pipelines.values())
+        return [pipeline.get_status() for pipeline in pipelines]
+
+    def get_pipeline_status(self, name: str) -> dict:
+        """Get detailed status for a pipeline."""
+        with self._pipelines_lock:
+            if name not in self._pipelines:
+                raise KeyError(f"Pipeline not found: {name}")
+            pipeline = self._pipelines[name]
+        return pipeline.get_status()
 
     def reload_config(self, new_config: Config) -> dict[str, Any]:
         """Reload configuration and apply changes dynamically.
