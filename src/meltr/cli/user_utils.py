@@ -2,8 +2,8 @@
 
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional, Tuple
 
 try:
     import grp
@@ -19,12 +19,12 @@ def ensure_service_user_and_group(
     home_path: Path,
     create_user: bool,
     *,
-    on_user_created: Optional[Callable[[str], None]] = None,
-    on_group_created: Optional[Callable[[str], None]] = None,
-    on_user_exists: Optional[Callable[[str], None]] = None,
-    on_no_pwd_grp: Optional[Callable[[], None]] = None,
-    on_useradd_missing: Optional[Callable[[], None]] = None,
-) -> Tuple[Optional[int], Optional[int]]:
+    on_user_created: Callable[[str], None] | None = None,
+    on_group_created: Callable[[str], None] | None = None,
+    on_user_exists: Callable[[str], None] | None = None,
+    on_no_pwd_grp: Callable[[], None] | None = None,
+    on_useradd_missing: Callable[[], None] | None = None,
+) -> tuple[int | None, int | None]:
     """Create service user/group if requested and they don't exist; return (uid, gid).
 
     Args:
@@ -56,11 +56,14 @@ def ensure_service_user_and_group(
                 try:
                     subprocess.run(
                         [
-                            'useradd',
-                            '-r',
-                            '-s', '/bin/false',
-                            '-d', str(home_path),
-                            '-c', 'LogForge Service',
+                            "useradd",
+                            "-r",
+                            "-s",
+                            "/bin/false",
+                            "-d",
+                            str(home_path),
+                            "-c",
+                            "LogForge Service",
                             service_user,
                         ],
                         check=True,
@@ -80,7 +83,7 @@ def ensure_service_user_and_group(
             except KeyError:
                 try:
                     subprocess.run(
-                        ['groupadd', '-r', service_group],
+                        ["groupadd", "-r", service_group],
                         check=True,
                         capture_output=True,
                     )

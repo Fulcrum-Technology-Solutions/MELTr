@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import hmac
 import os
-from typing import Optional
 
 from fastapi import HTTPException, Request, status
 
 from meltr.core.config import Config
 
 
-def resolve_api_key(config: Config) -> Optional[str]:
+def resolve_api_key(config: Config) -> str | None:
     env = (os.getenv("MELTR_API_KEY") or os.getenv("LOGFORGE_API_KEY") or "").strip()
     if env:
         return env

@@ -1,13 +1,9 @@
 """Template loader and discovery."""
 
-import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
-import yaml
+from typing import Optional
 
 from meltr.core.config import Config
-from meltr.core.paths import get_logforge_home
 from meltr.templates.metadata import TemplateMetadata, parse_metadata
 from meltr.utils.logging import get_logger
 
@@ -16,112 +12,128 @@ logger = get_logger(__name__)
 
 class TemplateLoader:
     """Loads and discovers templates from filesystem."""
-    
+
     def __init__(self, config: Config) -> None:
         """Initialize template loader.
-        
+
         Args:
             config: Configuration object
         """
         self.config = config
         templates_config = config.templates
-        
+
         self.local_path = Path(templates_config.local_path)
-        self.default_path = Path(templates_config.default_path) if templates_config.default_path else self.local_path / 'default'
-        self.custom_path = Path(templates_config.custom_path) if templates_config.custom_path else self.local_path / 'custom'
+        self.default_path = (
+            Path(templates_config.default_path)
+            if templates_config.default_path
+            else self.local_path / "default"
+        )
+        self.custom_path = (
+            Path(templates_config.custom_path)
+            if templates_config.custom_path
+            else self.local_path / "custom"
+        )
         self.precedence = templates_config.precedence
-        
+
         # Ensure directories exist
         self.default_path.mkdir(parents=True, exist_ok=True)
         self.custom_path.mkdir(parents=True, exist_ok=True)
-    
-    def discover_templates(self) -> Dict[str, 'TemplateInfo']:
+
+    def discover_templates(self) -> dict[str, "TemplateInfo"]:
         """Discover all templates in default/ and custom/ directories.
-        
+
         Returns:
             Dictionary mapping template ID to TemplateInfo
         """
         templates = {}
-        
+
         # Discover default templates
-        default_templates = self._scan_directory(self.default_path, 'default')
+        default_templates = self._scan_directory(self.default_path, "default")
         templates.update(default_templates)
-        
+
         # Discover custom templates (may override defaults)
-        custom_templates = self._scan_directory(self.custom_path, 'custom')
+        custom_templates = self._scan_directory(self.custom_path, "custom")
         for template_id, template_info in custom_templates.items():
             # Custom templates override defaults
             templates[template_id] = template_info
-        
+
         return templates
-    
-    def _scan_directory(self, base_path: Path, location: str) -> Dict[str, 'TemplateInfo']:
+
+    def _scan_directory(self, base_path: Path, location: str) -> dict[str, "TemplateInfo"]:
         """Scan directory for templates.
-        
+
         Args:
             base_path: Base directory to scan
             location: Location identifier ('default' or 'custom')
-            
+
         Returns:
             Dictionary of template ID to TemplateInfo
         """
         templates = {}
-        
+
         if not base_path.exists():
             return templates
-        
+
         # Walk directory structure: vendor/product/data_source/template_name
         for vendor_dir in base_path.iterdir():
             if not vendor_dir.is_dir():
                 continue
-            
+
             # Skip hidden directories and legacy backup directories
             # (New backups are stored in $LOGFORGE_HOME/backups/templates/)
             vendor_name = vendor_dir.name
-            if vendor_name.startswith('.') or '.backup.' in vendor_name:
+            if vendor_name.startswith(".") or ".backup." in vendor_name:
                 continue
-            
+
             vendor_id = vendor_dir.name
-            vendor_meta_path = vendor_dir / 'vendor.meta.yaml'
-            
+            vendor_dir / "vendor.meta.yaml"
+
             for product_dir in vendor_dir.iterdir():
                 if not product_dir.is_dir():
                     continue
-                
+
                 product_id = product_dir.name
-                product_meta_path = product_dir / 'product.meta.yaml'
-                
+                product_dir / "product.meta.yaml"
+
                 # Look for data_source directories or templates directly in product
                 for item in product_dir.iterdir():
                     if not item.is_dir():
                         continue
-                    
+
                     # Check if this is a data_source directory
                     data_source_id = item.name
                     data_source_path = item
-                    
+
                     # Look for template files in this data_source directory
-                    for template_file in data_source_path.glob('*.j2'):
+                    for template_file in data_source_path.glob("*.j2"):
                         template_name = template_file.stem
-                        meta_file = data_source_path / f'{template_name}.meta.yaml'
-                        
+                        meta_file = data_source_path / f"{template_name}.meta.yaml"
+
                         if meta_file.exists():
-                            template_id = f'{vendor_id}/{product_id}/{data_source_id}/{template_name}'
-                            
+                            template_id = (
+                                f"{vendor_id}/{product_id}/{data_source_id}/{template_name}"
+                            )
+
                             try:
                                 metadata = parse_metadata(meta_file)
-                                
+
                                 # Validate metadata matches directory structure
                                 if metadata.vendor != vendor_id:
-                                    logger.warning(f"Template {template_id}: vendor mismatch in metadata")
+                                    logger.warning(
+                                        f"Template {template_id}: vendor mismatch in metadata"
+                                    )
                                     continue
                                 if metadata.product != product_id:
-                                    logger.warning(f"Template {template_id}: product mismatch in metadata")
+                                    logger.warning(
+                                        f"Template {template_id}: product mismatch in metadata"
+                                    )
                                     continue
                                 if metadata.data_source != data_source_id:
-                                    logger.warning(f"Template {template_id}: data_source mismatch in metadata")
+                                    logger.warning(
+                                        f"Template {template_id}: data_source mismatch in metadata"
+                                    )
                                     continue
-                                
+
                                 templates[template_id] = TemplateInfo(
                                     id=template_id,
                                     name=template_name,
@@ -134,28 +146,30 @@ class TemplateLoader:
                                     metadata=metadata,
                                 )
                             except Exception as e:
-                                logger.error(f"Failed to load template {template_id}: {e}", exc_info=True)
-        
+                                logger.error(
+                                    f"Failed to load template {template_id}: {e}", exc_info=True
+                                )
+
         return templates
-    
-    def resolve_template(self, template_id: str) -> Optional['TemplateInfo']:
+
+    def resolve_template(self, template_id: str) -> Optional["TemplateInfo"]:
         """Resolve template path based on precedence.
-        
+
         Args:
             template_id: Template ID (vendor/product/data_source/template_name)
-            
+
         Returns:
             TemplateInfo if found, None otherwise
         """
         all_templates = self.discover_templates()
         return all_templates.get(template_id)
-    
-    def get_template_path(self, template_id: str) -> Optional[Path]:
+
+    def get_template_path(self, template_id: str) -> Path | None:
         """Get path to template.j2 file.
-        
+
         Args:
             template_id: Template ID
-            
+
         Returns:
             Path to template file or None if not found
         """
@@ -163,13 +177,13 @@ class TemplateLoader:
         if template_info:
             return template_info.template_path
         return None
-    
-    def get_metadata(self, template_id: str) -> Optional[TemplateMetadata]:
+
+    def get_metadata(self, template_id: str) -> TemplateMetadata | None:
         """Get template metadata.
-        
+
         Args:
             template_id: Template ID
-            
+
         Returns:
             TemplateMetadata or None if not found
         """
@@ -178,7 +192,7 @@ class TemplateLoader:
             return template_info.metadata
         return None
 
-    def resolve_paths_under(self, base: Path, template_id: str) -> Optional[Tuple[Path, Path]]:
+    def resolve_paths_under(self, base: Path, template_id: str) -> tuple[Path, Path] | None:
         """Return ``(j2_path, meta_path)`` under ``base`` if the ``.j2`` file exists.
 
         ``meta_path`` may not exist on disk yet; it is still the conventional path.
@@ -199,7 +213,7 @@ class TemplateLoader:
 
 class TemplateInfo:
     """Information about a discovered template."""
-    
+
     def __init__(
         self,
         id: str,
@@ -213,7 +227,7 @@ class TemplateInfo:
         metadata: TemplateMetadata,
     ) -> None:
         """Initialize template info.
-        
+
         Args:
             id: Template ID
             name: Template name
@@ -234,15 +248,6 @@ class TemplateInfo:
         self.template_path = template_path
         self.metadata_path = metadata_path
         self.metadata = metadata
-    
+
     def __repr__(self) -> str:
         return f"TemplateInfo(id={self.id!r}, location={self.location!r})"
-
-
-
-
-
-
-
-
-

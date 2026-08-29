@@ -5,7 +5,7 @@ import json
 import os
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any, Optional, Union
+from typing import Any
 
 from meltr.core.config import Config
 from meltr.core.generator import Generator, GeneratorState
@@ -40,13 +40,13 @@ class Engine:
         self.template_cache = TemplateCache(template_loader, config.templates.cache_ttl)
 
         # Generators (template-based and internal log generator)
-        self._generators: dict[str, Union[Generator, InternalLogGenerator]] = {}
+        self._generators: dict[str, Generator | InternalLogGenerator] = {}
         self._generators_lock = threading.Lock()
 
         # Thread pool
-        self._thread_pool: Optional[ThreadPoolExecutor] = None
+        self._thread_pool: ThreadPoolExecutor | None = None
         self._generator_futures: dict[str, Future] = {}
-        self._monitor_timer: Optional[threading.Timer] = None
+        self._monitor_timer: threading.Timer | None = None
         self._monitoring_active = True
 
         # Load generators from config
@@ -125,7 +125,9 @@ class Engine:
                     self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
                     logger.info(f"Loaded generator: {INTERNAL_LOGS_GENERATOR_NAME}")
                 except Exception as e:
-                    logger.error(f"Failed to load {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True)
+                    logger.error(
+                        f"Failed to load {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True
+                    )
 
     def reload_config(self, new_config: Config) -> dict[str, Any]:
         """Reload configuration and apply changes dynamically.
@@ -276,7 +278,10 @@ class Engine:
                     new_fp_by_name.get(out_name, "MISSING") for out_name in new_gen_config.outputs
                 ]
 
-                if old_config_dict != new_config_dict or old_referenced_output_fps != new_referenced_output_fps:
+                if (
+                    old_config_dict != new_config_dict
+                    or old_referenced_output_fps != new_referenced_output_fps
+                ):
                     logger.info(f"Updating generator config: {name}")
 
                     # Stop if running
@@ -371,7 +376,10 @@ class Engine:
                         new_fp_by_name.get(out_name, "MISSING") for out_name in new_il_outputs
                     ]
 
-                    if old_il_outputs != new_il_outputs or old_referenced_output_fps != new_referenced_output_fps:
+                    if (
+                        old_il_outputs != new_il_outputs
+                        or old_referenced_output_fps != new_referenced_output_fps
+                    ):
                         try:
                             self.stop_generator(INTERNAL_LOGS_GENERATOR_NAME)
                             with self._generators_lock:
@@ -388,7 +396,9 @@ class Engine:
                             self.start_generator(INTERNAL_LOGS_GENERATOR_NAME)
                             results["updated"].append(INTERNAL_LOGS_GENERATOR_NAME)
                         except Exception as e:
-                            results["errors"].append(f"Failed to update {INTERNAL_LOGS_GENERATOR_NAME}: {e}")
+                            results["errors"].append(
+                                f"Failed to update {INTERNAL_LOGS_GENERATOR_NAME}: {e}"
+                            )
 
         logger.info(
             f"Config reloaded: {len(results['added'])} added, "
@@ -431,8 +441,7 @@ class Engine:
             if self._thread_pool is None:
                 pool_size = self._calculate_thread_pool_size()
                 self._thread_pool = ThreadPoolExecutor(
-                    max_workers=pool_size,
-                    thread_name_prefix="logforge-generator"
+                    max_workers=pool_size, thread_name_prefix="logforge-generator"
                 )
                 logger.info(f"Created thread pool with {pool_size} workers")
 
@@ -450,19 +459,17 @@ class Engine:
                 self._generator_futures[name] = future
 
                 import time
+
                 time.sleep(0.1)
                 if future.done():
                     try:
                         future.result()
                     except Exception as e:
                         logger.error(
-                            f"Generator {name} loop crashed immediately: {e}",
-                            exc_info=True
+                            f"Generator {name} loop crashed immediately: {e}", exc_info=True
                         )
                         generator._transition_to(GeneratorState.ERROR)
-                        raise RuntimeError(
-                            f"Generator {name} loop failed to start: {e}"
-                        ) from e
+                        raise RuntimeError(f"Generator {name} loop failed to start: {e}") from e
 
             except Exception as e:
                 logger.error(f"Failed to start generator {name}: {e}", exc_info=True)
@@ -515,6 +522,7 @@ class Engine:
         self.stop_generator(name)
         # Wait a moment
         import time
+
         time.sleep(0.5)
         self.start_generator(name)
 
@@ -553,10 +561,7 @@ class Engine:
                 try:
                     future.result()  # Will raise if exception occurred (non-blocking for done futures)
                 except Exception as e:
-                    logger.error(
-                        f"Generator {name} loop crashed: {e}",
-                        exc_info=True
-                    )
+                    logger.error(f"Generator {name} loop crashed: {e}", exc_info=True)
                     # Transition to ERROR state (needs lock)
                     with self._generators_lock:
                         if name in self._generators:
@@ -574,7 +579,7 @@ class Engine:
                 for name in futures_to_remove:
                     self._generator_futures.pop(name, None)
 
-    def get_generator_status(self, name: Optional[str] = None) -> dict:
+    def get_generator_status(self, name: str | None = None) -> dict:
         """Get generator status.
 
         Args:
@@ -601,13 +606,9 @@ class Engine:
         if name:
             return generator.get_status()
         else:
-            return {
-                "generators": [
-                    gen.get_status() for gen in generators
-                ]
-            }
+            return {"generators": [gen.get_status() for gen in generators]}
 
-    def get_all_generators(self) -> list[Union[Generator, InternalLogGenerator]]:
+    def get_all_generators(self) -> list[Generator | InternalLogGenerator]:
         """Get all generator instances.
 
         Returns:
@@ -648,4 +649,3 @@ class Engine:
             self._thread_pool = None
 
         logger.info("Engine shutdown complete")
-

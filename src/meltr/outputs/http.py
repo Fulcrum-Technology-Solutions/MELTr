@@ -8,7 +8,7 @@ import re
 import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
@@ -22,23 +22,23 @@ logger = get_logger(__name__)
 
 class HTTPOutputHandler(OutputHandler):
     """HTTP output handler with event batching and streaming."""
-    
+
     def __init__(
         self,
         name: str,
         url: str,
         method: str = "POST",
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         batch_size: int = 100,
         batch_interval: int = 5,
         timeout: int = 30,
-        retry_config: Optional[RetryConfig] = None,
+        retry_config: RetryConfig | None = None,
         buffer_size: int = 10000,
         streaming: bool = True,
         overflow_policy: str = "drop_newest",
     ) -> None:
         """Initialize HTTP output handler.
-        
+
         Args:
             name: Handler name
             url: Target URL
@@ -61,24 +61,23 @@ class HTTPOutputHandler(OutputHandler):
         self.batch_interval = batch_interval
         self.timeout = timeout
         self.streaming = streaming
-        
+
         # Batch buffer - use thread-safe queue instead of list with lock to prevent deadlocks
         # Queue is thread-safe and non-blocking for single operations
         self._batch_buffer: queue.Queue = queue.Queue(maxsize=buffer_size)
         self._last_batch_time = time.time()
-        self._batch_timer: Optional[threading.Timer] = None
-        
+        self._batch_timer: threading.Timer | None = None
+
         # Background thread pool for non-blocking HTTP requests (streaming mode)
-        self._executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+        self._executor: concurrent.futures.ThreadPoolExecutor | None = None
         if streaming:
             self._executor = concurrent.futures.ThreadPoolExecutor(
-                max_workers=5,  # Configurable if needed
-                thread_name_prefix=f"http-{name}"
+                max_workers=5, thread_name_prefix=f"http-{name}"  # Configurable if needed
             )
-        
+
         # Substitute environment variables in headers
         self._substituted_headers = self._substitute_env_vars(self.headers)
-        
+
         # Statistics tracking
         self._stats_lock = threading.Lock()
         self._events_sent = 0
@@ -90,24 +89,24 @@ class HTTPOutputHandler(OutputHandler):
         self._timeout_errors = 0
         self._auth_errors = 0
         self._total_bytes_sent = 0
-        self._response_times: List[float] = []  # Keep last 100 response times
-        self._last_success_time: Optional[float] = None
-        self._last_failure_time: Optional[float] = None
-        self._last_error_message: Optional[str] = None
-        self._last_error_type: Optional[str] = None
+        self._response_times: list[float] = []  # Keep last 100 response times
+        self._last_success_time: float | None = None
+        self._last_failure_time: float | None = None
+        self._last_error_message: str | None = None
+        self._last_error_type: str | None = None
         self._periodic_stats_time = time.time()
         self._batch_buffer_dropped = 0
-        self.timezone: str = 'UTC'  # Default timezone, can be set via set_template_context
+        self.timezone: str = "UTC"  # Default timezone, can be set via set_template_context
         self.include_metadata: bool = False  # Whether to wrap events in metadata
-        self.template_metadata: Optional[Dict[str, Any]] = None  # Template metadata for wrapping
-        self.generator_name: Optional[str] = None  # Generator name for metadata
-    
-    def _substitute_env_vars(self, headers: Dict[str, str]) -> Dict[str, str]:
+        self.template_metadata: dict[str, Any] | None = None  # Template metadata for wrapping
+        self.generator_name: str | None = None  # Generator name for metadata
+
+    def _substitute_env_vars(self, headers: dict[str, str]) -> dict[str, str]:
         """Substitute environment variables in header values.
-        
+
         Args:
             headers: Headers dictionary
-            
+
         Returns:
             Headers with environment variables substituted
         """
@@ -117,32 +116,32 @@ class HTTPOutputHandler(OutputHandler):
             def replace_var(match: re.Match) -> str:
                 var_name = match.group(1)
                 return os.getenv(var_name, match.group(0))
-            
-            pattern = r'\$\{([^}]+)\}'
+
+            pattern = r"\$\{([^}]+)\}"
             substituted[key] = re.sub(pattern, replace_var, value)
-        
+
         return substituted
-    
+
     @classmethod
     def from_config(
         cls,
         definition: OutputDefinition,
-        retry_config: Optional[RetryConfig] = None,
+        retry_config: RetryConfig | None = None,
         buffer_size: int = 10000,
-    ) -> 'HTTPOutputHandler':
+    ) -> "HTTPOutputHandler":
         """Create handler from output definition.
-        
+
         Args:
             definition: Output definition
             retry_config: Retry configuration from global config
             buffer_size: Buffer size from global config
-            
+
         Returns:
             HTTPOutputHandler instance
         """
         if not definition.url:
             raise ValueError(f"HTTP output handler '{definition.name}' requires 'url'")
-        
+
         handler = cls(
             name=definition.name,
             url=definition.url,
@@ -158,7 +157,7 @@ class HTTPOutputHandler(OutputHandler):
         )
         handler.include_metadata = definition.include_metadata or False
         return handler
-    
+
     def initialize(self) -> None:
         """Initialize handler and start batch timer."""
         mode = "streaming" if self.streaming else "batching"
@@ -171,19 +170,16 @@ class HTTPOutputHandler(OutputHandler):
         # Start periodic batch flush timer (only for batching mode)
         if not self.streaming:
             self._start_batch_timer()
-    
+
     def _start_batch_timer(self) -> None:
         """Start timer for periodic batch sends."""
         if self._batch_timer:
             self._batch_timer.cancel()
-        
-        self._batch_timer = threading.Timer(
-            self.batch_interval,
-            self._flush_batch_timer
-        )
+
+        self._batch_timer = threading.Timer(self.batch_interval, self._flush_batch_timer)
         self._batch_timer.daemon = True
         self._batch_timer.start()
-    
+
     def _flush_batch_timer(self) -> None:
         """Flush batch when timer expires."""
         self._flush_batch_if_ready(force=True)
@@ -221,13 +217,13 @@ class HTTPOutputHandler(OutputHandler):
                 f"HTTP output '{self.name}': Retry queue full after eviction attempt, "
                 f"dropping event (policy=drop_oldest)"
             )
-    
+
     def _do_write(self, event: str) -> None:
         """Write event to batch buffer or send immediately if streaming.
-        
+
         Args:
             event: Event string
-        
+
         Note: Uses non-blocking queue operations to prevent deadlocks.
         """
         # If streaming, send immediately in background thread (non-blocking)
@@ -244,7 +240,7 @@ class HTTPOutputHandler(OutputHandler):
                     logger.debug(f"HTTP output '{self.name}': Failed to send event, buffering: {e}")
                     self._enqueue_batch_buffer(event)
             return
-        
+
         # Non-blocking put - prevents deadlock from lock contention
         buffered_count = self._batch_buffer.qsize()
 
@@ -262,23 +258,23 @@ class HTTPOutputHandler(OutputHandler):
             self._flush_batch_if_ready(force=True)
         else:
             self._flush_batch_if_ready(force=False)
-    
+
     def _flush_batch_if_ready(self, force: bool = False) -> None:
         """Flush batch if ready (size or interval).
-        
+
         Args:
             force: Force flush even if conditions not met
-        
+
         Note: Uses non-blocking queue operations to prevent deadlocks.
         """
         # Check queue size without blocking
         queue_size = self._batch_buffer.qsize()
         if queue_size == 0:
             return
-        
+
         current_time = time.time()
         time_elapsed = current_time - self._last_batch_time >= self.batch_interval
-        
+
         if force or queue_size >= self.batch_size or time_elapsed:
             # Drain queue (non-blocking)
             events_to_send = []
@@ -289,13 +285,13 @@ class HTTPOutputHandler(OutputHandler):
                         events_to_send.append(event)
                     except queue.Empty:
                         break
-                
+
                 if events_to_send:
                     self._last_batch_time = current_time
-                    
+
                     # Log periodic stats
                     self._log_periodic_stats()
-                    
+
                     # Send batch
                     # CRITICAL: Catch exceptions here to prevent dual buffering
                     # _send_batch() already re-buffers events on failure
@@ -309,32 +305,34 @@ class HTTPOutputHandler(OutputHandler):
                             f"HTTP output '{self.name}': Batch send failed, events re-buffered: {e}"
                         )
             except Exception as e:
-                logger.error(f"HTTP output '{self.name}': Error draining batch buffer: {e}", exc_info=True)
+                logger.error(
+                    f"HTTP output '{self.name}': Error draining batch buffer: {e}", exc_info=True
+                )
                 # Re-buffer events that were drained
                 for event in events_to_send:
                     self._enqueue_batch_buffer(event)
-    
-    def _wrap_event_with_metadata(self, event: Any) -> Dict[str, Any]:
+
+    def _wrap_event_with_metadata(self, event: Any) -> dict[str, Any]:
         """Wrap event with logforge_metadata.
-        
+
         Args:
             event: Event data (dict or string)
-            
+
         Returns:
             Wrapped event with 'event' and 'logforge_metadata' fields
         """
         from datetime import datetime
         from zoneinfo import ZoneInfo
-        
+
         # Build metadata
         metadata = {
             "generated_at": datetime.now(ZoneInfo(self.timezone)).isoformat(),
         }
-        
+
         # Add generator name
         if self.generator_name:
             metadata["generator"] = self.generator_name
-        
+
         # Add template information from metadata
         if self.template_metadata:
             if "template_id" in self.template_metadata:
@@ -345,78 +343,73 @@ class HTTPOutputHandler(OutputHandler):
                 metadata["product"] = self.template_metadata["product"]
             if "data_source" in self.template_metadata:
                 metadata["data_source"] = self.template_metadata["data_source"]
-        
-        return {
-            "event": event,
-            "logforge_metadata": metadata
-        }
-    
+
+        return {"event": event, "logforge_metadata": metadata}
+
     def _sanitize_header_value(self, key: str, value: str) -> str:
         """Sanitize sensitive header values for logging.
-        
+
         Args:
             key: Header key
             value: Header value
-            
+
         Returns:
             Sanitized value
         """
         key_lower = key.lower()
-        if key_lower in ('authorization', 'x-api-key', 'x-auth-token'):
+        if key_lower in ("authorization", "x-api-key", "x-auth-token"):
             # Redact tokens but keep prefix
-            if value.startswith('Bearer '):
-                return 'Bearer ***'
-            elif value.startswith('Splunk '):
-                return 'Splunk ***'
-            elif value.startswith('Basic '):
-                return 'Basic ***'
+            if value.startswith("Bearer "):
+                return "Bearer ***"
+            elif value.startswith("Splunk "):
+                return "Splunk ***"
+            elif value.startswith("Basic "):
+                return "Basic ***"
             else:
-                return '***'
+                return "***"
         return value
-    
+
     def _truncate_response_body(self, body: str, max_length: int = 200) -> str:
         """Truncate response body for logging.
-        
+
         Args:
             body: Response body string
             max_length: Maximum length
-            
+
         Returns:
             Truncated body with ellipsis if needed
         """
         if len(body) <= max_length:
             return body
-        return body[:max_length] + '...'
-    
+        return body[:max_length] + "..."
+
     def _send_single_event(self, event: str) -> None:
         """Send single event immediately via HTTP.
-        
+
         Args:
             event: Event string
-            
+
         Raises:
             Exception: On send failure
         """
         start_time = time.time()
-        
+
         try:
-            logger.debug(
-                f"HTTP output '{self.name}': Sending single event to {self.url}"
-            )
-            
+            logger.debug(f"HTTP output '{self.name}': Sending single event to {self.url}")
+
             # Parse event as JSON (if it's a JSON string)
             try:
                 json_event = json.loads(event)
             except (json.JSONDecodeError, TypeError):
                 # Not JSON, send as string
                 json_event = event
-            
+
             # Wrap event with metadata if enabled
             if self.include_metadata:
                 payload = self._wrap_event_with_metadata(json_event)
             else:
                 payload = json_event
-            
+
             # Send request
             response = requests.request(
                 method=self.method,
@@ -425,17 +418,17 @@ class HTTPOutputHandler(OutputHandler):
                 headers=self._substituted_headers,
                 timeout=self.timeout,
             )
-            
+
             # Calculate response time
             response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-            
+
             # Check response status
             try:
                 response.raise_for_status()
-                
+
                 # Success
-                bytes_sent = len(response.content) if hasattr(response, 'content') else 0
-                
+                bytes_sent = len(response.content) if hasattr(response, "content") else 0
+
                 with self._stats_lock:
                     self._events_sent += 1
                     self._batches_sent += 1  # Count as batch for stats
@@ -445,26 +438,26 @@ class HTTPOutputHandler(OutputHandler):
                     self._response_times.append(response_time)
                     if len(self._response_times) > 100:
                         self._response_times.pop(0)
-                
+
                 logger.debug(
                     f"HTTP output '{self.name}': Successfully sent event "
                     f"(status={response.status_code}, latency={response_time:.1f}ms)"
                 )
-                
-            except requests.HTTPError as e:
+
+            except requests.HTTPError:
                 # HTTP error (4xx, 5xx)
                 response_time = (time.time() - start_time) * 1000
                 status_code = response.status_code
-                
+
                 # Get response body for context
                 try:
                     response_body = response.text[:500]  # First 500 chars
                 except Exception:
                     response_body = "Unable to read response body"
-                
+
                 error_type = "HTTP_ERROR"
                 is_auth_error = status_code in (401, 403)
-                
+
                 with self._stats_lock:
                     self._events_failed += 1
                     self._batches_failed += 1
@@ -474,7 +467,7 @@ class HTTPOutputHandler(OutputHandler):
                     self._http_errors += 1
                     if is_auth_error:
                         self._auth_errors += 1
-                
+
                 # Log based on status code
                 if is_auth_error:
                     logger.error(
@@ -492,17 +485,17 @@ class HTTPOutputHandler(OutputHandler):
                         f"HTTP output '{self.name}': HTTP {status_code} server error: "
                         f"{response.reason} - Response: {self._truncate_response_body(response_body)}"
                     )
-                
+
                 # Buffer for retry
                 self._enqueue_batch_buffer(event)
-                
+
                 raise
-                
-        except requests.exceptions.Timeout as e:
+
+        except requests.exceptions.Timeout:
             # Timeout error
             response_time = (time.time() - start_time) * 1000
             error_msg = f"Request timeout after {self.timeout}s"
-            
+
             with self._stats_lock:
                 self._events_failed += 1
                 self._batches_failed += 1
@@ -510,20 +503,18 @@ class HTTPOutputHandler(OutputHandler):
                 self._last_error_message = error_msg
                 self._last_error_type = "TIMEOUT"
                 self._timeout_errors += 1
-            
-            logger.error(
-                f"HTTP output '{self.name}': Request timeout after {self.timeout}s"
-            )
-            
+
+            logger.error(f"HTTP output '{self.name}': Request timeout after {self.timeout}s")
+
             # Buffer for retry
             self._enqueue_batch_buffer(event)
-            
+
             raise
-            
+
         except requests.exceptions.ConnectionError as e:
             # Connection error
             error_msg = str(e)
-            
+
             with self._stats_lock:
                 self._events_failed += 1
                 self._batches_failed += 1
@@ -531,22 +522,22 @@ class HTTPOutputHandler(OutputHandler):
                 self._last_error_message = f"Connection failed: {error_msg}"
                 self._last_error_type = "CONNECTION_ERROR"
                 self._connection_errors += 1
-            
+
             logger.error(
                 f"HTTP output '{self.name}': Connection failed: {type(e).__name__} - "
                 f"{error_msg}"
             )
-            
+
             # Buffer for retry
             self._enqueue_batch_buffer(event)
-            
+
             raise
-            
+
         except requests.exceptions.RequestException as e:
             # Other request exceptions
             error_type = type(e).__name__
             error_msg = str(e)
-            
+
             with self._stats_lock:
                 self._events_failed += 1
                 self._batches_failed += 1
@@ -554,56 +545,54 @@ class HTTPOutputHandler(OutputHandler):
                 self._last_error_message = f"{error_type}: {error_msg}"
                 self._last_error_type = error_type
                 self._connection_errors += 1
-            
-            logger.error(
-                f"HTTP output '{self.name}': Request failed: {error_type} - {error_msg}"
-            )
-            
+
+            logger.error(f"HTTP output '{self.name}': Request failed: {error_type} - {error_msg}")
+
             # Buffer for retry
             self._enqueue_batch_buffer(event)
-            
+
             raise
-            
+
         except Exception as e:
             # Unexpected errors
             error_type = type(e).__name__
             error_msg = str(e)
-            
+
             with self._stats_lock:
                 self._events_failed += 1
                 self._batches_failed += 1
                 self._last_failure_time = time.time()
                 self._last_error_message = f"{error_type}: {error_msg}"
                 self._last_error_type = error_type
-            
+
             logger.error(
                 f"HTTP output '{self.name}': Unexpected error sending event: {error_type} - {error_msg}",
-                exc_info=True
+                exc_info=True,
             )
-            
+
             # Buffer for retry
             self._enqueue_batch_buffer(event)
-            
+
             raise
-    
-    def _send_batch(self, events: List[str]) -> None:
+
+    def _send_batch(self, events: list[str]) -> None:
         """Send batch of events via HTTP.
-        
+
         Args:
             events: List of event strings
-            
+
         Raises:
             Exception: On send failure
         """
         start_time = time.time()
         event_count = len(events)
-        
+
         try:
             logger.debug(
                 f"HTTP output '{self.name}': Attempting to send batch of {event_count} events "
                 f"to {self.url}"
             )
-            
+
             # Parse events as JSON (if they're JSON strings)
             json_events = []
             for event in events:
@@ -612,30 +601,28 @@ class HTTPOutputHandler(OutputHandler):
                 except (json.JSONDecodeError, TypeError):
                     # Not JSON, send as string
                     json_events.append(event)
-            
+
             # Wrap events with metadata if enabled
             if self.include_metadata:
                 wrapped_events = []
                 for event in json_events:
                     wrapped = self._wrap_event_with_metadata(event)
                     wrapped_events.append(wrapped)
-                
+
                 # Always send as array for batches
                 payload = wrapped_events
             else:
                 # Always send as array for batches
                 payload = json_events
-            
+
             # Log request details at DEBUG level
             if logger.isEnabledFor(10):  # DEBUG level
                 sanitized_headers = {
                     k: self._sanitize_header_value(k, v)
                     for k, v in self._substituted_headers.items()
                 }
-                logger.debug(
-                    f"HTTP output '{self.name}': Request headers: {sanitized_headers}"
-                )
-            
+                logger.debug(f"HTTP output '{self.name}': Request headers: {sanitized_headers}")
+
             # Send request
             response = requests.request(
                 method=self.method,
@@ -644,17 +631,17 @@ class HTTPOutputHandler(OutputHandler):
                 headers=self._substituted_headers,
                 timeout=self.timeout,
             )
-            
+
             # Calculate response time
             response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-            
+
             # Check response status
             try:
                 response.raise_for_status()
-                
+
                 # Success
-                bytes_sent = len(response.content) if hasattr(response, 'content') else 0
-                
+                bytes_sent = len(response.content) if hasattr(response, "content") else 0
+
                 with self._stats_lock:
                     self._events_sent += event_count
                     self._batches_sent += 1
@@ -664,27 +651,27 @@ class HTTPOutputHandler(OutputHandler):
                     self._response_times.append(response_time)
                     if len(self._response_times) > 100:
                         self._response_times.pop(0)
-                
+
                 logger.info(
                     f"HTTP output '{self.name}': Successfully sent {event_count} events "
                     f"(status={response.status_code}, latency={response_time:.1f}ms, "
                     f"batch_size={event_count})"
                 )
-                
-            except requests.HTTPError as e:
+
+            except requests.HTTPError:
                 # HTTP error (4xx, 5xx)
                 response_time = (time.time() - start_time) * 1000
                 status_code = response.status_code
-                
+
                 # Get response body for context
                 try:
                     response_body = response.text[:500]  # First 500 chars
                 except Exception:
                     response_body = "Unable to read response body"
-                
+
                 error_type = "HTTP_ERROR"
                 is_auth_error = status_code in (401, 403)
-                
+
                 with self._stats_lock:
                     self._events_failed += event_count
                     self._batches_failed += 1
@@ -694,7 +681,7 @@ class HTTPOutputHandler(OutputHandler):
                     self._http_errors += 1
                     if is_auth_error:
                         self._auth_errors += 1
-                
+
                 # Log based on status code
                 if is_auth_error:
                     logger.error(
@@ -712,18 +699,18 @@ class HTTPOutputHandler(OutputHandler):
                         f"HTTP output '{self.name}': HTTP {status_code} server error: "
                         f"{response.reason} - Response: {self._truncate_response_body(response_body)}"
                     )
-                
+
                 # Re-buffer events for retry (non-blocking)
                 for event in events:
                     self._enqueue_batch_buffer(event)
-                
+
                 raise
-            
-        except requests.exceptions.Timeout as e:
+
+        except requests.exceptions.Timeout:
             # Timeout error
             response_time = (time.time() - start_time) * 1000
             error_msg = f"Request timeout after {self.timeout}s"
-            
+
             with self._stats_lock:
                 self._events_failed += event_count
                 self._batches_failed += 1
@@ -731,22 +718,22 @@ class HTTPOutputHandler(OutputHandler):
                 self._last_error_message = error_msg
                 self._last_error_type = "TIMEOUT"
                 self._timeout_errors += 1
-            
+
             logger.error(
                 f"HTTP output '{self.name}': Request timeout after {self.timeout}s "
                 f"(attempted to send {event_count} events)"
             )
-            
+
             # Re-buffer events for retry (non-blocking)
             for event in events:
                 self._enqueue_batch_buffer(event)
-            
+
             raise
-            
+
         except requests.exceptions.ConnectionError as e:
             # Connection error
             error_msg = str(e)
-            
+
             with self._stats_lock:
                 self._events_failed += event_count
                 self._batches_failed += 1
@@ -754,23 +741,23 @@ class HTTPOutputHandler(OutputHandler):
                 self._last_error_message = f"Connection failed: {error_msg}"
                 self._last_error_type = "CONNECTION_ERROR"
                 self._connection_errors += 1
-            
+
             logger.error(
                 f"HTTP output '{self.name}': Connection failed: {type(e).__name__} - "
                 f"{error_msg} (attempted to send {event_count} events to {self.url})"
             )
-            
+
             # Re-buffer events for retry (non-blocking)
             for event in events:
                 self._enqueue_batch_buffer(event)
-            
+
             raise
-            
+
         except requests.exceptions.RequestException as e:
             # Other request exceptions
             error_type = type(e).__name__
             error_msg = str(e)
-            
+
             with self._stats_lock:
                 self._events_failed += event_count
                 self._batches_failed += 1
@@ -778,62 +765,62 @@ class HTTPOutputHandler(OutputHandler):
                 self._last_error_message = f"{error_type}: {error_msg}"
                 self._last_error_type = error_type
                 self._connection_errors += 1
-            
+
             logger.error(
                 f"HTTP output '{self.name}': Request failed: {error_type} - "
                 f"{error_msg} (attempted to send {event_count} events)"
             )
-            
+
             # Re-buffer events for retry (non-blocking)
             for event in events:
                 self._enqueue_batch_buffer(event)
-            
+
             raise
-        
+
         except Exception as e:
             # Unexpected errors
             error_type = type(e).__name__
             error_msg = str(e)
-            
+
             with self._stats_lock:
                 self._events_failed += event_count
                 self._batches_failed += 1
                 self._last_failure_time = time.time()
                 self._last_error_message = f"{error_type}: {error_msg}"
                 self._last_error_type = error_type
-            
+
             logger.error(
                 f"HTTP output '{self.name}': Unexpected error sending batch: {error_type} - "
                 f"{error_msg} (attempted to send {event_count} events)",
-                exc_info=True
+                exc_info=True,
             )
-            
+
             # Re-buffer events for retry (non-blocking)
             for event in events:
                 self._enqueue_batch_buffer(event)
-            
+
             raise
-    
+
     def _retry_write(self) -> None:
         """Retry writing buffered events with HTTP-specific logging."""
         with self._buffer_lock:
             if not self._buffer:
                 return
             events_to_retry = list(self._buffer)
-        
+
         # Try to write all buffered events
         failed_events = []
         for event in events_to_retry:
             try:
                 self._write_internal(event)
-            except Exception as e:
+            except Exception:
                 failed_events.append(event)
-        
+
         with self._buffer_lock:
             # Update buffer with failed events
             self._buffer.clear()
             self._buffer.extend(failed_events)
-            
+
             if not failed_events:
                 # All events written successfully
                 events_flushed = len(events_to_retry)
@@ -841,7 +828,7 @@ class HTTPOutputHandler(OutputHandler):
                     attempts = self._retry_attempt
                     self._is_healthy = True
                     self._retry_attempt = 0
-                
+
                 logger.info(
                     f"HTTP output '{self.name}': Recovered after {attempts} retry attempts, "
                     f"flushed {events_flushed} buffered events"
@@ -853,17 +840,17 @@ class HTTPOutputHandler(OutputHandler):
                         f"HTTP output '{self.name}': Retry partially successful: "
                         f"{len(failed_events)}/{len(events_to_retry)} events still failing"
                     )
-    
-    def write_batch(self, events: List[str]) -> None:
+
+    def write_batch(self, events: list[str]) -> None:
         """Write batch of events.
-        
+
         Args:
             events: List of event strings
         """
         for event in events:
             self.write(event)
-    
-    def get_statistics(self) -> Dict:
+
+    def get_statistics(self) -> dict:
         """Get output handler statistics.
 
         Returns:
@@ -880,7 +867,7 @@ class HTTPOutputHandler(OutputHandler):
             avg_response_time = None
             if self._response_times:
                 avg_response_time = sum(self._response_times) / len(self._response_times)
-            
+
             # Determine health status
             health_status = "healthy"
             if self._last_failure_time:
@@ -889,7 +876,7 @@ class HTTPOutputHandler(OutputHandler):
                         health_status = "degraded"
                 else:
                     health_status = "failed"
-            
+
             # Copy all stats values (read-only, no need to hold lock during dict creation)
             events_sent = self._events_sent
             events_failed = self._events_failed
@@ -905,7 +892,7 @@ class HTTPOutputHandler(OutputHandler):
             last_error_message = self._last_error_message
             last_error_type = self._last_error_type
             batch_buffer_dropped = self._batch_buffer_dropped
-        
+
         # Build stats dict outside of locks (all values are now copied); merge with base
         stats = {
             **base_stats,
@@ -927,27 +914,29 @@ class HTTPOutputHandler(OutputHandler):
             "average_response_time_ms": round(avg_response_time, 2) if avg_response_time else None,
             "last_success_time": (
                 datetime.fromtimestamp(last_success_time, ZoneInfo(self.timezone)).isoformat()
-                if last_success_time else None
+                if last_success_time
+                else None
             ),
             "last_failure_time": (
                 datetime.fromtimestamp(last_failure_time, ZoneInfo(self.timezone)).isoformat()
-                if last_failure_time else None
+                if last_failure_time
+                else None
             ),
             "last_error_message": last_error_message,
             "last_error_type": last_error_type,
         }
         return stats
-    
+
     def _log_periodic_stats(self) -> None:
         """Log periodic statistics (every 60 seconds)."""
         now = time.time()
         if now - self._periodic_stats_time < 60:
             return
-        
+
         self._periodic_stats_time = now
-        
+
         stats = self.get_statistics()
-        
+
         # Only log if there's activity or issues
         if stats["events_sent"] > 0 or stats["events_failed"] > 0 or stats["buffered_events"] > 0:
             logger.info(
@@ -958,17 +947,17 @@ class HTTPOutputHandler(OutputHandler):
                 f"avg_latency={stats['average_response_time_ms']}ms, "
                 f"health={stats['health_status']}"
             )
-    
+
     def set_template_context(
         self,
         generator_name: str,
         output_name: str,
-        template_metadata: Optional[Dict[str, Any]] = None,
-        organization_name: Optional[str] = None,
-        timezone: Optional[str] = None,
+        template_metadata: dict[str, Any] | None = None,
+        organization_name: str | None = None,
+        timezone: str | None = None,
     ) -> None:
         """Set template context (including timezone) for HTTP handler.
-        
+
         Args:
             generator_name: Generator name
             output_name: Output handler name (unused for HTTP)
@@ -981,7 +970,7 @@ class HTTPOutputHandler(OutputHandler):
         if template_metadata:
             self.template_metadata = template_metadata.copy()
         self.generator_name = generator_name
-    
+
     def close(self) -> None:
         """Close handler and flush remaining batches."""
         # Log final statistics
@@ -993,7 +982,7 @@ class HTTPOutputHandler(OutputHandler):
             f"buffered={stats['buffered_events']} events remaining, "
             f"batch_buffer_dropped={stats.get('batch_buffer_dropped', 0)}"
         )
-        
+
         # Cancel timer
         if self._batch_timer:
             self._batch_timer.cancel()
@@ -1007,7 +996,7 @@ class HTTPOutputHandler(OutputHandler):
             except TypeError:
                 self._executor.shutdown(wait=True)
             self._executor = None
-        
+
         # Flush any remaining events
         self._flush_batch_if_ready(force=True)
 

@@ -1,16 +1,12 @@
 """Tests for init command."""
 
 import os
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import pytest
 import yaml
 from typer.testing import CliRunner
 
 from meltr.cli.main import app
-from meltr.cli.init import init
 
 
 def _run_init(runner: CliRunner, tmp_path: Path):
@@ -39,14 +35,14 @@ def test_init_creates_config_file(tmp_path, monkeypatch):
     runner = CliRunner()
     result = _run_init(runner, tmp_path)
     assert result.exit_code == 0, result.output
-    config_path = tmp_path / 'config.yaml'
+    config_path = tmp_path / "config.yaml"
     assert config_path.exists()
-    
+
     # Verify config is valid YAML
     with config_path.open() as f:
         config_data = yaml.safe_load(f)
-        assert 'api' in config_data
-        assert 'entity_registry' in config_data
+        assert "api" in config_data
+        assert "entity_registry" in config_data
 
 
 def test_init_creates_entities_file(tmp_path, monkeypatch):
@@ -55,16 +51,16 @@ def test_init_creates_entities_file(tmp_path, monkeypatch):
     runner = CliRunner()
     result = _run_init(runner, tmp_path)
     assert result.exit_code == 0, result.output
-    entities_path = tmp_path / 'entities.yaml'
+    entities_path = tmp_path / "entities.yaml"
     assert entities_path.exists()
-    
+
     # Verify entities file structure
     with entities_path.open() as f:
         entities_data = yaml.safe_load(f)
-        assert 'organization' in entities_data
-        assert 'users' in entities_data
-        assert 'devices' in entities_data
-        assert 'services' in entities_data
+        assert "organization" in entities_data
+        assert "users" in entities_data
+        assert "devices" in entities_data
+        assert "services" in entities_data
 
 
 def test_init_respects_force_flag(tmp_path, monkeypatch):
@@ -79,7 +75,7 @@ def test_init_respects_force_flag(tmp_path, monkeypatch):
     # Config should be overwritten
     with config_path.open() as f:
         config_data = yaml.safe_load(f)
-        assert 'api' in config_data  # New config structure
+        assert "api" in config_data  # New config structure
 
 
 def test_init_sets_file_permissions(tmp_path, monkeypatch):
@@ -88,12 +84,12 @@ def test_init_sets_file_permissions(tmp_path, monkeypatch):
     runner = CliRunner()
     result = _run_init(runner, tmp_path)
     assert result.exit_code == 0, result.output
-    
+
     # Check permissions (600 = rw-------)
-    config_path = tmp_path / 'config.yaml'
-    entities_path = tmp_path / 'entities.yaml'
-    
-    if os.name != 'nt':  # Skip on Windows
+    config_path = tmp_path / "config.yaml"
+    entities_path = tmp_path / "entities.yaml"
+
+    if os.name != "nt":  # Skip on Windows
         config_mode = config_path.stat().st_mode & 0o777
         entities_mode = entities_path.stat().st_mode & 0o777
         assert config_mode == 0o600
@@ -108,12 +104,3 @@ def test_init_without_create_user_flags_defaults_to_non_root_behavior(tmp_path, 
     result = runner.invoke(app, ["init", "--force", "--directory", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert (tmp_path / "config.yaml").exists()
-
-
-
-
-
-
-
-
-

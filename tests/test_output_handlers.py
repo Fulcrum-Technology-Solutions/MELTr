@@ -1,17 +1,9 @@
 """Tests for output handlers."""
 
-import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from meltr.core.config import OutputDefinition, RetryConfig
-from meltr.outputs.base import OutputHandler
 from meltr.outputs.console import ConsoleOutputHandler
-from meltr.outputs.file import FileOutputHandler
 from meltr.outputs.factory import create_output_handlers
+from meltr.outputs.file import FileOutputHandler
 from meltr.outputs.http import HTTPOutputHandler
 from meltr.outputs.tcp import TCPOutputHandler
 
@@ -19,11 +11,11 @@ from meltr.outputs.tcp import TCPOutputHandler
 def test_console_handler_json_format():
     """Test console handler with JSON format."""
     handler = ConsoleOutputHandler(name="test", format="json")
-    
+
     # Test write
     event = '{"test": "data"}'
     handler.write(event)  # Should not raise
-    
+
     # Test write_batch
     events = ['{"event1": 1}', '{"event2": 2}']
     handler.write_batch(events)  # Should not raise
@@ -32,25 +24,25 @@ def test_console_handler_json_format():
 def test_console_handler_text_format():
     """Test console handler with text format."""
     handler = ConsoleOutputHandler(name="test", format="text")
-    
+
     event = "Test event message"
     handler.write(event)  # Should not raise
 
 
 def test_file_handler_creates_file(tmp_path):
     """Test file handler creates output file."""
-    output_file = tmp_path / 'output.log'
+    output_file = tmp_path / "output.log"
     handler = FileOutputHandler(
         name="test",
         path=str(output_file),
     )
-    
+
     handler.initialize()
     handler.write('{"test": "event"}')
     handler.close()
-    
+
     assert output_file.exists()
-    assert 'test' in output_file.read_text()
+    assert "test" in output_file.read_text()
 
 
 def test_file_handler_from_config():
@@ -60,7 +52,7 @@ def test_file_handler_from_config():
         type="file",
         path="/tmp/test.log",
     )
-    
+
     handler = FileOutputHandler.from_config(definition)
     assert handler.name == "test_file"
     assert handler.path_template == "/tmp/test.log"
@@ -75,7 +67,7 @@ def test_http_handler_from_config():
         method="POST",
         batch_size=50,
     )
-    
+
     handler = HTTPOutputHandler.from_config(definition)
     assert handler.name == "test_http"
     assert handler.url == "https://example.com/events"
@@ -90,7 +82,7 @@ def test_tcp_handler_from_config():
         host="localhost",
         port=9000,
     )
-    
+
     handler = TCPOutputHandler.from_config(definition)
     assert handler.name == "test_tcp"
     assert handler.host == "localhost"
@@ -103,12 +95,12 @@ def test_output_handler_factory():
         OutputDefinition(name="console1", type="console", format="json"),
         OutputDefinition(name="file1", type="file", path="/tmp/test.log"),
     ]
-    
+
     handlers = create_output_handlers(
         output_names=["console1", "file1"],
         output_definitions=definitions,
     )
-    
+
     assert len(handlers) == 2
     assert handlers[0].name == "console1"
     assert handlers[1].name == "file1"
@@ -122,10 +114,10 @@ def test_output_handler_retry_config():
         backoff_multiplier=2.0,
         max_backoff=60,
     )
-    
+
     handler = ConsoleOutputHandler(name="test")
     handler.retry_config = retry_config
-    
+
     assert handler.retry_config.max_attempts == 3
     assert handler.retry_config.retry_interval == 5
 
@@ -159,4 +151,3 @@ def test_factory_wires_http_overflow_retry_and_buffer_size():
     assert h.overflow_policy == "drop_oldest"
     assert h.retry_config is not None and h.retry_config.max_attempts == 2
     assert h.buffer_size == 1234
-

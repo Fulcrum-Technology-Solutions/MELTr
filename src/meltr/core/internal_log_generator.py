@@ -5,7 +5,7 @@ import queue
 import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from meltr.core.generator import GeneratorState
@@ -21,24 +21,24 @@ INTERNAL_LOG_QUEUE_MAXSIZE = 10000
 
 class InternalLogGenerator:
     """Forwards application log records from a queue to output handlers.
-    
+
     Uses the same lifecycle and status interface as Generator so it appears
     in generators list and API. Does not use a template.
     """
 
-    def __init__(self, output_handlers: List[OutputHandler]) -> None:
+    def __init__(self, output_handlers: list[OutputHandler]) -> None:
         self.name = INTERNAL_LOGS_GENERATOR_NAME
         self.output_handlers = output_handlers
         self._queue: queue.Queue[str] = queue.Queue(maxsize=INTERNAL_LOG_QUEUE_MAXSIZE)
-        self._handler: Optional[InternalLogForwardingHandler] = None
+        self._handler: InternalLogForwardingHandler | None = None
         self._state = GeneratorState.STOPPED
         self._state_lock = threading.Lock()
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._events_forwarded = 0
         self._errors = 0
-        self._last_event_time: Optional[float] = None
-        self._start_time: Optional[float] = None
+        self._last_event_time: float | None = None
+        self._start_time: float | None = None
         self._stats_lock = threading.Lock()
 
     @property
@@ -54,8 +54,12 @@ class InternalLogGenerator:
         if self._state != GeneratorState.STOPPED:
             return
         self._transition_to(GeneratorState.STARTING)
-        self._handler = InternalLogForwardingHandler(self._queue, max_queue_size=INTERNAL_LOG_QUEUE_MAXSIZE)
-        self._handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        self._handler = InternalLogForwardingHandler(
+            self._queue, max_queue_size=INTERNAL_LOG_QUEUE_MAXSIZE
+        )
+        self._handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
         logforge_logger = logging.getLogger("logforge")
         logforge_logger.addHandler(self._handler)
         self._stop_event.clear()
@@ -63,7 +67,9 @@ class InternalLogGenerator:
         self._thread.start()
         self._start_time = time.time()
         self._transition_to(GeneratorState.RUNNING)
-        logger.info(f"Internal log generator started, forwarding to {len(self.output_handlers)} output(s)")
+        logger.info(
+            f"Internal log generator started, forwarding to {len(self.output_handlers)} output(s)"
+        )
 
     def stop(self) -> None:
         if self._state in (GeneratorState.STOPPED, GeneratorState.STOPPING):
@@ -111,7 +117,7 @@ class InternalLogGenerator:
             except Exception as e:
                 logger.warning(f"Internal log output {getattr(h, 'name', '?')} write failed: {e}")
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         with self._stats_lock:
             uptime = 0
             if self._start_time:
@@ -122,29 +128,34 @@ class InternalLogGenerator:
                 "uptime": uptime,
                 "last_event": (
                     datetime.fromtimestamp(self._last_event_time, ZoneInfo("UTC")).isoformat()
-                    if self._last_event_time else None
+                    if self._last_event_time
+                    else None
                 ),
                 "last_error": None,
             }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         output_stats = []
         for h in self.output_handlers:
             if hasattr(h, "get_statistics"):
                 try:
                     output_stats.append(h.get_statistics())
                 except Exception:
-                    output_stats.append({
+                    output_stats.append(
+                        {
+                            "handler_name": getattr(h, "name", "unknown"),
+                            "handler_type": type(h).__name__,
+                            "health_status": "healthy" if h.is_healthy() else "degraded",
+                        }
+                    )
+            else:
+                output_stats.append(
+                    {
                         "handler_name": getattr(h, "name", "unknown"),
                         "handler_type": type(h).__name__,
                         "health_status": "healthy" if h.is_healthy() else "degraded",
-                    })
-            else:
-                output_stats.append({
-                    "handler_name": getattr(h, "name", "unknown"),
-                    "handler_type": type(h).__name__,
-                    "health_status": "healthy" if h.is_healthy() else "degraded",
-                })
+                    }
+                )
         return {
             "name": self.name,
             "state": self.state.value,

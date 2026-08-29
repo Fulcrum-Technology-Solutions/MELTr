@@ -6,7 +6,6 @@ import logging.handlers
 import os
 import queue
 from pathlib import Path
-from typing import Optional
 
 from meltr.core.config import Config
 from meltr.core.paths import default_application_log_file
@@ -36,7 +35,9 @@ class InternalLogForwardingHandler(logging.Handler):
                 "message": record.getMessage(),
             }
             if record.exc_info:
-                obj["exc_info"] = self.formatter.formatException(record.exc_info) if self.formatter else None
+                obj["exc_info"] = (
+                    self.formatter.formatException(record.exc_info) if self.formatter else None
+                )
             line = json.dumps(obj, default=str) + "\n"
             try:
                 self._queue.put_nowait(line)
@@ -46,7 +47,7 @@ class InternalLogForwardingHandler(logging.Handler):
             self.handleError(record)
 
 
-def setup_logging(config: Optional[Config] = None, log_level: Optional[str] = None) -> None:
+def setup_logging(config: Config | None = None, log_level: str | None = None) -> None:
     """Configure application logging based on config or defaults.
 
     Precedence for the log file path:
@@ -61,30 +62,33 @@ def setup_logging(config: Optional[Config] = None, log_level: Optional[str] = No
     raw_env_log = os.getenv("MELTR_LOG_FILE")
     env_log_file = raw_env_log.strip() if raw_env_log and raw_env_log.strip() else None
 
-    if config and hasattr(config, 'logging'):
-        level = log_level or getattr(config.logging, 'level', 'INFO')
+    if config and hasattr(config, "logging"):
+        level = log_level or getattr(config.logging, "level", "INFO")
         if env_log_file:
             log_file = env_log_file
         else:
-            log_file = getattr(config.logging, 'file', None) or None
+            log_file = getattr(config.logging, "file", None) or None
             if not log_file or not str(log_file).strip():
                 log_file = str(default_application_log_file())
             else:
                 log_file = str(log_file).strip()
-        rotation_config = getattr(config.logging, 'rotation', None)
-        if rotation_config is None and config and hasattr(config, 'logging'):
+        rotation_config = getattr(config.logging, "rotation", None)
+        if rotation_config is None and config and hasattr(config, "logging"):
             from meltr.core.config import RotationConfig
+
             rotation_config = RotationConfig()
-        format_str = getattr(config.logging, 'format',
-                           '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        format_str = getattr(
+            config.logging, "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
     else:
-        level = log_level or os.getenv('LOGFORGE_LOG_LEVEL', 'INFO')
+        level = log_level or os.getenv("LOGFORGE_LOG_LEVEL", "INFO")
         rotation_config = None
-        format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format_str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         log_file = env_log_file
         if not log_file:
             log_file = str(default_application_log_file())
             from meltr.core.config import RotationConfig
+
             rotation_config = RotationConfig()
         else:
             rotation_config = None
@@ -93,7 +97,7 @@ def setup_logging(config: Optional[Config] = None, log_level: Optional[str] = No
     numeric_level = getattr(logging, level.upper(), logging.INFO)
 
     # Configure root logger
-    root_logger = logging.getLogger('meltr')
+    root_logger = logging.getLogger("meltr")
     root_logger.setLevel(numeric_level)
 
     # Remove existing handlers
@@ -114,21 +118,18 @@ def setup_logging(config: Optional[Config] = None, log_level: Optional[str] = No
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         if rotation_config:
-            max_size = getattr(rotation_config, 'max_size', 50 * 1024 * 1024)  # 50MB default
-            backup_count = getattr(rotation_config, 'backup_count', 5)
+            max_size = getattr(rotation_config, "max_size", 50 * 1024 * 1024)  # 50MB default
+            backup_count = getattr(rotation_config, "backup_count", 5)
 
             # Parse max_size if string (e.g., "50MB")
             if isinstance(max_size, str):
                 max_size = _parse_size(max_size)
 
             file_handler = logging.handlers.RotatingFileHandler(
-                log_path,
-                maxBytes=max_size,
-                backupCount=backup_count,
-                encoding='utf-8'
+                log_path, maxBytes=max_size, backupCount=backup_count, encoding="utf-8"
             )
         else:
-            file_handler = logging.FileHandler(log_path, encoding='utf-8')
+            file_handler = logging.FileHandler(log_path, encoding="utf-8")
 
         file_handler.setLevel(numeric_level)
         file_handler.setFormatter(formatter)
@@ -147,14 +148,14 @@ def _parse_size(size_str: str) -> int:
     size_str = size_str.upper().strip()
 
     multipliers = {
-        'KB': 1024,
-        'MB': 1024 * 1024,
-        'GB': 1024 * 1024 * 1024,
+        "KB": 1024,
+        "MB": 1024 * 1024,
+        "GB": 1024 * 1024 * 1024,
     }
 
     for unit, multiplier in multipliers.items():
         if size_str.endswith(unit):
-            number = int(size_str[:-len(unit)])
+            number = int(size_str[: -len(unit)])
             return number * multiplier
 
     # Default to bytes if no unit
@@ -170,5 +171,4 @@ def get_logger(name: str) -> logging.Logger:
     Returns:
         Logger instance
     """
-    return logging.getLogger(f'meltr.{name}')
-
+    return logging.getLogger(f"meltr.{name}")

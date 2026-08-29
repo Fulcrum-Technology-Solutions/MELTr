@@ -3,7 +3,6 @@
 import logging
 import time
 import uuid
-from typing import List
 
 import pytest
 
@@ -28,7 +27,7 @@ class MockOutputHandler(OutputHandler):
     def _do_write(self, event: str) -> None:
         self._events.append(event)
 
-    def write_batch(self, events: List[str]) -> None:
+    def write_batch(self, events: list[str]) -> None:
         for e in events:
             self._events.append(e)
 

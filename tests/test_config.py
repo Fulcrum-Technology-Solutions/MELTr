@@ -4,7 +4,6 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 import requests
 import yaml
 
@@ -16,28 +15,28 @@ def test_create_default_config():
     with tempfile.TemporaryDirectory() as tmpdir:
         home = Path(tmpdir)
         config = create_default_config(home)
-        
+
         assert isinstance(config, Config)
         assert config.api.enabled is True
         assert config.api.port == 8080
-        assert config.entity_registry.path == str(home / 'entities.yaml')
+        assert config.entity_registry.path == str(home / "entities.yaml")
 
 
 def test_load_config(tmp_path, monkeypatch):
     """Test config loading from file."""
     # Set MELTR_HOME to temp directory
-    monkeypatch.setenv('MELTR_HOME', str(tmp_path))
-    
-    config_path = tmp_path / 'config.yaml'
-    
+    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
+
+    config_path = tmp_path / "config.yaml"
+
     # Create default config
     config = create_default_config(tmp_path)
-    config_dict = config.model_dump(mode='json', exclude_none=True)
-    
+    config_dict = config.model_dump(mode="json", exclude_none=True)
+
     # Write to file
-    with config_path.open('w') as f:
+    with config_path.open("w") as f:
         yaml.dump(config_dict, f)
-    
+
     # Load from file
     loaded_config = load_config(config_path)
     assert loaded_config.api.port == config.api.port
@@ -49,7 +48,7 @@ def test_config_validation():
     with tempfile.TemporaryDirectory() as tmpdir:
         home = Path(tmpdir)
         config = create_default_config(home)
-        
+
         # Config should be valid
         assert config.api.host is not None
         assert config.api.port > 0
@@ -98,24 +97,20 @@ def test_create_http_output_bearer_stores_plaintext_token(monkeypatch):
     """HTTP output create flow stores plaintext bearer token."""
     from meltr.cli import config_editor
 
-    prompt_answers = iter([
-        "https://collector.example/v1/events",  # HTTP URL
-        "POST",  # method
-        "Bearer",  # auth type
-        "  abc123  ",  # bearer token (trimmed)
-    ])
+    prompt_answers = iter(
+        [
+            "https://collector.example/v1/events",  # HTTP URL
+            "POST",  # method
+            "Bearer",  # auth type
+            "  abc123  ",  # bearer token (trimmed)
+        ]
+    )
     int_answers = iter([100, 5, 30])  # batch_size, batch_interval, timeout
     confirm_answers = iter([True, False])  # add auth, include metadata
 
-    monkeypatch.setattr(
-        config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers)
-    )
+    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers))
+    monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers))
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers))
 
     output = config_editor._create_http_output("dest_http")
 
@@ -127,24 +122,20 @@ def test_create_http_output_splunk_stores_plaintext_token(monkeypatch):
     """HTTP output create flow stores plaintext Splunk HEC token."""
     from meltr.cli import config_editor
 
-    prompt_answers = iter([
-        "https://collector.example/v1/events",
-        "POST",
-        "Splunk HEC",
-        "  hec-token  ",
-    ])
+    prompt_answers = iter(
+        [
+            "https://collector.example/v1/events",
+            "POST",
+            "Splunk HEC",
+            "  hec-token  ",
+        ]
+    )
     int_answers = iter([100, 5, 30])
     confirm_answers = iter([True, False])
 
-    monkeypatch.setattr(
-        config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers)
-    )
+    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers))
+    monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers))
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers))
 
     output = config_editor._create_http_output("dest_http")
 
@@ -156,25 +147,21 @@ def test_create_http_output_api_key_stores_plaintext_token(monkeypatch):
     """HTTP output create flow stores plaintext API key token."""
     from meltr.cli import config_editor
 
-    prompt_answers = iter([
-        "https://collector.example/v1/events",
-        "POST",
-        "API Key",
-        "X-Custom-Api-Key",
-        "  key-123  ",
-    ])
+    prompt_answers = iter(
+        [
+            "https://collector.example/v1/events",
+            "POST",
+            "API Key",
+            "X-Custom-Api-Key",
+            "  key-123  ",
+        ]
+    )
     int_answers = iter([100, 5, 30])
     confirm_answers = iter([True, False])
 
-    monkeypatch.setattr(
-        config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers)
-    )
+    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers))
+    monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers))
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers))
 
     output = config_editor._create_http_output("dest_http")
 
@@ -197,30 +184,28 @@ def test_edit_http_output_rebuild_auth_stores_plaintext_token(monkeypatch):
         buffer_overflow_policy="drop_newest",
     )
 
-    prompt_answers = iter([
-        "https://new.example/v1/events",  # URL
-        "POST",  # method
-        "drop_newest",  # policy
-        "Bearer",  # auth type
-        "  new-token  ",  # token
-    ])
+    prompt_answers = iter(
+        [
+            "https://new.example/v1/events",  # URL
+            "POST",  # method
+            "drop_newest",  # policy
+            "Bearer",  # auth type
+            "  new-token  ",  # token
+        ]
+    )
     int_answers = iter([100, 5, 30])
-    confirm_answers = iter([
-        True,   # streaming mode
-        False,  # include metadata
-        True,   # rebuild auth headers
-        True,   # add authentication header
-    ])
+    confirm_answers = iter(
+        [
+            True,  # streaming mode
+            False,  # include metadata
+            True,  # rebuild auth headers
+            True,  # add authentication header
+        ]
+    )
 
-    monkeypatch.setattr(
-        config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers)
-    )
-    monkeypatch.setattr(
-        config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers)
-    )
+    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers))
+    monkeypatch.setattr(config_editor.IntPrompt, "ask", lambda *a, **k: next(int_answers))
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: next(confirm_answers))
 
     output = config_editor._edit_http_output_definition(existing)
     assert output.headers["Authorization"] == "Bearer new-token"
@@ -232,9 +217,7 @@ def test_plaintext_token_prompt_rejects_empty_and_dollar_brace(monkeypatch):
     from meltr.cli import config_editor
 
     prompt_answers = iter(["   ", "${BAD}", "  valid-token  "])
-    monkeypatch.setattr(
-        config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers)
-    )
+    monkeypatch.setattr(config_editor.Prompt, "ask", lambda *a, **k: next(prompt_answers))
 
     token = config_editor._prompt_plaintext_token("Bearer token")
     assert token == "valid-token"
@@ -250,7 +233,9 @@ def test_save_config_service_down_local_connection_refused_is_info(monkeypatch, 
     monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
     monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
     monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
-    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+    monkeypatch.setattr(
+        config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg))
+    )
 
     class _Client:
         api_url = "http://127.0.0.1:8080"
@@ -303,7 +288,10 @@ def test_save_config_service_up_calls_reload(monkeypatch, tmp_path):
 
         def post(self, *_a, **_k):
             calls["post"] += 1
-            return _Response(status_code=200, data={"results": {"added": [], "removed": [], "updated": [], "errors": []}})
+            return _Response(
+                status_code=200,
+                data={"results": {"added": [], "removed": [], "updated": [], "errors": []}},
+            )
 
     fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
     monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
@@ -322,7 +310,9 @@ def test_save_config_timeout_keeps_warning_guidance(monkeypatch, tmp_path):
     monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
     monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
     monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
-    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+    monkeypatch.setattr(
+        config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg))
+    )
 
     class _Client:
         api_url = "http://127.0.0.1:8080"
@@ -349,7 +339,9 @@ def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path)
     monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
     monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
     monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
-    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+    monkeypatch.setattr(
+        config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg))
+    )
 
     class _Client:
         api_url = "http://127.0.0.1:8080"
@@ -376,7 +368,9 @@ def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_p
     monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
     monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
     monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
-    monkeypatch.setattr(config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg)))
+    monkeypatch.setattr(
+        config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg))
+    )
 
     class _Client:
         api_url = "https://api.example.com"
@@ -390,4 +384,3 @@ def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_p
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
     assert "Could not connect to service at https://api.example.com" in out
-

@@ -7,10 +7,9 @@ import pwd
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 
-def get_data_home_from_install_binary(bin_path: Path) -> Optional[Path]:
+def get_data_home_from_install_binary(bin_path: Path) -> Path | None:
     """Return ``<install>/data`` when *bin_path* is under a known install layout.
 
     Resolution:
@@ -40,7 +39,7 @@ def get_data_home_from_install_binary(bin_path: Path) -> Optional[Path]:
     return None
 
 
-def get_install_root_from_binary(bin_path: Path) -> Optional[Path]:
+def get_install_root_from_binary(bin_path: Path) -> Path | None:
     """Return product/install root (parent of ``data``) for a bundled layout."""
     data_home = get_data_home_from_install_binary(bin_path)
     if data_home is None:
@@ -76,12 +75,12 @@ def _meltr_binary_candidates() -> list[Path]:
 _logforge_binary_candidates = _meltr_binary_candidates
 
 
-def get_bundle_home_from_install_binary(bin_path: Path) -> Optional[Path]:
+def get_bundle_home_from_install_binary(bin_path: Path) -> Path | None:
     """Return default home for a tarball layout (product root, not ``…/data``)."""
     return get_install_root_from_binary(bin_path)
 
 
-def default_application_log_file(bin_path: Optional[Path] = None) -> Path:
+def default_application_log_file(bin_path: Path | None = None) -> Path:
     """Default on-disk application log under install root or MELTR_HOME."""
     candidates: list[Path] = []
     if bin_path is not None:
@@ -169,7 +168,7 @@ def get_meltr_home() -> Path:
 get_logforge_home = get_meltr_home
 
 
-def get_pidfile_path(home: Optional[Path] = None) -> Path:
+def get_pidfile_path(home: Path | None = None) -> Path:
     """Path to the main service PID file (MELTR_HOME/run/meltr.pid)."""
     if home is None:
         home = get_meltr_home()
@@ -197,25 +196,25 @@ def validate_path_within_home(path: Path, home: Path) -> bool:
             return False
 
 
-def get_config_path(home: Optional[Path] = None) -> Path:
+def get_config_path(home: Path | None = None) -> Path:
     if home is None:
         home = get_meltr_home()
     return home / "config.yaml"
 
 
-def get_entities_path(home: Optional[Path] = None) -> Path:
+def get_entities_path(home: Path | None = None) -> Path:
     if home is None:
         home = get_meltr_home()
     return home / "entities.yaml"
 
 
-def get_templates_path(home: Optional[Path] = None) -> Path:
+def get_templates_path(home: Path | None = None) -> Path:
     if home is None:
         home = get_meltr_home()
     return home / "templates"
 
 
-def get_backups_path(home: Optional[Path] = None) -> Path:
+def get_backups_path(home: Path | None = None) -> Path:
     if home is None:
         home = get_meltr_home()
     backups_path = home / "backups" / "templates"

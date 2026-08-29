@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from meltr.telemetry.client import TelemetryClient, TelemetryEvent, get_actor_id
@@ -70,4 +69,3 @@ def test_telemetry_client_respects_opt_out(monkeypatch):
     client.post_events(actor_id="actor", events=[TelemetryEvent(event_type="template_installed")])
 
     assert calls == []
-

@@ -1,10 +1,1 @@
 """Entity Registry module."""
-
-
-
-
-
-
-
-
-

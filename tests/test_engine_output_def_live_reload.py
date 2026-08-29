@@ -88,4 +88,3 @@ def test_engine_reload_updates_internal_logs_when_output_definition_changes(tmp_
 
     internal_after = engine._generators[INTERNAL_LOGS_GENERATOR_NAME]
     assert internal_after.output_handlers[0].url == "http://new.example/v1/events"
-

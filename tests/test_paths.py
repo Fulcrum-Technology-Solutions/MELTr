@@ -22,7 +22,7 @@ from meltr.core.paths import (
 def test_get_logforge_home_from_env():
     """Test MELTR_HOME resolution from environment variable."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch.dict(os.environ, {'MELTR_HOME': tmpdir}, clear=False):
+        with patch.dict(os.environ, {"MELTR_HOME": tmpdir}, clear=False):
             home = get_logforge_home()
             assert home == Path(tmpdir).resolve()
             assert home.exists()
@@ -30,24 +30,24 @@ def test_get_logforge_home_from_env():
 
 def test_get_logforge_home_local_directory(tmp_path, monkeypatch):
     """Test MELTR_HOME resolution from local ./logforge directory (backward compat)."""
-    logforge_dir = tmp_path / 'logforge'
+    logforge_dir = tmp_path / "logforge"
     logforge_dir.mkdir()
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv('MELTR_HOME', raising=False)
-    monkeypatch.delenv('LOGFORGE_HOME', raising=False)
+    monkeypatch.delenv("MELTR_HOME", raising=False)
+    monkeypatch.delenv("LOGFORGE_HOME", raising=False)
     home = get_logforge_home()
     assert home == logforge_dir.resolve()
 
 
 def test_get_logforge_home_prefers_dot_logforge(tmp_path, monkeypatch):
     """Test that ./.logforge is preferred over ./logforge when both exist."""
-    dot_meltr = tmp_path / '.logforge'
-    logforge_dir = tmp_path / 'logforge'
+    dot_meltr = tmp_path / ".logforge"
+    logforge_dir = tmp_path / "logforge"
     dot_meltr.mkdir()
     logforge_dir.mkdir()
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv('MELTR_HOME', raising=False)
-    monkeypatch.delenv('LOGFORGE_HOME', raising=False)
+    monkeypatch.delenv("MELTR_HOME", raising=False)
+    monkeypatch.delenv("LOGFORGE_HOME", raising=False)
     home = get_logforge_home()
     assert home == dot_meltr.resolve()
 
@@ -55,14 +55,15 @@ def test_get_logforge_home_prefers_dot_logforge(tmp_path, monkeypatch):
 def test_get_logforge_home_service_account_uses_opt_without_bundle(tmp_path, monkeypatch):
     """Service accounts fall back to /opt/meltr when bundle layout cannot be resolved."""
     from meltr.core import paths as paths_module
+
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv('MELTR_HOME', raising=False)
-    monkeypatch.delenv('LOGFORGE_HOME', raising=False)
+    monkeypatch.delenv("MELTR_HOME", raising=False)
+    monkeypatch.delenv("LOGFORGE_HOME", raising=False)
     with patch("os.getuid", return_value=999):
         with patch.object(shutil, "which", return_value=None):
             with patch.object(paths_module, "_ensure_directory"):
                 home = get_logforge_home()
-    assert home == Path('/opt/meltr')
+    assert home == Path("/opt/meltr")
 
 
 def test_get_data_home_from_install_binary_opt_layout(tmp_path):
@@ -100,7 +101,7 @@ def test_get_logforge_home_service_account_prefers_opt_install_root(tmp_path, mo
     """Low-uid user uses …/opt/meltr (product root) when `which` finds that bundle binary."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MELTR_HOME", raising=False)
-    monkeypatch.delenv('LOGFORGE_HOME', raising=False)
+    monkeypatch.delenv("LOGFORGE_HOME", raising=False)
     bindir = tmp_path / "opt" / "logforge" / "app" / "bin"
     bindir.mkdir(parents=True)
     binfile = bindir / "logforge"
@@ -116,7 +117,7 @@ def test_get_logforge_home_uses_argv0_when_which_missing(tmp_path, monkeypatch):
     """Bundle home resolves from sys.argv[0] when logforge is not on PATH (e.g. sudo)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MELTR_HOME", raising=False)
-    monkeypatch.delenv('LOGFORGE_HOME', raising=False)
+    monkeypatch.delenv("LOGFORGE_HOME", raising=False)
     bindir = tmp_path / "opt" / "logforge" / "app" / "bin"
     bindir.mkdir(parents=True)
     binfile = bindir / "logforge"
@@ -160,7 +161,7 @@ def test_get_config_path():
     with tempfile.TemporaryDirectory() as tmpdir:
         home = Path(tmpdir)
         config_path = get_config_path(home)
-        assert config_path == home / 'config.yaml'
+        assert config_path == home / "config.yaml"
 
 
 def test_get_entities_path():
@@ -168,7 +169,7 @@ def test_get_entities_path():
     with tempfile.TemporaryDirectory() as tmpdir:
         home = Path(tmpdir)
         entities_path = get_entities_path(home)
-        assert entities_path == home / 'entities.yaml'
+        assert entities_path == home / "entities.yaml"
 
 
 def test_get_templates_path():
@@ -176,7 +177,7 @@ def test_get_templates_path():
     with tempfile.TemporaryDirectory() as tmpdir:
         home = Path(tmpdir)
         templates_path = get_templates_path(home)
-        assert templates_path == home / 'templates'
+        assert templates_path == home / "templates"
 
 
 def test_validate_path_within_home():
@@ -185,10 +186,9 @@ def test_validate_path_within_home():
         home = Path(tmpdir)
 
         # Valid paths
-        assert validate_path_within_home(home / 'config.yaml', home) is True
-        assert validate_path_within_home(home / 'templates' / 'default', home) is True
+        assert validate_path_within_home(home / "config.yaml", home) is True
+        assert validate_path_within_home(home / "templates" / "default", home) is True
 
         # Invalid paths
-        assert validate_path_within_home(Path('/etc/passwd'), home) is False
-        assert validate_path_within_home(Path('/tmp'), home) is False
-
+        assert validate_path_within_home(Path("/etc/passwd"), home) is False
+        assert validate_path_within_home(Path("/tmp"), home) is False

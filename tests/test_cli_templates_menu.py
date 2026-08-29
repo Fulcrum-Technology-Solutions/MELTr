@@ -9,7 +9,6 @@ from typer.testing import CliRunner
 from meltr.cli import templates
 from meltr.cli.main import app
 
-
 _META = """vendor: acme
 product: prod
 data_source: ds
@@ -51,7 +50,9 @@ def test_templates_diff_merge_roundtrip(tmp_path, monkeypatch) -> None:
 
     cdir = tmp_path / "templates" / "custom" / "acme" / "prod" / "ds"
     cdir.mkdir(parents=True)
-    shutil.copy2(tmp_path / "templates" / "default" / "acme" / "prod" / "ds" / "t1.j2", cdir / "t1.j2")
+    shutil.copy2(
+        tmp_path / "templates" / "default" / "acme" / "prod" / "ds" / "t1.j2", cdir / "t1.j2"
+    )
     shutil.copy2(
         tmp_path / "templates" / "default" / "acme" / "prod" / "ds" / "t1.meta.yaml",
         cdir / "t1.meta.yaml",

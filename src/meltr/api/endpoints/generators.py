@@ -20,22 +20,20 @@ router = APIRouter(
 
 def get_engine(request: Request) -> Engine:
     """Dependency to get engine from app state."""
-    if not hasattr(request.app.state, 'engine'):
+    if not hasattr(request.app.state, "engine"):
         raise HTTPException(status_code=503, detail="Engine not initialized")
     return request.app.state.engine
 
 
 @router.get("")
-async def list_generators(
-    engine: Annotated[Engine, Depends(get_engine)]
-) -> dict:
+async def list_generators(engine: Annotated[Engine, Depends(get_engine)]) -> dict:
     """List all generators.
-    
+
     Returns:
         List of generators with basic info including vendor, product, and data_source
     """
     generators = engine.get_all_generators()
-    
+
     generator_list = []
     for gen in generators:
         gen_data = {
@@ -44,7 +42,7 @@ async def list_generators(
             "state": gen.state.value,
             "template": gen.config.template,
         }
-        
+
         # Add template metadata if available
         if gen._template_info:
             gen_data["vendor"] = gen._template_info.vendor
@@ -61,24 +59,19 @@ async def list_generators(
                 gen_data["vendor"] = None
                 gen_data["product"] = None
                 gen_data["data_source"] = None
-        
+
         generator_list.append(gen_data)
-    
-    return {
-        "generators": generator_list
-    }
+
+    return {"generators": generator_list}
 
 
 @router.get("/{name}")
-async def get_generator(
-    name: str,
-    engine: Annotated[Engine, Depends(get_engine)]
-) -> dict:
+async def get_generator(name: str, engine: Annotated[Engine, Depends(get_engine)]) -> dict:
     """Get detailed generator information.
-    
+
     Args:
         name: Generator name
-        
+
     Returns:
         Detailed generator status
     """
@@ -90,15 +83,12 @@ async def get_generator(
 
 
 @router.post("/{name}/start")
-async def start_generator(
-    name: str,
-    engine: Annotated[Engine, Depends(get_engine)]
-) -> dict:
+async def start_generator(name: str, engine: Annotated[Engine, Depends(get_engine)]) -> dict:
     """Start a generator.
-    
+
     Args:
         name: Generator name
-        
+
     Returns:
         Generator state after start
     """
@@ -108,7 +98,9 @@ async def start_generator(
         return {
             "name": name,
             "state": status["state"],
-            "message": "Generator starting" if status["state"] == "STARTING" else "Generator started",
+            "message": (
+                "Generator starting" if status["state"] == "STARTING" else "Generator started"
+            ),
         }
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Generator not found: {name}")
@@ -118,15 +110,12 @@ async def start_generator(
 
 
 @router.post("/{name}/stop")
-async def stop_generator(
-    name: str,
-    engine: Annotated[Engine, Depends(get_engine)]
-) -> dict:
+async def stop_generator(name: str, engine: Annotated[Engine, Depends(get_engine)]) -> dict:
     """Stop a generator.
-    
+
     Args:
         name: Generator name
-        
+
     Returns:
         Generator state after stop
     """
@@ -136,7 +125,9 @@ async def stop_generator(
         return {
             "name": name,
             "state": status["state"],
-            "message": "Generator stopping" if status["state"] == "STOPPING" else "Generator stopped",
+            "message": (
+                "Generator stopping" if status["state"] == "STOPPING" else "Generator stopped"
+            ),
         }
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Generator not found: {name}")
@@ -146,15 +137,12 @@ async def stop_generator(
 
 
 @router.post("/{name}/restart")
-async def restart_generator(
-    name: str,
-    engine: Annotated[Engine, Depends(get_engine)]
-) -> dict:
+async def restart_generator(name: str, engine: Annotated[Engine, Depends(get_engine)]) -> dict:
     """Restart a generator.
-    
+
     Args:
         name: Generator name
-        
+
     Returns:
         Generator state after restart
     """
@@ -174,36 +162,38 @@ async def restart_generator(
 
 
 @router.post("/restart-all")
-async def restart_all_generators(
-    engine: Annotated[Engine, Depends(get_engine)]
-) -> dict:
+async def restart_all_generators(engine: Annotated[Engine, Depends(get_engine)]) -> dict:
     """Restart all generators.
-    
+
     Returns:
         Summary of restart operations
     """
     generators = engine.get_all_generators()
     results = []
     success_count = 0
-    
+
     for generator in generators:
         try:
             engine.restart_generator(generator.name)
             status = engine.get_generator_status(generator.name)
-            results.append({
-                "name": generator.name,
-                "success": True,
-                "state": status["state"],
-            })
+            results.append(
+                {
+                    "name": generator.name,
+                    "success": True,
+                    "state": status["state"],
+                }
+            )
             success_count += 1
         except Exception as e:
-            results.append({
-                "name": generator.name,
-                "success": False,
-                "error": log_api_exception(logger, f"Restart generator {generator.name}", e),
-                "state": generator.state.value,
-            })
-    
+            results.append(
+                {
+                    "name": generator.name,
+                    "success": False,
+                    "error": log_api_exception(logger, f"Restart generator {generator.name}", e),
+                    "state": generator.state.value,
+                }
+            )
+
     return {
         "message": f"Restarted {success_count} of {len(generators)} generator(s)",
         "count": success_count,

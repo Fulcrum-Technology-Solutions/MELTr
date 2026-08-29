@@ -1,19 +1,19 @@
 """Shared interactive CLI menu helpers (pagination, navigation)."""
 
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from rich.console import Console
 from rich.prompt import Prompt
 
 
 def paginate_choose(
-    items: List[Tuple[str, Any]],
+    items: list[tuple[str, Any]],
     *,
     console: Console,
     page_size: int = 20,
     title: str = "",
     show_index: bool = True,
-) -> Optional[int]:
+) -> int | None:
     """Paginated list; user picks by global 1-based index or navigation keys.
 
     Returns:
@@ -67,6 +67,4 @@ def paginate_choose(
                 return choice - 1
             console.print(f"[red]Invalid selection. Please choose 1-{len(items)}[/red]")
         except ValueError:
-            console.print(
-                "[red]Invalid input. Please enter a number, 'n', 'p', 'b', or 'q'[/red]"
-            )
+            console.print("[red]Invalid input. Please enter a number, 'n', 'p', 'b', or 'q'[/red]")

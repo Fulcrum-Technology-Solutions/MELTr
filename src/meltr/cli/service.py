@@ -4,7 +4,6 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 try:
     import grp
@@ -78,7 +77,12 @@ def _get_meltr_binary_path() -> Path:
                     return venv_bin.resolve()
             break
 
-    for path in ("/usr/local/bin/meltr", "/usr/bin/meltr", "/usr/local/bin/logforge", "/usr/bin/logforge"):
+    for path in (
+        "/usr/local/bin/meltr",
+        "/usr/bin/meltr",
+        "/usr/local/bin/logforge",
+        "/usr/bin/logforge",
+    ):
         if Path(path).exists():
             return Path(path).resolve()
 
@@ -108,11 +112,17 @@ def _check_root() -> None:
 
 @app.command("install")
 def service_install(
-    meltr_home: Optional[str] = typer.Option(None, "--home", help="MELTR_HOME directory"),
-    meltr_bin: Optional[str] = typer.Option(None, "--binary", help="Path to meltr binary"),
-    user: Optional[str] = typer.Option(None, "--user", "-u", help="User to run service as (default: meltr)"),
-    group: Optional[str] = typer.Option(None, "--group", "-g", help="Group to run service as (default: same as user)"),
-    create_user: bool = typer.Option(True, "--create-user/--no-create-user", help="Create service user if it doesn't exist"),
+    meltr_home: str | None = typer.Option(None, "--home", help="MELTR_HOME directory"),
+    meltr_bin: str | None = typer.Option(None, "--binary", help="Path to meltr binary"),
+    user: str | None = typer.Option(
+        None, "--user", "-u", help="User to run service as (default: meltr)"
+    ),
+    group: str | None = typer.Option(
+        None, "--group", "-g", help="Group to run service as (default: same as user)"
+    ),
+    create_user: bool = typer.Option(
+        True, "--create-user/--no-create-user", help="Create service user if it doesn't exist"
+    ),
 ) -> None:
     """Install MELTr as a systemd service.
 
@@ -126,7 +136,7 @@ def service_install(
     _check_root()
 
     try:
-        service_user = user or 'meltr'
+        service_user = user or "meltr"
         service_group = group or service_user
 
         if meltr_bin:
@@ -159,15 +169,21 @@ def service_install(
             on_user_created=lambda msg: console.print(f"[green]✓ {msg}[/green]"),
             on_group_created=lambda msg: console.print(f"[green]✓ {msg}[/green]"),
             on_user_exists=lambda msg: console.print(f"[yellow]⚠ {msg}[/yellow]"),
-            on_no_pwd_grp=lambda: console.print("[yellow]⚠ pwd/grp modules not available, skipping user/group creation[/yellow]"),
-            on_useradd_missing=lambda: console.print("[yellow]⚠ useradd/groupadd not found, skipping user/group creation[/yellow]"),
+            on_no_pwd_grp=lambda: console.print(
+                "[yellow]⚠ pwd/grp modules not available, skipping user/group creation[/yellow]"
+            ),
+            on_useradd_missing=lambda: console.print(
+                "[yellow]⚠ useradd/groupadd not found, skipping user/group creation[/yellow]"
+            ),
         )
 
         if service_uid == 0 and service_gid == 0 and (pwd is None or grp is None):
             console.print("[yellow]⚠ pwd/grp modules not available, using root ownership[/yellow]")
             console.print("[yellow]⚠ Service may not start correctly[/yellow]")
         elif service_uid == 0 and service_gid == 0:
-            console.print(f"[yellow]⚠ Could not get {service_user} user info - using root ownership[/yellow]")
+            console.print(
+                f"[yellow]⚠ Could not get {service_user} user info - using root ownership[/yellow]"
+            )
             console.print("[yellow]⚠ Service may not start correctly[/yellow]")
 
         # Set ownership to service user so service can write
@@ -175,23 +191,23 @@ def service_install(
             os.chown(home_path, service_uid, service_gid)
             parent = home_path.parent
             if parent.exists():
-                if parent.name.lower() in ('meltr', 'logforge'):
+                if parent.name.lower() in ("meltr", "logforge"):
                     os.chown(parent, service_uid, service_gid)
                 elif (
-                    parent.name == 'data'
-                    and parent.parent.name.lower() in ('meltr', 'logforge')
+                    parent.name == "data"
+                    and parent.parent.name.lower() in ("meltr", "logforge")
                     and parent.parent.exists()
                 ):
                     os.chown(parent.parent, service_uid, service_gid)
 
         install_root = get_install_root_from_binary(bin_path)
         if install_root is not None:
-            app_log_dir = install_root / 'logs'
+            app_log_dir = install_root / "logs"
             app_log_dir.mkdir(parents=True, exist_ok=True)
             if service_uid is not None and (service_uid, service_gid) != (0, 0):
                 os.chown(app_log_dir, service_uid, service_gid)
         else:
-            log_dir = Path('/var/log/meltr')
+            log_dir = Path("/var/log/meltr")
             log_dir.mkdir(parents=True, exist_ok=True)
             if service_uid is not None and (service_uid, service_gid) != (0, 0):
                 os.chown(log_dir, service_uid, service_gid)
@@ -204,12 +220,12 @@ def service_install(
             service_group=service_group,
         )
 
-        service_file_path = Path('/etc/systemd/system/meltr.service')
+        service_file_path = Path("/etc/systemd/system/meltr.service")
         service_file_path.write_text(service_content)
         console.print(f"[green]✓ Created service file: {service_file_path}[/green]")
 
         # Reload systemd
-        subprocess.run(['systemctl', 'daemon-reload'], check=True)
+        subprocess.run(["systemctl", "daemon-reload"], check=True)
         console.print("[green]✓ Reloaded systemd daemon[/green]")
 
         console.print("\n[green]Service installed successfully![/green]")
@@ -238,17 +254,17 @@ def service_uninstall() -> None:
 
     try:
         # Stop and disable service
-        subprocess.run(['systemctl', 'stop', 'meltr'], check=False)
-        subprocess.run(['systemctl', 'disable', 'meltr'], check=False)
+        subprocess.run(["systemctl", "stop", "meltr"], check=False)
+        subprocess.run(["systemctl", "disable", "meltr"], check=False)
 
         # Remove service file
-        service_file = Path('/etc/systemd/system/meltr.service')
+        service_file = Path("/etc/systemd/system/meltr.service")
         if service_file.exists():
             service_file.unlink()
             console.print("[green]✓ Removed service file[/green]")
 
         # Reload systemd
-        subprocess.run(['systemctl', 'daemon-reload'], check=True)
+        subprocess.run(["systemctl", "daemon-reload"], check=True)
         console.print("[green]✓ Service uninstalled[/green]")
 
     except subprocess.CalledProcessError as e:
@@ -262,7 +278,7 @@ def service_start() -> None:
     _check_root()
 
     try:
-        subprocess.run(['systemctl', 'start', 'meltr'], check=True)
+        subprocess.run(["systemctl", "start", "meltr"], check=True)
         console.print("[green]✓ Service started[/green]")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -275,7 +291,7 @@ def service_stop() -> None:
     _check_root()
 
     try:
-        subprocess.run(['systemctl', 'stop', 'meltr'], check=True)
+        subprocess.run(["systemctl", "stop", "meltr"], check=True)
         console.print("[green]✓ Service stopped[/green]")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -288,7 +304,7 @@ def service_restart() -> None:
     _check_root()
 
     try:
-        subprocess.run(['systemctl', 'restart', 'meltr'], check=True)
+        subprocess.run(["systemctl", "restart", "meltr"], check=True)
         console.print("[green]✓ Service restarted[/green]")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -301,7 +317,7 @@ def service_status() -> None:
     try:
         # Run systemctl status and capture output
         result = subprocess.run(
-            ['systemctl', 'status', 'meltr', '--no-pager'],
+            ["systemctl", "status", "meltr", "--no-pager"],
             capture_output=True,
             text=True,
         )
@@ -314,4 +330,3 @@ def service_status() -> None:
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
-
