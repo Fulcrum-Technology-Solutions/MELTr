@@ -803,6 +803,54 @@ def templates_list(
         raise typer.Exit(code=1)
 
 
+@app.command("preview")
+def templates_preview(
+    template_id: str = typer.Argument(..., help="Template ID to preview"),
+    count: int = typer.Option(1, "--count", min=1, max=20, help="Number of sample events"),
+    api_url: Optional[str] = typer.Option(None, "--api-url", envvar="MELTR_API_URL"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
+    json_output: bool = typer.Option(False, "--json", help="Print raw JSON response"),
+) -> None:
+    """Render sample events from a template via the management API."""
+    from meltr.cli.api_client import get_api_client
+
+    try:
+        client = get_api_client(api_url=api_url, api_key=api_key)
+        client.require_service_running()
+        response = client.post(
+            f"/api/templates/{template_id}/preview",
+            json={"count": count},
+        )
+        if response.status_code == 404:
+            console.print(f"[red]Error: Template '{template_id}' not found[/red]")
+            raise typer.Exit(code=1)
+        if response.status_code == 422:
+            detail = response.json().get("detail", response.text)
+            console.print(f"[red]Preview failed: {detail}[/red]")
+            raise typer.Exit(code=1)
+        if response.status_code == 401:
+            console.print("[red]Error: Invalid or missing API key[/red]")
+            raise typer.Exit(code=1)
+        if response.status_code != 200:
+            console.print(f"[red]API error: HTTP {response.status_code}[/red]")
+            raise typer.Exit(code=1)
+
+        data = response.json()
+        if json_output:
+            console.print(json.dumps(data, indent=2))
+            return
+
+        console.print(f"\n[bold]Preview: {template_id}[/bold] ({data.get('count', count)} event(s))\n")
+        for index, event in enumerate(data.get("events", []), start=1):
+            console.print(f"[dim]--- Event {index} ---[/dim]")
+            console.print(event)
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
 @app.command("info")
 def templates_info(
     template_id: str = typer.Argument(..., help="Template ID"),

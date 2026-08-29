@@ -3,15 +3,27 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from meltr.api.auth import require_api_key
+from meltr.api.endpoints.entities import get_registry
+from meltr.entities.registry import EntityRegistry
 from meltr.templates.cache import TemplateCache
+<<<<<<< HEAD
+=======
+from meltr.templates.loader import TemplateLoader
+from meltr.templates.renderer import TemplateRenderer
+>>>>>>> 29a4a82 (feat: add template preview API and CLI command)
 
 router = APIRouter(
     prefix="/api/templates",
     tags=["templates"],
     dependencies=[Depends(require_api_key)],
 )
+
+
+class PreviewRequest(BaseModel):
+    count: int = Field(default=1, ge=1, le=20)
 
 
 def get_template_cache(request: Request) -> TemplateCache:
@@ -118,3 +130,28 @@ async def get_template(
             "documentation": metadata.documentation,
         },
     }
+
+
+@router.post("/{template_id:path}/preview")
+async def preview_template(
+    template_id: str,
+    body: PreviewRequest,
+    cache: Annotated[TemplateCache, Depends(get_template_cache)],
+    registry: Annotated[EntityRegistry, Depends(get_registry)],
+) -> dict:
+    """Render sample events from a template without starting a generator."""
+    template_info = cache.get_template(template_id)
+    if not template_info:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
+
+    renderer = TemplateRenderer(registry)
+    events: list[str] = []
+    try:
+        for _ in range(body.count):
+            events.append(renderer.render_template(str(template_info.template_path)))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    return {"template_id": template_id, "count": body.count, "events": events}
