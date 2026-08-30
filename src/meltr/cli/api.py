@@ -33,8 +33,8 @@ def _detach_from_terminal() -> None:
     """
     pid = os.fork()
     if pid > 0:
-        console.print(f"[green]LogForge started in background (PID {pid}).[/green]")
-        console.print(f"[dim]Logs: LOGFORGE_HOME/logs — stop: logforge stop | kill {pid}[/dim]")
+        console.print(f"[green]MELTr started in background (PID {pid}).[/green]")
+        console.print(f"[dim]Logs: MELTR_HOME/logs — stop: meltr stop | kill {pid}[/dim]")
         # Parent must not return through Typer/Click (Exit is caught as Exception in some versions).
         sys.stdout.flush()
         sys.stderr.flush()
@@ -61,7 +61,7 @@ def api_start(
         help="Stay in the foreground (logs to terminal). systemd uses this automatically via unit file.",
     ),
 ) -> None:
-    """Start the LogForge API server and service."""
+    """Start the MELTr API server and service."""
     from pathlib import Path
 
     config_path = Path(config) if config else None
@@ -73,7 +73,7 @@ def api_start(
             else:
                 console.print(
                     "[yellow]Fork not available; running in foreground "
-                    "(use your service manager to run LogForge in the background).[/yellow]"
+                    "(use your service manager to run MELTr in the background).[/yellow]"
                 )
         service = LogForgeService(config_path=config_path)
 
@@ -107,7 +107,7 @@ def api_stop(
         help="Seconds to wait after SIGTERM before SIGKILL",
     ),
 ) -> None:
-    """Stop the LogForge daemon (PID from LOGFORGE_HOME/run/meltr.pid)."""
+    """Stop the MELTr daemon (PID from MELTR_HOME/run/meltr.pid)."""
     import os
     import signal
     import time
@@ -120,7 +120,7 @@ def api_stop(
     )
 
     if not hasattr(os, "kill"):
-        console.print("[red]logforge stop requires a POSIX system with os.kill[/red]")
+        console.print("[red]meltr stop requires a POSIX system with os.kill[/red]")
         raise typer.Exit(code=1)
 
     home = get_logforge_home()
@@ -149,15 +149,15 @@ def api_stop(
         raise typer.Exit(code=1) from None
 
     if not cmdline_suggests_logforge(pid):
-        console.print(f"[red]PID {pid} does not appear to be LogForge; refusing to kill.[/red]")
+        console.print(f"[red]PID {pid} does not appear to be MELTr; refusing to kill.[/red]")
         raise typer.Exit(code=1)
 
-    console.print(f"[green]Stopping LogForge (PID {pid})...[/green]")
+    console.print(f"[green]Stopping MELTr (PID {pid})...[/green]")
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
         remove_service_pidfile(home)
-        console.print("[green]LogForge already stopped.[/green]")
+        console.print("[green]MELTr already stopped.[/green]")
         raise typer.Exit(code=0) from None
 
     deadline = time.monotonic() + timeout
@@ -166,7 +166,7 @@ def api_stop(
             os.kill(pid, 0)
         except ProcessLookupError:
             remove_service_pidfile(home)
-            console.print("[green]LogForge stopped.[/green]")
+            console.print("[green]MELTr stopped.[/green]")
             raise typer.Exit(code=0) from None
         time.sleep(0.2)
 
@@ -176,4 +176,4 @@ def api_stop(
     except ProcessLookupError:
         pass
     remove_service_pidfile(home)
-    console.print("[green]LogForge stopped.[/green]")
+    console.print("[green]MELTr stopped.[/green]")

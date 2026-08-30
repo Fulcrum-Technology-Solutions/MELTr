@@ -1,4 +1,4 @@
-"""Restart helpers for the top-level `logforge restart` command."""
+"""Restart helpers for the top-level `meltr restart` command."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def restart(
     api_stop: Callable[..., None],
     api_start: Callable[..., None],
 ) -> None:
-    """Restart LogForge via systemd if possible, else local PID-file stop/start."""
+    """Restart MELTr via systemd if possible, else local PID-file stop/start."""
     if systemd_unit_exists(unit) and systemd_restart(unit):
         console.print("[green]✓ Restarted via systemd[/green]")
         return

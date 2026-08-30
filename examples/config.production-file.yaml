@@ -1,4 +1,4 @@
-# LogForge Production Configuration
+# MELTr Production Configuration
 # This config outputs to file with rotation for production use
 
 version: "1.0"

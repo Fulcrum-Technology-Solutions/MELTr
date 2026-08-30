@@ -1,4 +1,4 @@
-"""Community API client for LogForge Templates Registry."""
+"""Community API client for the MELTr community templates registry."""
 
 import time
 from collections.abc import Callable
@@ -34,7 +34,7 @@ class CommunityAPIRateLimitError(CommunityAPIError):
 
 
 class CommunityAPIClient:
-    """HTTP client for LogForge Templates Registry API.
+    """HTTP client for the community templates registry API.
 
     Provides methods to interact with the Templates-UI API:
     - List vendors

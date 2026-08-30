@@ -1,4 +1,4 @@
-# LogForge Production Configuration
+# MELTr Production Configuration
 # This config outputs to HTTP endpoints with authentication
 # 
 # Authentication tokens should be set as environment variables for security:
@@ -72,7 +72,7 @@ outputs:
       headers:
         Authorization: "Bearer ${API_TOKEN}"
         Content-Type: "application/json"
-        User-Agent: "LogForge/1.0"
+        User-Agent: "MELTr/2.0"
       batch_size: 100  # Send events in batches of 100
       batch_interval: 5  # Or send every 5 seconds, whichever comes first
       timeout: 30  # Request timeout in seconds
@@ -101,7 +101,7 @@ outputs:
       headers:
         X-API-Key: "${CUSTOM_API_KEY}"
         Content-Type: "application/json"
-        X-Source: "logforge"
+        X-Source: "meltr"
       batch_size: 50
       batch_interval: 10
       timeout: 30

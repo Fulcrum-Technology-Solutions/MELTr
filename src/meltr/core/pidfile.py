@@ -1,4 +1,4 @@
-"""PID file for tarball / CLI-managed LogForge daemon (logforge stop)."""
+"""PID file for tarball / CLI-managed MELTr daemon (meltr stop)."""
 
 import os
 import sys
@@ -39,7 +39,7 @@ def remove_service_pidfile(home: Path | None = None) -> None:
 
 
 def cmdline_suggests_logforge(pid: int) -> bool:
-    """Best-effort check that pid is a LogForge service (Linux /proc)."""
+    """Best-effort check that pid is a MELTr service (Linux /proc)."""
     if sys.platform != "linux":
         return True
     proc = Path(f"/proc/{pid}/cmdline")
@@ -48,4 +48,4 @@ def cmdline_suggests_logforge(pid: int) -> bool:
     except (OSError, FileNotFoundError):
         return False
     cmd = raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").lower()
-    return "logforge" in cmd
+    return "meltr" in cmd or "logforge" in cmd

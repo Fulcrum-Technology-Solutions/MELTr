@@ -402,7 +402,7 @@ class Engine:
             if self._thread_pool is None:
                 pool_size = self._calculate_thread_pool_size()
                 self._thread_pool = ThreadPoolExecutor(
-                    max_workers=pool_size, thread_name_prefix="logforge-generator"
+                    max_workers=pool_size, thread_name_prefix="meltr-generator"
                 )
                 logger.info(f"Created thread pool with {pool_size} workers")
 

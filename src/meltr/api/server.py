@@ -30,7 +30,7 @@ class APIServer:
         self.app = FastAPI(
             title="MELTr Management API",
             version=__version__,
-            description="API for managing LogForge synthetic event log generation",
+            description="API for managing MELTr synthetic event log generation",
         )
         self.server_thread: threading.Thread | None = None
         self.server: uvicorn.Server | None = None
@@ -76,7 +76,7 @@ class APIServer:
             from meltr.api.auth import require_api_key
 
             await require_api_key(request)
-            lines = ["# LogForge output pipeline metrics"]
+            lines = ["# MELTr output metrics"]
             engine = getattr(request.app.state, "engine", None)
             if engine:
                 try:
@@ -87,10 +87,10 @@ class APIServer:
                             st = h.get_statistics()
                             name = st.get("name", getattr(h, "name", "unknown")).replace('"', '\\"')
                             lines.append(
-                                f'logforge_output_backlog_size{{output="{name}"}} {st.get("backlog_size", 0)}'
+                                f'meltr_output_backlog_size{{output="{name}"}} {st.get("backlog_size", 0)}'
                             )
                             lines.append(
-                                f'logforge_output_dropped_total{{output="{name}"}} {st.get("dropped_count", 0)}'
+                                f'meltr_output_dropped_total{{output="{name}"}} {st.get("dropped_count", 0)}'
                             )
                 except Exception:
                     pass
@@ -145,7 +145,7 @@ class APIServer:
                 logger.error(f"API server error: {e}", exc_info=True)
 
         self.server_thread = threading.Thread(
-            target=run_server, daemon=True, name="logforge-api-server"
+            target=run_server, daemon=True, name="meltr-api-server"
         )
         self.server_thread.start()
 

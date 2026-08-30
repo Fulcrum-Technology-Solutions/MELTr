@@ -77,7 +77,7 @@ def test_engine_does_not_load_internal_log_generator_when_disabled(tmp_path, mon
     assert INTERNAL_LOGS_GENERATOR_NAME not in engine._generators
 
 
-def test_internal_log_generator_forwards_logforge_records_to_outputs():
+def test_internal_log_generator_forwards_meltr_records_to_outputs():
     """Running internal-logs generator should deliver meltr.* records to output handlers."""
     token = f"lf-internal-forward-{uuid.uuid4()}"
     handler = MockOutputHandler("out1")
@@ -85,7 +85,7 @@ def test_internal_log_generator_forwards_logforge_records_to_outputs():
     gen.start()
     try:
         # WARNING passes default/root levels in test runners; exercises InternalLogForwardingHandler.emit
-        logging.getLogger("logforge").warning(token)
+        logging.getLogger("meltr").warning(token)
         deadline = time.time() + 3.0
         while time.time() < deadline:
             if any(token in e for e in handler._events):

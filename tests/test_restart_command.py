@@ -1,4 +1,4 @@
-"""Tests for Splunk-style `logforge restart` systemd vs local fallback."""
+"""Tests for Splunk-style `meltr restart` systemd vs local fallback."""
 
 import typer
 from rich.console import Console

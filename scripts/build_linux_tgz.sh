@@ -113,7 +113,7 @@ if [[ -f "$ROOT/LICENSE" ]]; then
 else
   echo "WARNING: $ROOT/LICENSE missing; tarball will include an Apache-2.0 reference stub. Add LICENSE to the repo (see NOTICE)." >&2
   cat > "$OUT_ROOT/LICENSE" << 'STUB'
-LogForge is licensed under the Apache License, Version 2.0.
+MELTr is licensed under the Apache License, Version 2.0.
 
 This build did not include the full LICENSE file from the repository. Use:
 https://www.apache.org/licenses/LICENSE-2.0.txt
@@ -140,19 +140,19 @@ pip-licenses --from=mixed --format=plain --with-urls --with-authors \
   > "$OUT_ROOT/THIRD_PARTY_NOTICES.txt" || {
   echo "pip-licenses failed; generating minimal notice" >&2
   {
-    echo "LogForge dependencies (see PyPI metadata). Regenerate with: pip install pip-licenses && pip-licenses"
+    echo "MELTr dependencies (see PyPI metadata). Regenerate with: pip install pip-licenses && pip-licenses"
     python -m pip freeze
   } > "$OUT_ROOT/THIRD_PARTY_NOTICES.txt"
 }
 deactivate || true
 
 cat > "$OUT_ROOT/README-TARBALL.md" << EOF
-# LogForge ${VERSION} (Linux x86_64 bundle)
+# MELTr ${VERSION} (Linux x86_64 bundle)
 
-This archive contains an embedded CPython build (see PYTHON_PSF_LICENSE.txt), LogForge application
+This archive contains an embedded CPython build (see PYTHON_PSF_LICENSE.txt), MELTr application
 code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/meltr\` launcher.
 
-**Source:** https://github.com/Fulcrum-Technology-Solutions/LogForge — build from tag \`v${VERSION}\`.
+**Source:** https://github.com/Fulcrum-Technology-Solutions/MELTr — build from tag \`v${VERSION}\`.
 
 ## Quick use
 

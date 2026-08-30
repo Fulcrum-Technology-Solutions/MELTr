@@ -60,8 +60,8 @@ class InternalLogGenerator:
         self._handler.setFormatter(
             logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         )
-        logforge_logger = logging.getLogger("logforge")
-        logforge_logger.addHandler(self._handler)
+        meltr_logger = logging.getLogger("meltr")
+        meltr_logger.addHandler(self._handler)
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
@@ -80,8 +80,8 @@ class InternalLogGenerator:
             self._thread.join(timeout=5.0)
         if self._handler:
             try:
-                logforge_logger = logging.getLogger("logforge")
-                logforge_logger.removeHandler(self._handler)
+                meltr_logger = logging.getLogger("meltr")
+                meltr_logger.removeHandler(self._handler)
             except Exception as e:
                 logger.warning(f"Error removing internal log handler: {e}")
             self._handler = None

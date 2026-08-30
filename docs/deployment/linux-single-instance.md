@@ -31,12 +31,12 @@ cd /opt/meltr
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install logforge
+pip install meltr
 ```
 
-Or install from a wheel: `pip install /path/to/logforge-*.whl`.
+Or install from a wheel: `pip install /path/to/meltr-*.whl`.
 
-2. Put `logforge` on your PATH for interactive use (optional but convenient):
+2. Put `meltr` on your PATH for interactive use (optional but convenient):
 
 ```bash
 sudo ln -sf /opt/meltr/.venv/bin/meltr /usr/local/bin/meltr
@@ -49,7 +49,7 @@ The [systemd install](../../src/meltr/cli/service.py) logic also discovers `/opt
 ## Filesystem layout
 
 - **Install tree:** Keep `/opt/meltr` (application + `.venv`) on a **single filesystem/mount**, as you would for other `/opt` products. Avoid splitting the venv across devices.
-- **State directory (`MELTR_HOME`):** Config, entities, templates, and runtime files (`run/`, etc.) live here. When the `logforge` binary resolves under `/opt/meltr`, the default is **`/opt/meltr`** (product root). Application logs default to **`/opt/meltr/logs/`** (see [`paths.py`](../../src/meltr/core/paths.py)).
+- **State directory (`MELTR_HOME`):** Config, entities, templates, and runtime files (`run/`, etc.) live here. When the `meltr` binary resolves under `/opt/meltr`, the default is **`/opt/meltr`** (product root). Application logs default to **`/opt/meltr/logs/`** (see [`paths.py`](../../src/meltr/core/paths.py)).
 - **Large or external data:** Put high-volume **file outputs** or other large paths **outside** `MELTR_HOME` by configuring explicit paths in `config.yaml` (same idea as keeping heavy queues outside a product’s install tree).
 
 ```bash
@@ -64,7 +64,7 @@ Create `config.yaml`, `entities.yaml`, and directory structure under `MELTR_HOME
 cd /opt/meltr
 source .venv/bin/activate
 export MELTR_HOME=/opt/meltr
-logforge init --force
+meltr init --force
 ```
 
 - As a **normal user** (non-root), `init` defaults to **not** creating the `meltr` system user; you do not need `--no-create-user` unless you explicitly passed `--create-user` earlier.
@@ -92,17 +92,17 @@ To stop a manually started instance (foreground or background): **`meltr stop`**
 
 ```bash
 sudo mkdir -p /opt/meltr
-sudo logforge init --directory /opt/meltr --user meltr --group meltr --force
+sudo meltr init --directory /opt/meltr --user meltr --group meltr --force
 ```
 
 **B — State under `/var/lib`:** pass `--home /var/lib/logforge` on install.
 
 ```bash
 sudo mkdir -p /var/lib/logforge
-sudo logforge init --directory /var/lib/logforge --user meltr --group meltr --force
+sudo meltr init --directory /var/lib/logforge --user meltr --group meltr --force
 ```
 
-2. Install the unit (uses `WorkingDirectory`, `MELTR_HOME`, `ExecStart=<logforge> api start`, journal logging, `LimitNOFILE=65536`). `service install` reloads systemd.
+2. Install the unit (uses `WorkingDirectory`, `MELTR_HOME`, `ExecStart=<meltr> api start`, journal logging, `LimitNOFILE=65536`). `service install` reloads systemd.
 
 ```bash
 # A: omit --home → unit sets MELTR_HOME=/opt/meltr
@@ -111,7 +111,7 @@ sudo /opt/meltr/app/bin/meltr service install --user meltr --group meltr --binar
 # B: explicit state directory
 # sudo meltr service install --user meltr --group meltr --home /var/lib/logforge --binary /opt/meltr/app/bin/meltr
 
-sudo systemctl enable --now logforge
+sudo systemctl enable --now meltr
 ```
 
 3. Check status:
@@ -119,7 +119,7 @@ sudo systemctl enable --now logforge
 ```bash
 sudo systemctl status meltr
 meltr service status
-sudo journalctl -u logforge -n 50 --no-pager
+sudo journalctl -u meltr -n 50 --no-pager
 ```
 
 Use `meltr service stop` / `meltr service start` / `meltr service restart` as needed.
@@ -129,8 +129,8 @@ Use `meltr service stop` / `meltr service start` / `meltr service restart` as ne
 For quick evaluation without `/opt` or systemd:
 
 ```bash
-pip install logforge   # or pipx install logforge
-logforge init --force  # uses ~/.meltr by default when MELTR_HOME is unset
+pip install meltr   # or pipx install meltr
+meltr init --force  # uses ~/.meltr by default when MELTR_HOME is unset
 meltr start
 ```
 
@@ -138,7 +138,7 @@ Override the data directory:
 
 ```bash
 export MELTR_HOME=/path/you/can/write
-logforge init --force
+meltr init --force
 ```
 
 ## See also

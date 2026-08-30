@@ -409,7 +409,7 @@ def test_save_config_timeout_keeps_warning_guidance(monkeypatch, tmp_path):
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
     assert "timed out" in out.lower()
-    assert "Use 'logforge config reload'" in out
+    assert "Use 'meltr config reload'" in out
 
 
 def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path):
@@ -438,7 +438,7 @@ def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path)
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
     assert "Could not apply changes automatically" in out
-    assert "Use 'logforge config reload'" in out
+    assert "Use 'meltr config reload'" in out
 
 
 def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_path):
