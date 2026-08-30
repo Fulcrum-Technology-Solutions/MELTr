@@ -59,7 +59,7 @@ When `include_metadata: true` on an HTTP output, each POST body is wrapped:
   "event": { "...": "rendered template payload" },
   "meltr_metadata": {
     "generated_at": "2026-08-29T14:00:00-04:00",
-    "generator": "lab-pipeline::0",
+    "generator": "identity-lab",
     "template_id": "vendor/product/source/event",
     "vendor": "vendor",
     "product": "product",
@@ -71,7 +71,7 @@ When `include_metadata: true` on an HTTP output, each POST body is wrapped:
 | Setting | Use when |
 |---------|----------|
 | `false` (default) | Downstream expects raw JSON/text (typical Splunk HEC `_raw`, Cribl passthrough) |
-| `true` | Router needs generator/template context (Cribl pipelines, custom normalizers) |
+| `true` | Router needs generator/template context (Cribl routes, custom normalizers) |
 
 The wrapper field name is `meltr_metadata`.
 
@@ -85,6 +85,6 @@ There is no separate `meltr outputs test` command in v2.0. Use:
 
 1. `meltr config validate` — schema and reference checks
 2. Start the service and watch output metrics: `GET /api/metrics` (requires auth when a key is set)
-3. Point a generator or pipeline at the output and inspect the downstream system
+3. Point a generator at the output and inspect the downstream system
 
 For a one-off probe, add a short **burst** schedule on a test generator so emission stops automatically.
