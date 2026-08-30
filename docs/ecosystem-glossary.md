@@ -26,7 +26,7 @@ Canonical terminology for the MELTr stack and transitional LogForge names. Link 
 | `LOGFORGE_API_KEY` | `MELTR_API_KEY` | Key-implies-auth for management API |
 | `logforge` CLI | `meltr` | `logforge` console script is a temporary alias |
 | LogForge OSS repo | **MELTr** | Former single-node engine home |
-| `logforge_metadata` | HTTP wrapper field name | Preserved in `include_metadata` payloads for routing |
+| `meltr_metadata` | HTTP wrapper field name | Preserved in `include_metadata` payloads for routing |
 
 ## API surfaces
 

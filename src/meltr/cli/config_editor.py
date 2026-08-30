@@ -394,7 +394,7 @@ def _create_http_output(name: str) -> OutputDefinition:
 
     # Metadata wrapping
     include_metadata = Confirm.ask(
-        "Include logforge_metadata wrapper? (wraps events with routing metadata)",
+        "Include meltr_metadata wrapper? (wraps events with routing metadata)",
         default=False,
     )
 
@@ -573,7 +573,7 @@ def _edit_http_output_definition(output: OutputDefinition) -> OutputDefinition:
         default=output.streaming if output.streaming is not None else True,
     )
     include_metadata = Confirm.ask(
-        "Include logforge_metadata wrapper?",
+        "Include meltr_metadata wrapper?",
         default=output.include_metadata,
     )
     policy = Prompt.ask(
@@ -1488,7 +1488,7 @@ def _edit_generator_interactive(config: Config) -> Config:
                     current_setting = "enabled" if output.include_metadata else "disabled"
                     console.print(f"\n[cyan]{output.name}[/cyan] (current: {current_setting})")
                     if Confirm.ask(
-                        f"  Include logforge_metadata wrapper for {output.name}?",
+                        f"  Include meltr_metadata wrapper for {output.name}?",
                         default=output.include_metadata,
                     ):
                         output.include_metadata = True

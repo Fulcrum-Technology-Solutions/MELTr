@@ -237,6 +237,16 @@ def test_schedule_unknown_mode_defaults_emit():
 # --- HTTP metadata + headers ---
 
 
+def test_wrap_event_uses_meltr_metadata_key():
+    handler = HTTPOutputHandler(name="hec", url="https://example.invalid/hec")
+    handler.include_metadata = True
+    handler.generator_name = "lab::0"
+    handler.timezone = "UTC"
+    handler.template_metadata = {"template_id": "v/p/d/e"}
+    wrapped = handler._wrap_event_with_metadata({"msg": "hi"})
+    assert set(wrapped.keys()) == {"event", "meltr_metadata"}
+
+
 def test_http_wrap_event_with_metadata():
     handler = HTTPOutputHandler(name="hec", url="https://example.invalid/hec")
     handler.include_metadata = True
@@ -250,8 +260,8 @@ def test_http_wrap_event_with_metadata():
     }
     wrapped = handler._wrap_event_with_metadata({"msg": "hi"})
     assert wrapped["event"] == {"msg": "hi"}
-    assert wrapped["logforge_metadata"]["generator"] == "lab::0"
-    assert wrapped["logforge_metadata"]["template_id"] == "v/p/d/e"
+    assert wrapped["meltr_metadata"]["generator"] == "lab::0"
+    assert wrapped["meltr_metadata"]["template_id"] == "v/p/d/e"
 
 
 def test_http_sanitize_header_values():
@@ -291,7 +301,7 @@ def test_http_send_single_event_with_metadata(monkeypatch):
 
     monkeypatch.setattr("meltr.outputs.http.requests.request", fake_request)
     handler._send_single_event('{"event":"data"}')
-    assert "logforge_metadata" in captured["json"]
+    assert "meltr_metadata" in captured["json"]
     assert captured["json"]["event"]["event"] == "data"
 
 

@@ -57,7 +57,7 @@ When `include_metadata: true` on an HTTP output, each POST body is wrapped:
 ```json
 {
   "event": { "...": "rendered template payload" },
-  "logforge_metadata": {
+  "meltr_metadata": {
     "generated_at": "2026-08-29T14:00:00-04:00",
     "generator": "lab-pipeline::0",
     "template_id": "vendor/product/source/event",
@@ -73,7 +73,7 @@ When `include_metadata: true` on an HTTP output, each POST body is wrapped:
 | `false` (default) | Downstream expects raw JSON/text (typical Splunk HEC `_raw`, Cribl passthrough) |
 | `true` | Router needs generator/template context (Cribl pipelines, custom normalizers) |
 
-The wrapper field name remains `logforge_metadata` for compatibility with existing Cribl/Splunk routing rules.
+The wrapper field name is `meltr_metadata`.
 
 ## Interactive setup
 

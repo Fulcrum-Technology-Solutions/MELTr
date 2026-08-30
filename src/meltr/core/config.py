@@ -143,7 +143,7 @@ class OutputDefinition(BaseModel):
     rotation: OutputRotationConfig | None = Field(default=None, description="File rotation")
     timeout: int | None = Field(default=None, description="Timeout in seconds")
     include_metadata: bool = Field(
-        default=False, description="Include logforge_metadata wrapper for HTTP output"
+        default=False, description="Include meltr_metadata wrapper for HTTP output"
     )
     buffer_overflow_policy: str = Field(
         default="drop_newest",

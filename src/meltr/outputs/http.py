@@ -313,13 +313,13 @@ class HTTPOutputHandler(OutputHandler):
                     self._enqueue_batch_buffer(event)
 
     def _wrap_event_with_metadata(self, event: Any) -> dict[str, Any]:
-        """Wrap event with logforge_metadata.
+        """Wrap event with meltr_metadata.
 
         Args:
             event: Event data (dict or string)
 
         Returns:
-            Wrapped event with 'event' and 'logforge_metadata' fields
+            Wrapped event with 'event' and 'meltr_metadata' fields
         """
         from datetime import datetime
         from zoneinfo import ZoneInfo
@@ -344,7 +344,7 @@ class HTTPOutputHandler(OutputHandler):
             if "data_source" in self.template_metadata:
                 metadata["data_source"] = self.template_metadata["data_source"]
 
-        return {"event": event, "logforge_metadata": metadata}
+        return {"event": event, "meltr_metadata": metadata}
 
     def _sanitize_header_value(self, key: str, value: str) -> str:
         """Sanitize sensitive header values for logging.
