@@ -500,7 +500,7 @@ def test_validate_package_structure(tmp_path):
     assert validate_package_structure(vendor_dir) is True
 
 
-# --- CLI: pipelines, generators, config ---
+# --- CLI: generators, config ---
 
 
 def _mock_api_client(responses: dict):
@@ -527,62 +527,6 @@ def _mock_api_client(responses: dict):
             return Resp(**responses.get(("POST", path), {"payload": {}}))
 
     return Client()
-
-
-def test_cli_pipelines_list(tmp_path, monkeypatch):
-    from meltr.cli.pipelines import app as pipelines_app
-
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    payload = {
-        "pipelines": [
-            {
-                "name": "lab",
-                "state": "STOPPED",
-                "streams": [{"name": "lab::0"}],
-                "enabled": True,
-            }
-        ]
-    }
-    with patch(
-        "meltr.cli.pipelines.get_api_client",
-        return_value=_mock_api_client({("GET", "/api/pipelines"): {"payload": payload}}),
-    ):
-        result = CliRunner().invoke(pipelines_app, ["list"])
-    assert result.exit_code == 0
-    assert "lab" in result.output
-
-
-def test_cli_pipelines_start_stop_status(tmp_path, monkeypatch):
-    from meltr.cli.pipelines import app as pipelines_app
-
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    start_payload = {"message": "Pipeline started", "state": "RUNNING"}
-    stop_payload = {"message": "Pipeline stopped", "state": "STOPPED"}
-    detail_payload = {
-        "name": "lab",
-        "state": "RUNNING",
-        "enabled": True,
-        "outputs": ["file-out"],
-        "schedule": {"mode": "continuous"},
-        "statistics": {"events_generated": 10, "errors": 0},
-        "streams": [
-            {"name": "lab::0", "template": "v/p/d/e", "state": "RUNNING", "events_generated": 10},
-        ],
-    }
-    client = _mock_api_client(
-        {
-            ("POST", "/api/pipelines/lab/start"): {"payload": start_payload},
-            ("POST", "/api/pipelines/lab/stop"): {"payload": stop_payload},
-            ("GET", "/api/pipelines/lab"): {"payload": detail_payload},
-            ("GET", "/api/pipelines"): {"payload": {"pipelines": [detail_payload]}},
-        }
-    )
-    with patch("meltr.cli.pipelines.get_api_client", return_value=client):
-        runner = CliRunner()
-        assert runner.invoke(pipelines_app, ["start", "lab"]).exit_code == 0
-        assert runner.invoke(pipelines_app, ["stop", "lab"]).exit_code == 0
-        assert runner.invoke(pipelines_app, ["status", "lab"]).exit_code == 0
-        assert runner.invoke(pipelines_app, ["status"]).exit_code == 0
 
 
 def test_cli_generators_list_verbose(tmp_path, monkeypatch):
@@ -632,44 +576,6 @@ def test_cli_config_show_json(tmp_path, monkeypatch):
     result = CliRunner().invoke(config_app, ["show", "--format", "json", "--path", "api.port"])
     assert result.exit_code == 0
     assert "8080" in result.output
-
-
-# --- API pipelines auth ---
-
-
-def test_api_pipelines_require_auth(tmp_path, monkeypatch):
-    from meltr.api.server import APIServer
-
-    monkeypatch.setenv("MELTR_API_KEY", "pipe-secret")
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    cfg = create_default_config(tmp_path)
-    cfg.api.auth = AuthConfig(enabled=False, key=None)
-    server = APIServer(cfg)
-    client = TestClient(server.app)
-
-    assert client.get("/api/pipelines").status_code == 401
-    headers = {"Authorization": "Bearer pipe-secret"}
-    assert client.get("/api/pipelines", headers=headers).status_code == 503  # no engine
-
-
-def test_api_pipelines_not_found(tmp_path, monkeypatch):
-    from meltr.api.server import APIServer
-    from meltr.core.engine import Engine
-    from meltr.entities.registry import EntityRegistry
-
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    cfg = create_default_config(tmp_path)
-    registry = EntityRegistry(cfg)
-    engine = Engine(cfg, registry)
-    server = APIServer(cfg)
-    server.app.state.engine = engine
-    client = TestClient(server.app)
-
-    try:
-        assert client.get("/api/pipelines/missing").status_code == 404
-    finally:
-        engine.shutdown()
 
 
 # --- template filters ---

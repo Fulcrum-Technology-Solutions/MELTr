@@ -7,7 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from meltr.core.pipeline import ScheduleSharedState
+    from meltr.core.schedule import ScheduleSharedState
 from zoneinfo import ZoneInfo
 
 from meltr.core.config import GeneratorConfig

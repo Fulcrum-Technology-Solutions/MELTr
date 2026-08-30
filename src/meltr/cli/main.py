@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 
 from meltr import __version__
-from meltr.cli import api, config, dashboard, entities, generators, pipelines, service, templates
+from meltr.cli import api, config, dashboard, entities, generators, service, templates
 from meltr.cli.init import init
 
 console = Console()
@@ -52,7 +52,6 @@ app.add_typer(config.app, name="config")
 app.add_typer(entities.app, name="entities")
 app.add_typer(templates.app, name="templates")
 app.add_typer(generators.app, name="generators")
-app.add_typer(pipelines.app, name="pipelines")
 app.add_typer(api.app, name="api")
 app.add_typer(service.app, name="service")
 app.add_typer(dashboard.app, name="dashboard")

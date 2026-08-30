@@ -55,7 +55,7 @@ def test_cli_main_help():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"], env={"COLUMNS": "200", "TERM": "dumb"})
     assert result.exit_code == 0
-    assert "pipelines" in result.stdout
+    assert "generators" in result.stdout
 
 
 def test_config_quick_add_generator(tmp_path, monkeypatch):

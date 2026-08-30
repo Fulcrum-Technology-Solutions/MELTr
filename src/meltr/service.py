@@ -123,16 +123,31 @@ class LogForgeService:
         logger.info(f"API server running on {self.config.api.host}:{self.config.api.port}")
 
         # Start enabled generators (including reserved internal-logs when materialized)
+        from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
+
         for gen_config in self.config.generators:
-            if gen_config.enabled:
-                try:
-                    self.engine.start_generator(gen_config.name)
-                    logger.info(f"Started generator: {gen_config.name}")
-                except KeyError:
-                    # Disabled or unmaterialized generators (e.g. internal-logs with no outputs)
-                    pass
-                except Exception as e:
-                    logger.error(f"Failed to start generator {gen_config.name}: {e}", exc_info=True)
+            if not gen_config.enabled:
+                continue
+            if gen_config.name not in self.engine._generators:
+                if gen_config.name == INTERNAL_LOGS_GENERATOR_NAME:
+                    continue
+                logger.warning(
+                    "Enabled generator %s was not loaded; skipping start",
+                    gen_config.name,
+                )
+                continue
+            try:
+                self.engine.start_generator(gen_config.name)
+                logger.info(f"Started generator: {gen_config.name}")
+            except KeyError as e:
+                logger.error(
+                    "Unexpected KeyError starting generator %s: %s",
+                    gen_config.name,
+                    e,
+                    exc_info=True,
+                )
+            except Exception as e:
+                logger.error(f"Failed to start generator {gen_config.name}: {e}", exc_info=True)
 
     def stop(self) -> None:
         """Stop the service."""

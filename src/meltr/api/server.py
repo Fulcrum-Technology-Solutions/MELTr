@@ -57,7 +57,6 @@ class APIServer:
             entities,
             generators,
             health,
-            pipelines,
             templates,
         )
 
@@ -70,7 +69,6 @@ class APIServer:
         self.app.include_router(templates.router)
         self.app.include_router(community.router)
         self.app.include_router(generators.router)
-        self.app.include_router(pipelines.router)
 
         @self.app.get("/api/metrics", response_class=PlainTextResponse)
         async def metrics(request: Request) -> str:

@@ -10,7 +10,6 @@ import yaml
 
 from meltr.core.config import (
     Config,
-    PipelineConfig,
     ScheduleConfig,
     create_default_config,
     load_config,
@@ -18,21 +17,24 @@ from meltr.core.config import (
 )
 
 
-def test_default_config_includes_empty_pipelines(tmp_path, monkeypatch):
-    """Default config should include an empty pipelines list."""
+def test_default_config_has_no_pipelines_field(tmp_path, monkeypatch):
+    """Default config should not expose a pipelines field."""
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     config = create_default_config(tmp_path)
-    assert config.pipelines == []
+    assert "pipelines" not in Config.model_fields
 
 
-def test_pipeline_yaml_round_trip(tmp_path, monkeypatch):
-    """Pipeline and schedule config should survive YAML load/save round-trip."""
+def test_generator_schedule_yaml_round_trip(tmp_path, monkeypatch):
+    """Generator schedule config should survive YAML load/save round-trip."""
+    from meltr.core.config import GeneratorConfig
+
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
 
     config = create_default_config(tmp_path)
-    config.pipelines = [
-        PipelineConfig(
+    config.generators.append(
+        GeneratorConfig(
             name="identity-lab",
+            template="vendor/product/datasource/event_a",
             enabled=True,
             timezone="America/New_York",
             outputs=["http-cribl", "file-out"],
@@ -42,31 +44,22 @@ def test_pipeline_yaml_round_trip(tmp_path, monkeypatch):
                 time="09:00-17:00",
                 timezone="America/New_York",
             ),
-            streams=[
-                {"template": "vendor/product/datasource/event_a", "weight": 1.0},
-                {"template": "vendor/product/datasource/event_b", "weight": 2.5},
-            ],
         )
-    ]
+    )
 
     config_path = tmp_path / "config.yaml"
     save_config(config, config_path)
     loaded = load_config(config_path, create_if_missing=False)
 
-    assert len(loaded.pipelines) == 1
-    pipeline = loaded.pipelines[0]
-    assert pipeline.name == "identity-lab"
-    assert pipeline.enabled is True
-    assert pipeline.timezone == "America/New_York"
-    assert pipeline.outputs == ["http-cribl", "file-out"]
-    assert pipeline.schedule.mode == "window"
-    assert pipeline.schedule.days == ["mon", "tue", "wed", "thu", "fri"]
-    assert pipeline.schedule.time == "09:00-17:00"
-    assert pipeline.schedule.timezone == "America/New_York"
-    assert len(pipeline.streams) == 2
-    assert pipeline.streams[0].template == "vendor/product/datasource/event_a"
-    assert pipeline.streams[0].weight == 1.0
-    assert pipeline.streams[1].weight == 2.5
+    assert len(loaded.generators) >= 2
+    gen = next(g for g in loaded.generators if g.name == "identity-lab")
+    assert gen.enabled is True
+    assert gen.timezone == "America/New_York"
+    assert gen.outputs == ["http-cribl", "file-out"]
+    assert gen.schedule.mode == "window"
+    assert gen.schedule.days == ["mon", "tue", "wed", "thu", "fri"]
+    assert gen.schedule.time == "09:00-17:00"
+    assert gen.schedule.timezone == "America/New_York"
 
 
 def test_schedule_mode_validation():
@@ -139,13 +132,19 @@ def test_config_validation():
         assert config.entity_registry.auto_save is True
 
 
-def test_default_config_includes_internal_logs():
-    """Test that default config has internal_logs section (disabled by default)."""
+def test_default_config_includes_internal_logs_generator():
+    """Test that default config includes reserved internal-logs generator entry."""
+    from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
+
     with tempfile.TemporaryDirectory() as tmpdir:
         config = create_default_config(Path(tmpdir))
-        assert hasattr(config, "internal_logs")
-        assert config.internal_logs.enabled is False
-        assert config.internal_logs.outputs == []
+        internal = next(
+            (g for g in config.generators if g.name == INTERNAL_LOGS_GENERATOR_NAME),
+            None,
+        )
+        assert internal is not None
+        assert internal.enabled is False
+        assert internal.outputs == []
 
 
 def test_edit_output_updates_existing_output_without_recreate(tmp_path, monkeypatch):
