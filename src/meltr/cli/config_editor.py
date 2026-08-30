@@ -96,6 +96,10 @@ def config_editor(
                 "[yellow]Available sections: outputs, generators, api, engine, logging[/yellow]"
             )
             return
+
+        if Confirm.ask("\nSave changes?", default=True):
+            _save_config(config)
+        return
     else:
         # Main menu
         while True:
@@ -128,7 +132,7 @@ def config_editor(
 
 def _show_main_menu() -> str:
     """Display main configuration menu."""
-    console.print("\n[bold]LogForge Configuration Editor[/bold]\n")
+    console.print("\n[bold]MELTr Configuration Editor[/bold]\n")
 
     menu = Panel(
         "[cyan]1.[/cyan] Manage Outputs\n"
@@ -252,8 +256,7 @@ def _create_output_interactive() -> OutputDefinition | None:
 
 def _create_file_output(name: str) -> OutputDefinition:
     """Create file output interactively."""
-    get_logforge_home()
-    default_path = "${LOGFORGE_HOME}/outputs/{generator}-{date}.log"
+    default_path = "${MELTR_HOME}/outputs/{generator}-{date}.log"
 
     path = Prompt.ask(
         "File path (supports variables: {generator}, {date}, {hour}, {vendor}, {product})",
@@ -1732,14 +1735,14 @@ def _save_config(config: Config) -> bool:
                     )
                     console.print(f"[yellow]  Error: {str(e)}[/yellow]")
                     console.print(
-                        "[yellow]  Use 'logforge config reload' after starting the service.[/yellow]"
+                        "[yellow]  Use 'meltr config reload' after starting the service.[/yellow]"
                     )
             except requests.exceptions.Timeout:
                 console.print(
                     "[yellow]⚠ Service health check timed out (service may be slow or unresponsive)[/yellow]"
                 )
                 console.print(
-                    "[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]"
+                    "[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]"
                 )
             except Exception as e:
                 # Show actual error for debugging
@@ -1747,7 +1750,7 @@ def _save_config(config: Config) -> bool:
                     f"[yellow]⚠ Could not apply changes automatically: {type(e).__name__}: {str(e)}[/yellow]"
                 )
                 console.print(
-                    "[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]"
+                    "[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]"
                 )
         except Exception as e:
             # API client not available or service not running
@@ -1755,7 +1758,7 @@ def _save_config(config: Config) -> bool:
                 f"[yellow]⚠ Could not apply changes automatically: {type(e).__name__}: {str(e)}[/yellow]"
             )
             console.print(
-                "[yellow]  Use 'logforge config reload' to apply changes manually.[/yellow]"
+                "[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]"
             )
 
         return True
