@@ -1,11 +1,6 @@
 """Engine reload tests for output-definition driven generator recreation."""
 
-from meltr.core.config import (
-    GeneratorConfig,
-    InternalLogsConfig,
-    OutputDefinition,
-    create_default_config,
-)
+from meltr.core.config import GeneratorConfig, OutputDefinition, create_default_config
 from meltr.core.engine import Engine
 from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
 from meltr.entities.registry import EntityRegistry
@@ -71,7 +66,10 @@ def test_engine_reload_updates_internal_logs_when_output_definition_changes(tmp_
             buffer_overflow_policy="drop_newest",
         )
     ]
-    config.internal_logs = InternalLogsConfig(enabled=True, outputs=["http1"])
+    for gen in config.generators:
+        if gen.name == INTERNAL_LOGS_GENERATOR_NAME:
+            gen.enabled = True
+            gen.outputs = ["http1"]
 
     registry = EntityRegistry(config)
     engine = Engine(config, registry)

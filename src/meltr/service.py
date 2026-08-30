@@ -122,32 +122,17 @@ class LogForgeService:
         logger.info("LogForge service started successfully")
         logger.info(f"API server running on {self.config.api.host}:{self.config.api.port}")
 
-        # Start enabled generators
+        # Start enabled generators (including reserved internal-logs when materialized)
         for gen_config in self.config.generators:
             if gen_config.enabled:
                 try:
                     self.engine.start_generator(gen_config.name)
                     logger.info(f"Started generator: {gen_config.name}")
+                except KeyError:
+                    # Disabled or unmaterialized generators (e.g. internal-logs with no outputs)
+                    pass
                 except Exception as e:
                     logger.error(f"Failed to start generator {gen_config.name}: {e}", exc_info=True)
-
-        # Start enabled pipelines
-        for pipe_config in self.config.pipelines:
-            if pipe_config.enabled:
-                try:
-                    self.engine.start_pipeline(pipe_config.name)
-                    logger.info(f"Started pipeline: {pipe_config.name}")
-                except Exception as e:
-                    logger.error(f"Failed to start pipeline {pipe_config.name}: {e}", exc_info=True)
-
-        # Start internal log generator if configured
-        il = getattr(self.config, "internal_logs", None)
-        if il and il.enabled and il.outputs:
-            try:
-                self.engine.start_generator("internal-logs")
-                logger.info("Started internal log generator")
-            except Exception as e:
-                logger.error(f"Failed to start internal log generator: {e}", exc_info=True)
 
     def stop(self) -> None:
         """Stop the service."""

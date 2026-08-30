@@ -7,13 +7,12 @@ import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
-from meltr.core.config import Config
+from meltr.core.config import INTERNAL_LOGS_TEMPLATE_SENTINEL, Config, GeneratorConfig
 from meltr.core.generator import Generator, GeneratorState
 from meltr.core.internal_log_generator import (
     INTERNAL_LOGS_GENERATOR_NAME,
     InternalLogGenerator,
 )
-from meltr.core.pipeline import Pipeline
 from meltr.entities.registry import EntityRegistry
 from meltr.outputs.factory import create_output_handlers
 from meltr.templates.cache import TemplateCache
@@ -44,10 +43,6 @@ class Engine:
         self._generators: dict[str, Generator | InternalLogGenerator] = {}
         self._generators_lock = threading.Lock()
 
-        # Pipelines (orchestrate child generators)
-        self._pipelines: dict[str, Pipeline] = {}
-        self._pipelines_lock = threading.Lock()
-
         # Thread pool
         self._thread_pool: ThreadPoolExecutor | None = None
         self._generator_futures: dict[str, Future] = {}
@@ -56,7 +51,6 @@ class Engine:
 
         # Load generators from config
         self.load_generators_from_config()
-        self.load_pipelines_from_config()
 
         # Start background exception monitoring
         self._start_exception_monitoring()
@@ -74,6 +68,47 @@ class Engine:
         cpu_count = os.cpu_count() or 4
         return cpu_count * 5
 
+    def _should_materialize_internal_logs(self, gen_config: GeneratorConfig) -> bool:
+        """Return True when reserved internal-logs entry should be loaded."""
+        return (
+            gen_config.name == INTERNAL_LOGS_GENERATOR_NAME
+            and gen_config.enabled
+            and bool(gen_config.outputs)
+        )
+
+    def _create_internal_log_generator(
+        self, gen_config: GeneratorConfig, config: Config
+    ) -> InternalLogGenerator:
+        output_handlers = create_output_handlers(
+            gen_config.outputs,
+            config.outputs.definitions,
+            retry_config=config.outputs.retry,
+            buffer_size=config.outputs.buffer_size,
+        )
+        return InternalLogGenerator(output_handlers=output_handlers)
+
+    def _create_template_generator(
+        self, gen_config: GeneratorConfig, config: Config
+    ) -> Generator:
+        template_info = self.template_cache.get_template(gen_config.template)
+        if not template_info:
+            raise ValueError(f"Template not found: {gen_config.template}")
+
+        output_handlers = create_output_handlers(
+            gen_config.outputs,
+            config.outputs.definitions,
+            retry_config=config.outputs.retry,
+            buffer_size=config.outputs.buffer_size,
+        )
+
+        return Generator(
+            name=gen_config.name,
+            config=gen_config,
+            template_loader=TemplateLoader(config),
+            registry=self.registry,
+            output_handlers=output_handlers,
+        )
+
     def load_generators_from_config(self) -> None:
         """Load generator configurations and create Generator instances."""
         with self._generators_lock:
@@ -86,155 +121,25 @@ class Engine:
             # Create generators from config
             for gen_config in self.config.generators:
                 try:
-                    # Validate template exists
-                    template_info = self.template_cache.get_template(gen_config.template)
-                    if not template_info:
-                        logger.warning(
-                            f"Generator {gen_config.name}: Template not found: {gen_config.template}"
+                    if gen_config.name == INTERNAL_LOGS_GENERATOR_NAME:
+                        if not self._should_materialize_internal_logs(gen_config):
+                            continue
+                        internal_gen = self._create_internal_log_generator(
+                            gen_config, self.config
                         )
+                        self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
+                        logger.info(f"Loaded generator: {INTERNAL_LOGS_GENERATOR_NAME}")
                         continue
 
-                    # Create output handlers
-                    output_handlers = create_output_handlers(
-                        gen_config.outputs,
-                        self.config.outputs.definitions,
-                        retry_config=self.config.outputs.retry,
-                        buffer_size=self.config.outputs.buffer_size,
-                    )
+                    if gen_config.template == INTERNAL_LOGS_TEMPLATE_SENTINEL:
+                        continue
 
-                    # Create generator
-                    generator = Generator(
-                        name=gen_config.name,
-                        config=gen_config,
-                        template_loader=TemplateLoader(self.config),
-                        registry=self.registry,
-                        output_handlers=output_handlers,
-                    )
-
+                    generator = self._create_template_generator(gen_config, self.config)
                     self._generators[gen_config.name] = generator
                     logger.info(f"Loaded generator: {gen_config.name}")
 
                 except Exception as e:
                     logger.error(f"Failed to load generator {gen_config.name}: {e}", exc_info=True)
-
-            # Add internal log generator if configured
-            il_config = getattr(self.config, "internal_logs", None)
-            if il_config and il_config.enabled and il_config.outputs:
-                try:
-                    output_handlers = create_output_handlers(
-                        il_config.outputs,
-                        self.config.outputs.definitions,
-                        retry_config=self.config.outputs.retry,
-                        buffer_size=self.config.outputs.buffer_size,
-                    )
-                    internal_gen = InternalLogGenerator(output_handlers=output_handlers)
-                    self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
-                    logger.info(f"Loaded generator: {INTERNAL_LOGS_GENERATOR_NAME}")
-                except Exception as e:
-                    logger.error(
-                        f"Failed to load {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True
-                    )
-
-    def _collect_pipeline_child_names(self) -> set[str]:
-        """Return all registered pipeline child generator names."""
-        with self._pipelines_lock:
-            names: set[str] = set()
-            for pipeline in self._pipelines.values():
-                names.update(pipeline.child_generator_names)
-            return names
-
-    def load_pipelines_from_config(self) -> None:
-        """Load pipeline configurations and register child generators."""
-        with self._pipelines_lock:
-            for pipeline in self._pipelines.values():
-                for child_name in pipeline.child_generator_names:
-                    with self._generators_lock:
-                        child = self._generators.get(child_name)
-                        if child and child.state != GeneratorState.STOPPED:
-                            child.stop()
-                        self._generators.pop(child_name, None)
-                        self._generator_futures.pop(child_name, None)
-            self._pipelines.clear()
-
-        generator_names = {gen.name for gen in self.config.generators}
-
-        for pipe_config in self.config.pipelines:
-            if pipe_config.name in generator_names:
-                logger.error(
-                    f"Pipeline {pipe_config.name}: name collides with standalone generator"
-                )
-                continue
-
-            try:
-                pipeline = Pipeline.create(
-                    pipe_config,
-                    template_cache=self.template_cache,
-                    template_loader=TemplateLoader(self.config),
-                    registry=self.registry,
-                    output_definitions=self.config.outputs.definitions,
-                    retry_config=self.config.outputs.retry,
-                    buffer_size=self.config.outputs.buffer_size,
-                )
-
-                with self._generators_lock:
-                    collisions = [
-                        name for name in pipeline.child_generator_names if name in self._generators
-                    ]
-                if collisions:
-                    logger.error(
-                        f"Pipeline {pipe_config.name}: child name collision(s): "
-                        f"{', '.join(collisions)}"
-                    )
-                    continue
-
-                with self._pipelines_lock:
-                    self._pipelines[pipe_config.name] = pipeline
-
-                with self._generators_lock:
-                    for child_name, child_gen in zip(
-                        pipeline.child_generator_names, pipeline.generators, strict=True
-                    ):
-                        self._generators[child_name] = child_gen
-
-                logger.info(f"Loaded pipeline: {pipe_config.name}")
-            except Exception as e:
-                logger.error(f"Failed to load pipeline {pipe_config.name}: {e}", exc_info=True)
-
-    def start_pipeline(self, name: str) -> None:
-        """Start all child generators for a pipeline."""
-        with self._pipelines_lock:
-            if name not in self._pipelines:
-                raise KeyError(f"Pipeline not found: {name}")
-            pipeline = self._pipelines[name]
-
-        pipeline.reset_schedule()
-        for child_name in pipeline.child_generator_names:
-            self.start_generator(child_name)
-
-    def stop_pipeline(self, name: str) -> None:
-        """Stop all child generators for a pipeline."""
-        with self._pipelines_lock:
-            if name not in self._pipelines:
-                logger.warning(f"Pipeline not found: {name}")
-                return
-            pipeline = self._pipelines[name]
-
-        for child_name in pipeline.child_generator_names:
-            self.stop_generator(child_name)
-
-    def list_pipelines(self) -> list[dict]:
-        """List all pipelines with status."""
-        with self._pipelines_lock:
-            pipelines = list(self._pipelines.values())
-        return [pipeline.get_status() for pipeline in pipelines]
-
-    def get_pipeline_status(self, name: str) -> dict:
-        """Get detailed status for a pipeline."""
-        with self._pipelines_lock:
-            if name not in self._pipelines:
-                raise KeyError(f"Pipeline not found: {name}")
-            pipeline = self._pipelines[name]
-        return pipeline.get_status()
 
     def reload_config(self, new_config: Config) -> dict[str, Any]:
         """Reload configuration and apply changes dynamically.
@@ -303,12 +208,8 @@ class Engine:
         new_gen_configs = {gen.name: gen for gen in new_config.generators}
         new_names = set(new_gen_configs.keys())
 
-        # Pipeline child generators ({pipeline}::{index}) are managed via pipelines
-        # config, not config.generators — exclude them from the removed sweep.
-        pipeline_child_names = self._collect_pipeline_child_names()
-
         # Find removed generators
-        removed_names = current_names - new_names - pipeline_child_names
+        removed_names = current_names - new_names
         for name in removed_names:
             try:
                 logger.info(f"Stopping removed generator: {name}")
@@ -329,32 +230,18 @@ class Engine:
                 gen_config = new_gen_configs[name]
                 logger.info(f"Adding new generator: {name}")
 
-                # Validate template exists
-                template_info = self.template_cache.get_template(gen_config.template)
-                if not template_info:
-                    raise ValueError(f"Template not found: {gen_config.template}")
-
-                # Create output handlers
-                output_handlers = create_output_handlers(
-                    gen_config.outputs,
-                    new_config.outputs.definitions,
-                    retry_config=new_config.outputs.retry,
-                    buffer_size=new_config.outputs.buffer_size,
-                )
-
-                # Create generator
-                generator = Generator(
-                    name=gen_config.name,
-                    config=gen_config,
-                    template_loader=TemplateLoader(new_config),
-                    registry=self.registry,
-                    output_handlers=output_handlers,
-                )
+                if name == INTERNAL_LOGS_GENERATOR_NAME:
+                    if not self._should_materialize_internal_logs(gen_config):
+                        continue
+                    generator = self._create_internal_log_generator(gen_config, new_config)
+                elif gen_config.template == INTERNAL_LOGS_TEMPLATE_SENTINEL:
+                    continue
+                else:
+                    generator = self._create_template_generator(gen_config, new_config)
 
                 with self._generators_lock:
                     self._generators[name] = generator
 
-                # Start if enabled
                 if gen_config.enabled:
                     logger.info(f"Starting newly added generator: {name}")
                     self.start_generator(name)
@@ -368,14 +255,72 @@ class Engine:
         updated_names = current_names & new_names
         for name in updated_names:
             try:
-                old_gen = None
+                new_gen_config = new_gen_configs[name]
+
+                if name == INTERNAL_LOGS_GENERATOR_NAME:
+                    with self._generators_lock:
+                        old_gen = self._generators.get(name)
+
+                    if not self._should_materialize_internal_logs(new_gen_config):
+                        if old_gen:
+                            self.stop_generator(name)
+                            with self._generators_lock:
+                                self._generators.pop(name, None)
+                                self._generator_futures.pop(name, None)
+                            results["removed"].append(name)
+                        continue
+
+                    if not old_gen:
+                        continue
+
+                    old_gen_config = next(
+                        (g for g in old_config.generators if g.name == name), None
+                    )
+                    old_config_dict = old_gen_config.model_dump() if old_gen_config else {}
+                    new_config_dict = new_gen_config.model_dump()
+                    old_referenced_output_fps = [
+                        old_fp_by_name.get(out_name, "MISSING")
+                        for out_name in new_gen_config.outputs
+                    ]
+                    new_referenced_output_fps = [
+                        new_fp_by_name.get(out_name, "MISSING")
+                        for out_name in new_gen_config.outputs
+                    ]
+
+                    if (
+                        old_config_dict != new_config_dict
+                        or old_referenced_output_fps != new_referenced_output_fps
+                    ):
+                        logger.info(f"Updating generator config: {name}")
+                        was_running = old_gen.state in (
+                            GeneratorState.RUNNING,
+                            GeneratorState.STARTING,
+                        )
+                        if was_running:
+                            self.stop_generator(name)
+
+                        new_generator = self._create_internal_log_generator(
+                            new_gen_config, new_config
+                        )
+                        with self._generators_lock:
+                            self._generators[name] = new_generator
+                            self._generator_futures.pop(name, None)
+
+                        if was_running or new_gen_config.enabled:
+                            logger.info(f"Restarting updated generator: {name}")
+                            self.start_generator(name)
+
+                        results["updated"].append(name)
+                    continue
+
                 with self._generators_lock:
                     old_gen = self._generators.get(name)
 
                 if not old_gen:
                     continue
 
-                new_gen_config = new_gen_configs[name]
+                if new_gen_config.template == INTERNAL_LOGS_TEMPLATE_SENTINEL:
+                    continue
 
                 # Check if generator config changed (simple comparison)
                 old_config_dict = old_gen.config.model_dump()
@@ -400,25 +345,7 @@ class Engine:
                     if was_running:
                         self.stop_generator(name)
 
-                    # Recreate generator with new config
-                    template_info = self.template_cache.get_template(new_gen_config.template)
-                    if not template_info:
-                        raise ValueError(f"Template not found: {new_gen_config.template}")
-
-                    output_handlers = create_output_handlers(
-                        new_gen_config.outputs,
-                        new_config.outputs.definitions,
-                        retry_config=new_config.outputs.retry,
-                        buffer_size=new_config.outputs.buffer_size,
-                    )
-
-                    new_generator = Generator(
-                        name=new_gen_config.name,
-                        config=new_gen_config,
-                        template_loader=TemplateLoader(new_config),
-                        registry=self.registry,
-                        output_handlers=output_handlers,
-                    )
+                    new_generator = self._create_template_generator(new_gen_config, new_config)
 
                     with self._generators_lock:
                         self._generators[name] = new_generator
@@ -433,89 +360,6 @@ class Engine:
             except Exception as e:
                 logger.error(f"Error updating generator {name}: {e}", exc_info=True)
                 results["errors"].append(f"Failed to update {name}: {e}")
-
-        # Sync internal log generator with new_config.internal_logs
-        il = getattr(new_config, "internal_logs", None)
-        il_enabled = il and il.enabled and len(il.outputs) > 0
-        with self._generators_lock:
-            has_internal = INTERNAL_LOGS_GENERATOR_NAME in self._generators
-        if has_internal and not il_enabled:
-            try:
-                self.stop_generator(INTERNAL_LOGS_GENERATOR_NAME)
-                with self._generators_lock:
-                    self._generators.pop(INTERNAL_LOGS_GENERATOR_NAME, None)
-                    self._generator_futures.pop(INTERNAL_LOGS_GENERATOR_NAME, None)
-                results["removed"].append(INTERNAL_LOGS_GENERATOR_NAME)
-            except Exception as e:
-                results["errors"].append(f"Failed to remove {INTERNAL_LOGS_GENERATOR_NAME}: {e}")
-        elif il_enabled:
-            with self._generators_lock:
-                has_internal = INTERNAL_LOGS_GENERATOR_NAME in self._generators
-            if not has_internal:
-                try:
-                    output_handlers = create_output_handlers(
-                        il.outputs,
-                        new_config.outputs.definitions,
-                        retry_config=new_config.outputs.retry,
-                        buffer_size=new_config.outputs.buffer_size,
-                    )
-                    internal_gen = InternalLogGenerator(output_handlers=output_handlers)
-                    with self._generators_lock:
-                        self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
-                    self.start_generator(INTERNAL_LOGS_GENERATOR_NAME)
-                    results["added"].append(INTERNAL_LOGS_GENERATOR_NAME)
-                except Exception as e:
-                    logger.error(f"Error adding {INTERNAL_LOGS_GENERATOR_NAME}: {e}", exc_info=True)
-                    results["errors"].append(f"Failed to add {INTERNAL_LOGS_GENERATOR_NAME}: {e}")
-            else:
-                # Recreate if outputs changed
-                with self._generators_lock:
-                    existing = self._generators.get(INTERNAL_LOGS_GENERATOR_NAME)
-                if existing and getattr(existing, "output_handlers", None):
-                    old_il = getattr(old_config, "internal_logs", None)
-                    old_il_outputs = (
-                        (old_il.outputs if old_il and old_il.enabled else []) if old_il else []
-                    )
-                    new_il_outputs = list(il.outputs or [])
-
-                    # Update if (1) internal log outputs list changed, or
-                    # (2) the referenced output destination definitions changed.
-                    old_referenced_output_fps = [
-                        old_fp_by_name.get(out_name, "MISSING") for out_name in new_il_outputs
-                    ]
-                    new_referenced_output_fps = [
-                        new_fp_by_name.get(out_name, "MISSING") for out_name in new_il_outputs
-                    ]
-
-                    if (
-                        old_il_outputs != new_il_outputs
-                        or old_referenced_output_fps != new_referenced_output_fps
-                    ):
-                        try:
-                            self.stop_generator(INTERNAL_LOGS_GENERATOR_NAME)
-                            with self._generators_lock:
-                                self._generators.pop(INTERNAL_LOGS_GENERATOR_NAME, None)
-                            output_handlers = create_output_handlers(
-                                il.outputs,
-                                new_config.outputs.definitions,
-                                retry_config=new_config.outputs.retry,
-                                buffer_size=new_config.outputs.buffer_size,
-                            )
-                            internal_gen = InternalLogGenerator(output_handlers=output_handlers)
-                            with self._generators_lock:
-                                self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
-                            self.start_generator(INTERNAL_LOGS_GENERATOR_NAME)
-                            results["updated"].append(INTERNAL_LOGS_GENERATOR_NAME)
-                        except Exception as e:
-                            results["errors"].append(
-                                f"Failed to update {INTERNAL_LOGS_GENERATOR_NAME}: {e}"
-                            )
-
-        try:
-            self.load_pipelines_from_config()
-        except Exception as e:
-            logger.error(f"Error reloading pipelines: {e}", exc_info=True)
-            results["errors"].append(f"Failed to reload pipelines: {e}")
 
         logger.info(
             f"Config reloaded: {len(results['added'])} added, "

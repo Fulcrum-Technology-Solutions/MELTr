@@ -6,11 +6,7 @@ import uuid
 
 import pytest
 
-from meltr.core.config import (
-    InternalLogsConfig,
-    OutputDefinition,
-    create_default_config,
-)
+from meltr.core.config import OutputDefinition, create_default_config
 from meltr.core.engine import Engine
 from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME, InternalLogGenerator
 from meltr.entities.registry import EntityRegistry
@@ -53,13 +49,16 @@ def test_internal_log_generator_lifecycle():
 
 
 def test_engine_loads_internal_log_generator_when_configured(tmp_path, monkeypatch):
-    """Test that Engine adds internal-logs generator when config.internal_logs is enabled."""
+    """Engine loads internal-logs when reserved generators entry is enabled."""
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     config = create_default_config(tmp_path)
-    config.internal_logs = InternalLogsConfig(enabled=True, outputs=["stdout"])
     config.outputs.definitions.append(
         OutputDefinition(name="stdout", type="console", stream="stdout", format="json")
     )
+    for gen in config.generators:
+        if gen.name == INTERNAL_LOGS_GENERATOR_NAME:
+            gen.enabled = True
+            gen.outputs = ["stdout"]
     registry = EntityRegistry(config)
     engine = Engine(config, registry)
     assert INTERNAL_LOGS_GENERATOR_NAME in engine._generators
@@ -68,10 +67,11 @@ def test_engine_loads_internal_log_generator_when_configured(tmp_path, monkeypat
 
 
 def test_engine_does_not_load_internal_log_generator_when_disabled(tmp_path, monkeypatch):
-    """Test that Engine does not add internal-logs when internal_logs.enabled is False."""
+    """Engine skips internal-logs when reserved entry is disabled."""
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     config = create_default_config(tmp_path)
-    assert config.internal_logs.enabled is False
+    internal = next(g for g in config.generators if g.name == INTERNAL_LOGS_GENERATOR_NAME)
+    assert internal.enabled is False
     registry = EntityRegistry(config)
     engine = Engine(config, registry)
     assert INTERNAL_LOGS_GENERATOR_NAME not in engine._generators
