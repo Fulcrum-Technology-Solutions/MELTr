@@ -1032,7 +1032,7 @@ def _edit_generators_section(config: Config) -> Config:
         choice = Prompt.ask("\nSelect option", choices=["1", "2", "3", "4", "5"], default="5")
 
         if choice == "1":
-            new_gen = _create_generator_interactive(config, exclude_existing=False)
+            new_gen = _create_generator_interactive(config)
             if new_gen:
                 config.generators.append(new_gen)
                 console.print(f"[green]✓ Added generator: {new_gen.name}[/green]")
@@ -1045,134 +1045,6 @@ def _edit_generators_section(config: Config) -> Config:
         elif choice == "5":
             break
 
-    return config
-
-
-def _batch_create_generators(config: Config, create_all: bool = False) -> Config:
-    """Batch create generators for templates.
-
-    Args:
-        config: Configuration object
-        create_all: If True, create for ALL templates; if False, only for remaining (not yet configured)
-
-    Returns:
-        Updated config object
-    """
-    from meltr.templates.loader import TemplateLoader
-
-    loader = TemplateLoader(config)
-    all_templates = loader.discover_templates()
-    existing_templates = _get_existing_templates(config)
-    hierarchy = _get_template_hierarchy(config)
-
-    if not all_templates:
-        console.print("[yellow]No templates found. Install templates first.[/yellow]")
-        return config
-
-    if not config.outputs.definitions:
-        console.print("[yellow]No outputs configured. Please add outputs first.[/yellow]")
-        return config
-
-    # Determine which templates to create generators for
-    if create_all:
-        templates_to_create = list(all_templates.items())
-        console.print("\n[bold]Create Generators for All Templates[/bold]\n")
-    else:
-        templates_to_create = [
-            (tid, info) for tid, info in all_templates.items() if tid not in existing_templates
-        ]
-        console.print("\n[bold]Create Generators for Remaining Templates[/bold]\n")
-
-    if not templates_to_create:
-        console.print("[yellow]No templates to create generators for[/yellow]")
-        if not create_all:
-            console.print("[dim]All templates are already configured as generators[/dim]")
-        return config
-
-    # Ask user to select scope
-    console.print("[cyan]Select scope:[/cyan]")
-    console.print("  [1] All vendors/products")
-    console.print("  [2] Specific vendor/product")
-
-    scope_choice = Prompt.ask("\nSelect scope", choices=["1", "2"], default="1")
-
-    if scope_choice == "2":
-        # Select vendor
-        vendor = _select_vendor(config, exclude_existing=False)
-        if not vendor:
-            return config
-
-        # Select product (or "all products")
-        hierarchy = _get_template_hierarchy(config)
-        products = sorted(hierarchy[vendor].keys())
-
-        items = [("All products", None)] + [(product, product) for product in products]
-        [(f"  [{i+1}] {name}", value) for i, (name, value) in enumerate(items)]
-
-        console.print("\n[bold]Select Product[/bold]\n")
-        for i, (name, _) in enumerate(items):
-            console.print(f"  [{i+1}] {name}")
-
-        choice = IntPrompt.ask("\nSelect product", default=1)
-        if choice < 1 or choice > len(items):
-            console.print("[red]Invalid selection[/red]")
-            return config
-
-        selected_product = items[choice - 1][1]
-
-        # Filter templates based on selection
-        if selected_product is None:
-            # All products for vendor
-            templates_to_create = [
-                (tid, info) for tid, info in templates_to_create if info.vendor == vendor
-            ]
-        else:
-            # Specific product
-            templates_to_create = [
-                (tid, info)
-                for tid, info in templates_to_create
-                if info.vendor == vendor and info.product == selected_product
-            ]
-
-        if not templates_to_create:
-            console.print("[yellow]No templates match the selected scope[/yellow]")
-            return config
-
-    # Show summary
-    console.print("\n[bold]Summary[/bold]\n")
-    console.print(f"  Templates to process: {len(templates_to_create)}")
-    console.print(f"  Output: {config.outputs.definitions[0].name} (first available)")
-    console.print("  Enabled: Yes")
-    console.print("  Timezone: Organization default")
-
-    if not Confirm.ask(f"\n[yellow]Create {len(templates_to_create)} generator(s)?", default=True):
-        console.print("[yellow]Cancelled[/yellow]")
-        return config
-
-    # Create generators
-    existing_names = {g.name for g in config.generators}
-    created_count = 0
-
-    console.print("\n[cyan]Creating generators...[/cyan]")
-    for template_id, template_info in templates_to_create:
-        # Generate name
-        suggested_name = _generate_generator_name(template_id, template_info, existing_names)
-        existing_names.add(suggested_name)  # Track to avoid duplicates in batch
-
-        # Create generator
-        generator = GeneratorConfig(
-            name=suggested_name,
-            template=template_id,
-            enabled=True,
-            outputs=[config.outputs.definitions[0].name],  # Use first output
-            timezone=None,
-        )
-
-        config.generators.append(generator)
-        created_count += 1
-        console.print(f"  [green]✓[/green] {suggested_name} ({template_id})")
-
-    console.print(f"\n[green]✓ Created {created_count} generator(s)[/green]")
     return config
 
 
@@ -1220,14 +1092,12 @@ def _generate_generator_name(
     return name
 
 
-def _create_generator_interactive(
-    config: Config, exclude_existing: bool = False
-) -> GeneratorConfig | None:
+def _create_generator_interactive(config: Config) -> GeneratorConfig | None:
     """Interactively create a new generator."""
     console.print("\n[bold]Create New Generator[/bold]\n")
 
     # Template selection (hierarchical)
-    template = _select_template_interactive(config, exclude_existing=exclude_existing)
+    template = _select_template_interactive(config)
     if not template:
         console.print("[yellow]No template selected, cancelling[/yellow]")
         return None
@@ -1319,7 +1189,6 @@ def _select_template_from_product(
     config: Config,
     vendor: str,
     product: str,
-    exclude_existing: bool = False,
 ) -> str | None:
     """Select a template from a specific vendor/product."""
     hierarchy = _get_template_hierarchy(config)
@@ -1330,23 +1199,13 @@ def _select_template_from_product(
         return None
 
     templates = hierarchy[vendor][product]
-
-    # Filter if needed
-    available_templates = []
-    for template_id, template_info in templates:
-        if exclude_existing and template_id in existing_templates:
-            continue
-        available_templates.append((template_id, template_info))
-
-    if not available_templates:
+    if not templates:
         console.print(f"[yellow]No available templates for {vendor}/{product}[/yellow]")
-        if exclude_existing:
-            console.print("[dim]All templates are already configured as generators[/dim]")
         return None
 
     # Build display items
     items = []
-    for template_id, _template_info in available_templates:
+    for template_id, _template_info in templates:
         # Format: data_source/template_name
         parts = template_id.split("/")
         if len(parts) >= 4:
@@ -1354,26 +1213,16 @@ def _select_template_from_product(
         else:
             display_name = template_id
 
-        # Mark existing generators
-        marker = ""
-        if not exclude_existing and template_id in existing_templates:
-            marker = " ✓"
-
+        marker = " ✓" if template_id in existing_templates else ""
         items.append((f"{display_name}{marker}", template_id))
 
-    # Show counts
     total_count = len(templates)
-    available_count = len(available_templates)
-    existing_count = total_count - available_count
+    existing_count = sum(1 for tid, _ in templates if tid in existing_templates)
 
-    title = f"Templates: {vendor}/{product}"
-    if exclude_existing:
-        title += f" ({available_count} available)"
-    else:
-        title += f" ({available_count} available"
-        if existing_count > 0:
-            title += f", {existing_count} already configured"
-        title += ")"
+    title = f"Templates: {vendor}/{product} ({total_count} available"
+    if existing_count > 0:
+        title += f", {existing_count} already configured"
+    title += ")"
 
     selection = paginate_choose(items, console=console, page_size=20, title=title)
     if selection is None:
@@ -1386,11 +1235,7 @@ def _select_template_from_product(
     return selected_template_id
 
 
-def _select_product(
-    config: Config,
-    vendor: str,
-    exclude_existing: bool = False,
-) -> str | None:
+def _select_product(config: Config, vendor: str) -> str | None:
     """Select a product for a vendor."""
     hierarchy = _get_template_hierarchy(config)
     existing_templates = _get_existing_templates(config)
@@ -1406,20 +1251,13 @@ def _select_product(
     for product in products:
         templates = hierarchy[vendor][product]
         total_count = len(templates)
-
-        if exclude_existing:
-            available_count = sum(1 for tid, _ in templates if tid not in existing_templates)
-            if available_count == 0:
-                continue  # Skip products with no available templates
-            items.append((f"{product} ({available_count} templates)", product))
+        existing_count = sum(1 for tid, _ in templates if tid in existing_templates)
+        if existing_count > 0:
+            items.append(
+                (f"{product} ({total_count} templates, {existing_count} configured)", product)
+            )
         else:
-            existing_count = sum(1 for tid, _ in templates if tid in existing_templates)
-            if existing_count > 0:
-                items.append(
-                    (f"{product} ({total_count} templates, {existing_count} configured)", product)
-                )
-            else:
-                items.append((f"{product} ({total_count} templates)", product))
+            items.append((f"{product} ({total_count} templates)", product))
 
     if not items:
         console.print(f"[yellow]No products with available templates for {vendor}[/yellow]")
@@ -1436,7 +1274,7 @@ def _select_product(
     return selected_product
 
 
-def _select_vendor(config: Config, exclude_existing: bool = False) -> str | None:
+def _select_vendor(config: Config) -> str | None:
     """Select a vendor."""
     hierarchy = _get_template_hierarchy(config)
     existing_templates = _get_existing_templates(config)
@@ -1449,37 +1287,23 @@ def _select_vendor(config: Config, exclude_existing: bool = False) -> str | None
         products = hierarchy[vendor]
         total_templates = sum(len(templates) for templates in products.values())
         total_products = len(products)
-
-        if exclude_existing:
-            available_templates = sum(
-                1
-                for templates in products.values()
-                for tid, _ in templates
-                if tid not in existing_templates
-            )
-            if available_templates == 0:
-                continue  # Skip vendors with no available templates
+        existing_count = sum(
+            1
+            for templates in products.values()
+            for tid, _ in templates
+            if tid in existing_templates
+        )
+        if existing_count > 0:
             items.append(
-                (f"{vendor} ({total_products} products, {available_templates} templates)", vendor)
+                (
+                    f"{vendor} ({total_products} products, {total_templates} templates, {existing_count} configured)",
+                    vendor,
+                )
             )
         else:
-            existing_count = sum(
-                1
-                for templates in products.values()
-                for tid, _ in templates
-                if tid in existing_templates
+            items.append(
+                (f"{vendor} ({total_products} products, {total_templates} templates)", vendor)
             )
-            if existing_count > 0:
-                items.append(
-                    (
-                        f"{vendor} ({total_products} products, {total_templates} templates, {existing_count} configured)",
-                        vendor,
-                    )
-                )
-            else:
-                items.append(
-                    (f"{vendor} ({total_products} products, {total_templates} templates)", vendor)
-                )
 
     if not items:
         console.print("[yellow]No vendors with available templates[/yellow]")
@@ -1494,24 +1318,22 @@ def _select_vendor(config: Config, exclude_existing: bool = False) -> str | None
     return selected_vendor
 
 
-def _select_template_hierarchical(config: Config, exclude_existing: bool = False) -> str | None:
+def _select_template_hierarchical(config: Config) -> str | None:
     """Hierarchical template selection: vendor -> product -> template."""
     while True:
-        vendor = _select_vendor(config, exclude_existing=exclude_existing)
+        vendor = _select_vendor(config)
         if not vendor:
             return None
 
         while True:
-            product = _select_product(config, vendor, exclude_existing=exclude_existing)
+            product = _select_product(config, vendor)
             if product is None:
                 return None
             if product == _MENU_BACK:
                 break
 
             while True:
-                template = _select_template_from_product(
-                    config, vendor, product, exclude_existing=exclude_existing
-                )
+                template = _select_template_from_product(config, vendor, product)
                 if template is None:
                     return None
                 if template == _MENU_BACK:
@@ -1519,7 +1341,7 @@ def _select_template_hierarchical(config: Config, exclude_existing: bool = False
                 return template
 
 
-def _select_template_interactive(config: Config, exclude_existing: bool = False) -> str | None:
+def _select_template_interactive(config: Config) -> str | None:
     """Interactively select a template using hierarchical navigation."""
     try:
         loader = TemplateLoader(config)
@@ -1529,7 +1351,7 @@ def _select_template_interactive(config: Config, exclude_existing: bool = False)
             console.print("[yellow]No templates found. Install templates first.[/yellow]")
             return None
 
-        return _select_template_hierarchical(config, exclude_existing=exclude_existing)
+        return _select_template_hierarchical(config)
 
     except Exception as e:
         console.print(f"[red]Error loading templates: {e}[/red]")
