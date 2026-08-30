@@ -12,6 +12,7 @@ Canonical terminology for the MELTr stack and transitional LogForge names. Link 
 | **Pipeline** | Multi-template orchestrator: N child generators share outputs and an optional **schedule** |
 | **Schedule** | Emission gate on a generator or pipeline: `continuous`, `window` (tz-aware days/time), or `burst` (count/duration then auto-stop) |
 | **Output / destination** | Named sink (file, console, HTTP, TCP, syslog) referenced by generators and pipelines |
+| **meltr_metadata** | HTTP wrapper field (when `include_metadata: true`) carrying generator/template routing context alongside the rendered `event` |
 | **Community template** | Registry content installed under `templates/default/` from [logforge.io](https://logforge.io) |
 | **Local override** | User-edited template under `templates/custom/` (takes precedence when configured) |
 | **Vendor package** | `.forge` tarball installed per vendor via `meltr templates install` |
@@ -26,7 +27,6 @@ Canonical terminology for the MELTr stack and transitional LogForge names. Link 
 | `LOGFORGE_API_KEY` | `MELTR_API_KEY` | Key-implies-auth for management API |
 | `logforge` CLI | `meltr` | `logforge` console script is a temporary alias |
 | LogForge OSS repo | **MELTr** | Former single-node engine home |
-| `meltr_metadata` | HTTP wrapper field name | Preserved in `include_metadata` payloads for routing |
 
 ## API surfaces
 
