@@ -406,6 +406,7 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
         ValueError: If config path is invalid
         RuntimeError: If save fails
     """
+    config = ensure_internal_logs_generator(config)
     home = get_logforge_home()
 
     if config_path is None:

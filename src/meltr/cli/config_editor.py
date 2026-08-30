@@ -753,14 +753,19 @@ def _remove_output_interactive(config: Config) -> Config:
 
     output = config.outputs.definitions[choice - 1]
 
+    referencing = [gen.name for gen in config.generators if output.name in gen.outputs]
+    if referencing:
+        console.print(
+            f"\n[yellow]Warning: these generators reference output '{output.name}':[/yellow]"
+        )
+        for gen_name in referencing:
+            console.print(f"  • {gen_name}")
+        if not Confirm.ask("\nRemove output anyway?", default=False):
+            return config
+
     if Confirm.ask(f"\n[yellow]Remove output '{output.name}'?", default=False):
         config.outputs.definitions.pop(choice - 1)
         console.print(f"[green]✓ Removed output: {output.name}[/green]")
-
-        # Check if any generators use this output
-        for gen in config.generators:
-            if output.name in gen.outputs:
-                console.print(f"[yellow]Warning: Generator '{gen.name}' uses this output[/yellow]")
 
     return config
 
