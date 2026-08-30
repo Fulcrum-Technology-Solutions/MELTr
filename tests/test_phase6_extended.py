@@ -373,9 +373,7 @@ def test_http_get_statistics_keys():
 def test_register_filters_smoke():
     from jinja2 import Environment
 
-    env = (
-        Environment()
-    )  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
+    env = Environment()  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     register_filters(env)
     rendered = env.from_string("{{ random_int(1, 10) }}").render()
     assert rendered.isdigit()

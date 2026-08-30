@@ -500,6 +500,18 @@ def test_extract_forge_package_empty_archive(tmp_path):
         extract_forge_package(pkg, tmp_path / "out")
 
 
+def test_extract_forge_package_rejects_path_traversal(tmp_path):
+    pkg = tmp_path / "evil.forge"
+    with tarfile.open(pkg, "w:gz") as tar:
+        info = tarfile.TarInfo(name="../escape.txt")
+        data = b"pwned"
+        info.size = len(data)
+        tar.addfile(info, fileobj=__import__("io").BytesIO(data))
+    with pytest.raises(PackageError, match="Unsafe path"):
+        extract_forge_package(pkg, tmp_path / "out")
+    assert not (tmp_path / "escape.txt").exists()
+
+
 def test_validate_package_structure(tmp_path):
     vendor_dir = tmp_path / "vendor"
     vendor_dir.mkdir()
@@ -603,9 +615,7 @@ def test_datetime_wrapper_arithmetic():
 def test_register_filters_adds_now():
     from jinja2 import Environment
 
-    env = (
-        Environment()
-    )  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
+    env = Environment()  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     register_filters(env)
     assert "now" in env.globals
     assert "random_int" in env.filters
