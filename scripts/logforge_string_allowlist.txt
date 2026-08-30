@@ -18,13 +18,7 @@ logforge.io
 logforge` CLI
 logforge` console
 logforge` name was taken
-logforge` entry point
 `logforge` CLI
-logforge CLI entry
-logforge console script
-optional `logforge` shim
-`logforge` / `LOGFORGE_*`
-`logforge` console_script
 for cmd in ("meltr", "logforge")
 for name in ("meltr", "logforge")
 ("meltr", "logforge")
@@ -44,9 +38,6 @@ _logforge_binary_candidates
 ./logforge
 parts[0] in ("meltr", "logforge")
 legacy ``…/opt/logforge``
-legacy ``./logforge``
-``./.logforge``
-``~/.logforge``
 Read `LOGFORGE_HOME`
 
 # Ecosystem sibling repos (not renamed yet)
@@ -56,29 +47,8 @@ LogForge-Enterprise
 LogForge OSS repo
 LogForge Enterprise
 LogForge repo
-LogForge README
-LogForge 1.1.x
-continuity with LogForge
-migrated from LogForge
 migrating from LogForge
 from LogForge layout
-LogForge stack
-LogForge tree
-LogForge holds
-LogForge as
-LogForge is
-LogForge was
-LogForge-OSS
-replace LogForge
-replace remaining `logforge`
-archive + README redirect
-Do not continue feature work in LogForge
-Development only on MELTr; LogForge
-Active development only on **MELTr**; LogForge
-Do not** implement v2.0 features in the LogForge
-LogForge blocked because
-LogForge name taken
-GitHub repo | LogForge
 Old (LogForge)
 transitional LogForge
 LogForge legacy
@@ -89,23 +59,17 @@ logforge-{version}-linux
 logforge-*.tar.gz
 logforge-*-linux-x86_64
 logforge-{version}-linux-x86_64.tar.gz
-logforge/`` directory
 top-level **`logforge/`**
 top-level directory **`logforge/`**
-BUNDLE_DIR
-`-m logforge`
 python3.11 -m logforge
 dist/logforge-
 prefix="logforge-
-getLogger("logforge")
 
 # Tests asserting pipelines feature was removed
 "pipelines" not in
 not expose a pipelines field
 test_resolve_api_key_logforge_env_fallback
-test_logforge_home
 test_logforge_service
-test_internal_log_generator_forwards_logforge_records
 test_cmdline_suggests_logforge
 
 # Internal service class name (compat; rename follow-up)
@@ -116,6 +80,11 @@ legacy logforge
 meltr/logforge
 "logforge" in cmd
 username in ("meltr", "logforge"
-tests/test_paths.py:logforge
 # Example YAML ${LOGFORGE_HOME} substitution (documented compat alias)
 ${LOGFORGE_HOME}
+
+# tests/test_paths.py — legacy path compat fixtures
+tests/test_paths.py:tmp_path / "opt" / "logforge"
+tests/test_paths.py:tmp_path / "logforge"
+tests/test_paths.py:logforge_dir
+tests/test_paths.py:bindir / "logforge"

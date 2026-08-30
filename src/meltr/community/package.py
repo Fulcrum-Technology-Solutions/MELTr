@@ -319,7 +319,7 @@ def download_and_install_product(
     """
     # Create temporary directory for download if not provided
     if temp_dir is None:
-        temp_dir = Path(tempfile.mkdtemp(prefix="logforge-product-"))
+        temp_dir = Path(tempfile.mkdtemp(prefix="meltr-product-"))
         cleanup_temp = True
     else:
         temp_dir = Path(temp_dir)
