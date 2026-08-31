@@ -1,0 +1,8 @@
+{
+  "name": "MELTr",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "ports": [
+    { "name": "meltr-api", "port": 8080 }
+  ]
+}
