@@ -263,7 +263,7 @@ class CommunityAPIClient:
         output_path: Path,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> Path:
-        """Download vendor package (.forge file).
+        """Download vendor package (.mtb file).
 
         Args:
             vendor_id: Vendor identifier

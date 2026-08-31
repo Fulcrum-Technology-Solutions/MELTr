@@ -14,7 +14,7 @@ Canonical terminology for the MELTr stack.
 | **meltr_metadata** | HTTP wrapper field (when `include_metadata: true`) carrying generator/template routing context alongside the rendered `event` |
 | **Community template** | Registry content installed under `templates/default/` from [meltr.ftsc.cloud](https://meltr.ftsc.cloud) |
 | **Local override** | User-edited template under `templates/custom/` (takes precedence when configured) |
-| **Vendor package** | `.forge` tarball installed per vendor via `meltr templates install` |
+| **Vendor package** | `.mtb` tarball installed per vendor via `meltr templates install` |
 | **Entity registry** | YAML file (`entities.yaml`) with organization, users, devices, and services used at render time |
 | **MELTR_HOME** | Config and data root (default `~/.meltr`). Holds `config.yaml`, entities, templates, logs, PID file |
 
@@ -42,6 +42,6 @@ MELTr OSS is the **single-node** product: FastAPI + Typer, YAML under `MELTR_HOM
 | Repo | Role |
 |------|------|
 | [MELTr](https://github.com/Fulcrum-Technology-Solutions/MELTr) | OSS engine (this repo) |
-| Community templates source | Synced into the registry (sibling GitHub repo; name TBD during ecosystem migrate) |
-| Community registry UI | Serves `meltr.ftsc.cloud` (sibling GitHub repo; name TBD during ecosystem migrate) |
+| [MELTr-Templates](https://github.com/Fulcrum-Technology-Solutions/MELTr-Templates) | Community template source of truth (synced into the registry) |
+| [MELTr-Templates-UI](https://github.com/Fulcrum-Technology-Solutions/MELTr-Templates-UI) | Community registry; serves `meltr.ftsc.cloud` |
 | Enterprise edition | Distributed Manager + workers (sibling GitHub repo; name TBD during ecosystem migrate) |

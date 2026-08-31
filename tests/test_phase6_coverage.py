@@ -21,7 +21,7 @@ from meltr.community.client import (
 )
 from meltr.community.package import (
     PackageError,
-    extract_forge_package,
+    extract_mtb_package,
     validate_package_structure,
 )
 from meltr.core.config import (
@@ -451,7 +451,7 @@ def test_community_client_download_vendor_package(tmp_path):
             yield b"hello"
 
     client.session.get = MagicMock(return_value=FakeStreamResponse())
-    out = tmp_path / "pkg.forge"
+    out = tmp_path / "pkg.mtb"
     result = client.download_vendor_package("acme", out)
     assert result == out
     assert out.read_bytes() == b"hello"
@@ -467,46 +467,46 @@ def test_community_client_wait_for_rate_limit():
 # --- package extract ---
 
 
-def _make_forge_package(tmp_path: Path, vendor_id: str = "testvendor") -> Path:
+def _make_mtb_package(tmp_path: Path, vendor_id: str = "testvendor") -> Path:
     vendor_dir = tmp_path / "build" / vendor_id
     vendor_dir.mkdir(parents=True)
     (vendor_dir / "vendor.yaml").write_text("vendor: testvendor\n", encoding="utf-8")
-    pkg = tmp_path / "test.forge"
+    pkg = tmp_path / "test.mtb"
     with tarfile.open(pkg, "w:gz") as tar:
         tar.add(vendor_dir, arcname=vendor_id)
     return pkg
 
 
-def test_extract_forge_package_success(tmp_path):
-    pkg = _make_forge_package(tmp_path)
+def test_extract_mtb_package_success(tmp_path):
+    pkg = _make_mtb_package(tmp_path)
     extract_to = tmp_path / "extract"
-    vendor_dir = extract_forge_package(pkg, extract_to)
+    vendor_dir = extract_mtb_package(pkg, extract_to)
     assert vendor_dir.name == "testvendor"
     assert (vendor_dir / "vendor.yaml").is_file()
 
 
-def test_extract_forge_package_missing_file(tmp_path):
+def test_extract_mtb_package_missing_file(tmp_path):
     with pytest.raises(PackageError, match="not found"):
-        extract_forge_package(tmp_path / "missing.forge", tmp_path / "out")
+        extract_mtb_package(tmp_path / "missing.mtb", tmp_path / "out")
 
 
-def test_extract_forge_package_empty_archive(tmp_path):
-    pkg = tmp_path / "empty.forge"
+def test_extract_mtb_package_empty_archive(tmp_path):
+    pkg = tmp_path / "empty.mtb"
     with tarfile.open(pkg, "w:gz"):
         pass
     with pytest.raises(PackageError, match="empty"):
-        extract_forge_package(pkg, tmp_path / "out")
+        extract_mtb_package(pkg, tmp_path / "out")
 
 
-def test_extract_forge_package_rejects_path_traversal(tmp_path):
-    pkg = tmp_path / "evil.forge"
+def test_extract_mtb_package_rejects_path_traversal(tmp_path):
+    pkg = tmp_path / "evil.mtb"
     with tarfile.open(pkg, "w:gz") as tar:
         info = tarfile.TarInfo(name="../escape.txt")
         data = b"pwned"
         info.size = len(data)
         tar.addfile(info, fileobj=__import__("io").BytesIO(data))
     with pytest.raises(PackageError, match="Unsafe path"):
-        extract_forge_package(pkg, tmp_path / "out")
+        extract_mtb_package(pkg, tmp_path / "out")
     assert not (tmp_path / "escape.txt").exists()
 
 

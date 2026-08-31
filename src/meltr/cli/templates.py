@@ -1390,7 +1390,7 @@ def _do_install_template(
         product: If True, install specific product
         api_url: Community API URL (None = use config)
         overwrite: Whether to overwrite existing installation
-        local_file: Path to local .forge file (if installing from file)
+        local_file: Path to local .mtb file (if installing from file)
     """
     try:
         # Get API URL from config or parameter
@@ -1472,7 +1472,7 @@ def _do_install_template(
                 _log.debug("Telemetry emit failed", exc_info=True)
 
         if local_file:
-            # Install from local .forge file
+            # Install from local .mtb file
             if not local_file.exists():
                 console.print(f"[red]Error: File not found: {local_file}[/red]")
                 raise typer.Exit(code=1)
@@ -1482,7 +1482,7 @@ def _do_install_template(
             import tempfile
 
             from meltr.community.package import (
-                extract_forge_package,
+                extract_mtb_package,
                 install_package,
                 validate_package_structure,
             )
@@ -1490,7 +1490,7 @@ def _do_install_template(
             with tempfile.TemporaryDirectory(prefix="meltr-") as temp_dir:
                 temp_path = Path(temp_dir)
                 extract_to = temp_path / "extracted"
-                vendor_dir = extract_forge_package(local_file, extract_to, validate=True)
+                vendor_dir = extract_mtb_package(local_file, extract_to, validate=True)
                 validate_package_structure(vendor_dir)
 
                 vendor_id = vendor_dir.name
@@ -1696,7 +1696,7 @@ def templates_install(
     ),
     overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing installation"),
     local_file: Path | None = typer.Option(
-        None, "--local-file", help="Install from local .forge file"
+        None, "--local-file", help="Install from local .mtb file"
     ),
 ) -> None:
     """Install template packages from community registry or local package.
