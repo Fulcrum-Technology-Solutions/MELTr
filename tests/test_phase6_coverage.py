@@ -18,6 +18,7 @@ from meltr.community.client import (
     CommunityAPIError,
     CommunityAPINotFoundError,
     CommunityAPIRateLimitError,
+    flatten_community_catalog,
 )
 from meltr.community.package import (
     PackageError,
@@ -435,6 +436,61 @@ def test_community_client_search_templates_params():
     assert params["q"] == "okta"
     assert params["vendor_id"] == "okta"
     assert params["page_size"] == 100
+
+
+def test_flatten_community_catalog_accepts_templates_and_event_types():
+    result = {
+        "vendors": [
+            {
+                "id": "apache",
+                "products": [
+                    {
+                        "product_id": "httpd",
+                        "data_sources": [
+                            {
+                                "data_source_id": "access",
+                                "templates": [
+                                    {
+                                        "id": "apache/httpd/access/combined_log_format",
+                                        "name": "combined_log_format",
+                                        "format": "Plain Text",
+                                    }
+                                ],
+                            },
+                            {
+                                "data_source_id": "error",
+                                "event_types": [
+                                    {
+                                        "id": "apache/httpd/error/http_error",
+                                        "name": "http_error",
+                                        "format": "Plain Text",
+                                    }
+                                ],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    templates, products = flatten_community_catalog(result)
+    assert set(templates) == {
+        "apache/httpd/access/combined_log_format",
+        "apache/httpd/error/http_error",
+    }
+    assert products == {"apache": {"httpd"}}
+    assert templates["apache/httpd/access/combined_log_format"]["vendor"] == "apache"
+
+
+def test_community_client_search_all_templates_paginates():
+    client = CommunityAPIClient(base_url="https://registry.test/api/v1")
+    page1 = {"total": 2, "vendors": [{"id": "apache", "products": []}]}
+    page2 = {"total": 2, "vendors": [{"id": "aws", "products": []}]}
+    client.search_templates = MagicMock(side_effect=[page1, page2])
+    result = client.search_all_templates(page_size=1)
+    assert [v["id"] for v in result["vendors"]] == ["apache", "aws"]
+    assert result["total"] == 2
+    assert client.search_templates.call_count == 2
 
 
 def test_community_client_download_vendor_package(tmp_path):

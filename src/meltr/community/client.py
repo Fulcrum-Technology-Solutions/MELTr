@@ -15,6 +15,42 @@ from meltr.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def flatten_community_catalog(
+    search_result: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, set[str]]]:
+    """Flatten a ``/community-templates`` payload into templates and vendor→products.
+
+    Search uses ``data_sources[].templates``; product detail uses ``event_types``.
+    Template IDs are the four-part paths (``vendor/product/ds/name``).
+    """
+    remote_templates: dict[str, dict[str, Any]] = {}
+    vendor_products: dict[str, set[str]] = {}
+
+    for vendor_data in search_result.get("vendors") or []:
+        vendor_id = vendor_data.get("id")
+        if not vendor_id:
+            continue
+        products = vendor_products.setdefault(vendor_id, set())
+        for product_data in vendor_data.get("products") or []:
+            product_id = product_data.get("product_id")
+            if product_id:
+                products.add(product_id)
+            for ds_data in product_data.get("data_sources") or []:
+                items = ds_data.get("templates") or ds_data.get("event_types") or []
+                for template in items:
+                    template_id = template.get("id")
+                    if not template_id:
+                        continue
+                    remote_templates[template_id] = {
+                        "name": template.get("name", template_id),
+                        "vendor": vendor_id,
+                        "product": product_id,
+                        "format": template.get("format", "N/A"),
+                    }
+
+    return remote_templates, vendor_products
+
+
 class CommunityAPIError(Exception):
     """Base exception for Community API errors."""
 
@@ -256,6 +292,47 @@ class CommunityAPIClient:
             params["template_id"] = template_id
 
         return self._request("GET", "/community-templates", params=params)
+
+    def search_all_templates(
+        self,
+        query: str | None = None,
+        vendor_id: str | None = None,
+        product_id: str | None = None,
+        data_source_id: str | None = None,
+        template_id: str | None = None,
+        page_size: int = 100,
+    ) -> dict[str, Any]:
+        """Fetch every page of ``/community-templates``.
+
+        The vendors list endpoint is a summary (no products). Compare, remote
+        list, and install --list-vendors need the hierarchical search catalog.
+        """
+        page_size = min(max(page_size, 1), 100)
+        page = 1
+        vendors: list[dict[str, Any]] = []
+        total = 0
+        while True:
+            result = self.search_templates(
+                query=query,
+                vendor_id=vendor_id,
+                product_id=product_id,
+                data_source_id=data_source_id,
+                template_id=template_id,
+                page=page,
+                page_size=page_size,
+            )
+            batch = result.get("vendors") or []
+            total = int(result.get("total") or 0)
+            vendors.extend(batch)
+            if not batch or len(vendors) >= total:
+                break
+            page += 1
+        return {
+            "total": total or len(vendors),
+            "page": 1,
+            "page_size": page_size,
+            "vendors": vendors,
+        }
 
     def download_vendor_package(
         self,

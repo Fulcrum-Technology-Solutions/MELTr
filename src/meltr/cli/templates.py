@@ -22,6 +22,7 @@ from meltr.community.client import (
     CommunityAPIError,
     CommunityAPINotFoundError,
     CommunityAPIRateLimitError,
+    flatten_community_catalog,
 )
 from meltr.community.package import (
     PackageError,
@@ -696,21 +697,8 @@ def templates_list(
 
             try:
                 client = CommunityAPIClient(base_url=api_url)
-                result = client.search_templates(page=1, page_size=100)
-
-                # Build remote template dict
-                for vendor_data in result.get("vendors", []):
-                    for product_data in vendor_data.get("products", []):
-                        for ds_data in product_data.get("data_sources", []):
-                            for template in ds_data.get("templates", []):
-                                template_id = template.get("id")
-                                if template_id:
-                                    remote_templates[template_id] = {
-                                        "name": template.get("name", template_id),
-                                        "vendor": vendor_data.get("id"),
-                                        "product": product_data.get("product_id"),
-                                        "format": template.get("format", "N/A"),
-                                    }
+                result = client.search_all_templates()
+                remote_templates, _ = flatten_community_catalog(result)
             except Exception as e:
                 if remote_only:
                     console.print(f"[red]Error fetching remote templates: {e}[/red]")
@@ -1326,7 +1314,7 @@ def templates_browse(
             console.print("[dim]Browsing all vendors[/dim]\n")
 
             try:
-                result = client.search_templates(page=1, page_size=100)
+                result = client.search_all_templates()
                 vendors = result.get("vendors", [])
 
                 if not vendors:
@@ -1556,7 +1544,7 @@ def _do_install_template(
                     backup_count=config.templates.backup_count,
                 )
 
-                progress.update(task, completed=True, description="[green]Complete")
+                progress.update(task, description="[green]Complete")
 
             console.print("\n[green]✓ Vendor package installed successfully[/green]")
             console.print(f"  Location: {installed_dir}")
@@ -1618,7 +1606,7 @@ def _do_install_template(
                     progress_callback=lambda b, t: progress.update(task, completed=b, total=t),
                 )
 
-                progress.update(task, completed=True, description="[green]Complete")
+                progress.update(task, description="[green]Complete")
 
             console.print("\n[green]✓ Product installed successfully[/green]")
             console.print(f"  Location: {installed_dir}")
@@ -1724,7 +1712,7 @@ def templates_install(
         if list_vendors:
             try:
                 # Use search_templates to get full hierarchy with product counts
-                result = client.search_templates(page=1, page_size=100)
+                result = client.search_all_templates()
                 vendors = result.get("vendors", [])
 
                 if not vendors:
@@ -1985,38 +1973,14 @@ def templates_compare(
         local_templates = loader.discover_templates()
         local_template_ids = set(local_templates.keys())
 
-        # Get remote vendors
         try:
-            remote_vendors = client.get_vendors()
+            result = client.search_all_templates()
         except CommunityAPIError as e:
             console.print(f"[red]Error fetching remote templates: {e}[/red]")
             raise typer.Exit(code=1)
 
-        # Build remote template set
-        remote_template_ids = set()
-        remote_vendor_products = {}
-
-        for vendor_data in remote_vendors:
-            vendor_id = vendor_data.get("id")
-            products = vendor_data.get("products", [])
-
-            for product_id in products:
-                try:
-                    product_info = client.get_product_detail(vendor_id, product_id)
-                    data_sources = product_info.get("data_sources", [])
-
-                    for ds_data in data_sources:
-                        templates = ds_data.get("templates", []) or ds_data.get("event_types", [])
-                        for template in templates:
-                            template_id = template.get("id")
-                            if template_id:
-                                remote_template_ids.add(template_id)
-
-                    if vendor_id not in remote_vendor_products:
-                        remote_vendor_products[vendor_id] = set()
-                    remote_vendor_products[vendor_id].add(product_id)
-                except Exception:
-                    continue
+        remote_templates, remote_vendor_products = flatten_community_catalog(result)
+        remote_template_ids = set(remote_templates)
 
         # Compare
         only_local = local_template_ids - remote_template_ids
