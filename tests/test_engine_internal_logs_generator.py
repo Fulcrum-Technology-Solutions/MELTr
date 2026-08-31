@@ -106,3 +106,6 @@ def test_engine_reload_updates_internal_logs_from_generators_entry(tmp_path, mon
 
     internal_after = engine._generators[INTERNAL_LOGS_GENERATOR_NAME]
     assert internal_after.output_handlers[0].url == "http://new.example/v1/events"
+    assert internal_after.state.value == "STOPPED"
+    for handler in internal_after.output_handlers:
+        handler.close()

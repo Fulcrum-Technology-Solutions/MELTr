@@ -302,7 +302,9 @@ class Engine:
                             self._generators[name] = new_generator
                             self._generator_futures.pop(name, None)
 
-                        if was_running or new_gen_config.enabled:
+                        # Only restart if it was already running. Do not start dormant
+                        # enabled generators — that leaks log-forwarding/HTTP workers.
+                        if was_running:
                             logger.info(f"Restarting updated generator: {name}")
                             self.start_generator(name)
 
@@ -347,8 +349,8 @@ class Engine:
                         self._generators[name] = new_generator
                         self._generator_futures.pop(name, None)
 
-                    # Restart if it was running or if enabled
-                    if was_running or new_gen_config.enabled:
+                    # Only restart if it was already running (same as internal-logs).
+                    if was_running:
                         logger.info(f"Restarting updated generator: {name}")
                         self.start_generator(name)
 

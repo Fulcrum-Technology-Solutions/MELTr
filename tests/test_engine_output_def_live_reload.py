@@ -49,6 +49,8 @@ def test_engine_reload_updates_generator_when_output_definition_changes(tmp_path
 
     gen_after = engine._generators["gen1"]
     assert gen_after.output_handlers[0].url == "http://new.example/v1/events"
+    for handler in gen_after.output_handlers:
+        handler.close()
 
 
 def test_engine_reload_updates_internal_logs_when_output_definition_changes(tmp_path, monkeypatch):
@@ -86,3 +88,6 @@ def test_engine_reload_updates_internal_logs_when_output_definition_changes(tmp_
 
     internal_after = engine._generators[INTERNAL_LOGS_GENERATOR_NAME]
     assert internal_after.output_handlers[0].url == "http://new.example/v1/events"
+    assert internal_after.state.value == "STOPPED"
+    for handler in internal_after.output_handlers:
+        handler.close()
