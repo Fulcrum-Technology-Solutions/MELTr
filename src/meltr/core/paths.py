@@ -71,8 +71,6 @@ def _meltr_binary_candidates() -> list[Path]:
     return out
 
 
-
-
 def get_bundle_home_from_install_binary(bin_path: Path) -> Path | None:
     """Return default home for a tarball layout (product root, not ``…/data``)."""
     return get_install_root_from_binary(bin_path)
