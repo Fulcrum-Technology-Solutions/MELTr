@@ -7,6 +7,7 @@ Pure-Python scanner (no ripgrep dependency) for portable CI.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -34,18 +35,6 @@ EXCLUDE_PREFIXES = (
 EXCLUDE_FILES = {
     "scripts/check_logforge_strings.py",
     "scripts/logforge_string_allowlist.txt",
-}
-
-TEXT_SUFFIXES = {
-    ".py",
-    ".md",
-    ".yml",
-    ".yaml",
-    ".toml",
-    ".txt",
-    ".sh",
-    ".j2",
-    ".json",
 }
 
 
@@ -84,23 +73,20 @@ def line_allowed(rel_path: str, line_no: int, line: str, rules: list[str]) -> bo
 
 
 def _iter_files() -> list[Path]:
+    """Tracked files only — skips gitignored build artifacts (e.g. *.egg-info)."""
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "--", *SCAN_TARGETS],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    )
     files: list[Path] = []
-    for target in SCAN_TARGETS:
-        path = ROOT / target
-        if not path.exists():
+    for rel in result.stdout.decode("utf-8").split("\0"):
+        if not rel:
             continue
+        path = ROOT / rel
         if path.is_file():
             files.append(path)
-            continue
-        for child in path.rglob("*"):
-            if not child.is_file():
-                continue
-            if child.suffix.lower() not in TEXT_SUFFIXES and child.name not in {
-                "Dockerfile",
-                "Makefile",
-            }:
-                continue
-            files.append(child)
     return files
 
 

@@ -87,9 +87,7 @@ class Engine:
         )
         return InternalLogGenerator(output_handlers=output_handlers)
 
-    def _create_template_generator(
-        self, gen_config: GeneratorConfig, config: Config
-    ) -> Generator:
+    def _create_template_generator(self, gen_config: GeneratorConfig, config: Config) -> Generator:
         template_info = self.template_cache.get_template(gen_config.template)
         if not template_info:
             raise ValueError(f"Template not found: {gen_config.template}")
@@ -124,9 +122,7 @@ class Engine:
                     if gen_config.name == INTERNAL_LOGS_GENERATOR_NAME:
                         if not self._should_materialize_internal_logs(gen_config):
                             continue
-                        internal_gen = self._create_internal_log_generator(
-                            gen_config, self.config
-                        )
+                        internal_gen = self._create_internal_log_generator(gen_config, self.config)
                         self._generators[INTERNAL_LOGS_GENERATOR_NAME] = internal_gen
                         logger.info(f"Loaded generator: {INTERNAL_LOGS_GENERATOR_NAME}")
                         continue

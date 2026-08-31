@@ -170,4 +170,3 @@ def test_cli_generators_list_error_path(tmp_path, monkeypatch):
     with patch("meltr.cli.generators.get_api_client", return_value=Client()):
         result = CliRunner().invoke(generators_app, ["list"])
     assert result.exit_code == 1
-

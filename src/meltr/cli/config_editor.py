@@ -922,7 +922,9 @@ def _prompt_schedule_config(existing: ScheduleConfig | None) -> ScheduleConfig |
         return ScheduleConfig(mode="continuous")
 
     if mode == "window":
-        default_days = ",".join(existing.days) if existing and existing.days else "mon,tue,wed,thu,fri"
+        default_days = (
+            ",".join(existing.days) if existing and existing.days else "mon,tue,wed,thu,fri"
+        )
         days_input = Prompt.ask("Days (comma-separated, e.g. mon,tue)", default=default_days)
         days = [d.strip() for d in days_input.split(",") if d.strip()] or None
         time_range = Prompt.ask(
@@ -1388,9 +1390,7 @@ def _edit_generator_interactive(config: Config) -> Config:
 
     if _is_reserved_generator_name(gen.name):
         gen.enabled = Confirm.ask("Enable generator?", default=gen.enabled)
-        console.print(
-            "[dim]internal-logs forwards application logs to outputs (no template)[/dim]"
-        )
+        console.print("[dim]internal-logs forwards application logs to outputs (no template)[/dim]")
         if Confirm.ask("Edit outputs?", default=not gen.outputs):
             selected = _prompt_output_selection(config, current_outputs=gen.outputs)
             if selected:
@@ -1415,9 +1415,7 @@ def _edit_generator_interactive(config: Config) -> Config:
         if selected:
             gen.outputs = selected
 
-            selected_defs = [
-                o for o in config.outputs.definitions if o.name in gen.outputs
-            ]
+            selected_defs = [o for o in config.outputs.definitions if o.name in gen.outputs]
             http_outputs = [output for output in selected_defs if output.type == "http"]
             if http_outputs:
                 console.print("\n[bold]HTTP Output Metadata Configuration[/bold]")
@@ -1693,9 +1691,7 @@ def _save_config(config: Config) -> bool:
             console.print(
                 f"[yellow]⚠ Could not apply changes automatically: {type(e).__name__}: {str(e)}[/yellow]"
             )
-            console.print(
-                "[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]"
-            )
+            console.print("[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]")
 
         return True
     except Exception as e:
