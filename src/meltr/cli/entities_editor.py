@@ -60,7 +60,7 @@ def _show_main_menu(data: dict[str, Any]) -> str:
     device_count = len(data.get("devices", []))
     service_count = len(data.get("services", []))
 
-    console.print("\n[bold]LogForge Entity Registry Editor[/bold]\n")
+    console.print("\n[bold]MELTr Entity Registry Editor[/bold]\n")
 
     summary = (
         f"[cyan]Organization:[/cyan] {org_name}\n"
@@ -313,7 +313,7 @@ def _import_users_interactive(data: dict[str, Any]) -> dict[str, Any]:
     """Import users from a file."""
     console.print("\n[bold]Import Users[/bold]\n")
     console.print(
-        "[yellow]Note: Use 'logforge entities import' command for full import functionality[/yellow]"
+        "[yellow]Note: Use 'meltr entities import' command for full import functionality[/yellow]"
     )
     console.print("[yellow]This is a placeholder for future interactive import[/yellow]")
     return data

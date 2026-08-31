@@ -34,7 +34,7 @@ export PATH=/opt/meltr/app/bin:$PATH
 
 ```bash
 export MELTR_HOME=/opt/meltr
-logforge init --force
+meltr init --force
 meltr start
 ```
 

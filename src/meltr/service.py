@@ -1,4 +1,4 @@
-"""LogForge service entry point - initializes and runs the service."""
+"""MELTr service entry point - initializes and runs the service."""
 
 import signal
 import sys
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class LogForgeService:
-    """Main LogForge service that manages engine and API server."""
+    """Main MELTr service that manages engine and API server."""
 
     def __init__(self, config_path: Path | None = None) -> None:
         """Initialize service.
@@ -33,7 +33,7 @@ class LogForgeService:
 
             discovered_home = get_logforge_home()
             os.environ["MELTR_HOME"] = str(discovered_home)
-            logger.info(f"Set LOGFORGE_HOME={discovered_home} (self-discovered)")
+            logger.info(f"Set MELTR_HOME={discovered_home} (self-discovered)")
 
         try:
             # Load configuration
@@ -46,7 +46,7 @@ class LogForgeService:
         try:
             # Setup logging
             setup_logging(self.config)
-            logger.info("LogForge service initializing...")
+            logger.info("MELTr service initializing...")
         except Exception as e:
             # If logging setup fails, print to stderr
             import sys
@@ -94,7 +94,7 @@ class LogForgeService:
 
     def start(self) -> None:
         """Start the service."""
-        logger.info("Starting LogForge service...")
+        logger.info("Starting MELTr service...")
 
         # Start API server
         self.api_server.start()
@@ -112,46 +112,46 @@ class LogForgeService:
                 logger.error("API server thread stopped unexpectedly")
             logger.error(
                 "If the address is already in use, stop the other process (e.g. "
-                "`pgrep -af 'python3.11 -m logforge'` then `kill <pid>`) or change "
+                "`pgrep -af 'python3.11 -m meltr'` then `kill <pid>`) or change "
                 "`api.host` / `api.port` in config.yaml."
             )
             if err is not None:
                 raise RuntimeError("API server failed to start") from err
             raise RuntimeError("API server failed to start")
 
-        logger.info("LogForge service started successfully")
+        logger.info("MELTr service started successfully")
         logger.info(f"API server running on {self.config.api.host}:{self.config.api.port}")
 
-        # Start enabled generators
+        # Start enabled generators (including reserved internal-logs when materialized)
+        from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
+
         for gen_config in self.config.generators:
-            if gen_config.enabled:
-                try:
-                    self.engine.start_generator(gen_config.name)
-                    logger.info(f"Started generator: {gen_config.name}")
-                except Exception as e:
-                    logger.error(f"Failed to start generator {gen_config.name}: {e}", exc_info=True)
-
-        # Start enabled pipelines
-        for pipe_config in self.config.pipelines:
-            if pipe_config.enabled:
-                try:
-                    self.engine.start_pipeline(pipe_config.name)
-                    logger.info(f"Started pipeline: {pipe_config.name}")
-                except Exception as e:
-                    logger.error(f"Failed to start pipeline {pipe_config.name}: {e}", exc_info=True)
-
-        # Start internal log generator if configured
-        il = getattr(self.config, "internal_logs", None)
-        if il and il.enabled and il.outputs:
+            if not gen_config.enabled:
+                continue
+            if gen_config.name not in self.engine._generators:
+                if gen_config.name == INTERNAL_LOGS_GENERATOR_NAME:
+                    continue
+                logger.warning(
+                    "Enabled generator %s was not loaded; skipping start",
+                    gen_config.name,
+                )
+                continue
             try:
-                self.engine.start_generator("internal-logs")
-                logger.info("Started internal log generator")
+                self.engine.start_generator(gen_config.name)
+                logger.info(f"Started generator: {gen_config.name}")
+            except KeyError as e:
+                logger.error(
+                    "Unexpected KeyError starting generator %s: %s",
+                    gen_config.name,
+                    e,
+                    exc_info=True,
+                )
             except Exception as e:
-                logger.error(f"Failed to start internal log generator: {e}", exc_info=True)
+                logger.error(f"Failed to start generator {gen_config.name}: {e}", exc_info=True)
 
     def stop(self) -> None:
         """Stop the service."""
-        logger.info("Stopping LogForge service...")
+        logger.info("Stopping MELTr service...")
 
         # Shutdown engine
         self.engine.shutdown()
@@ -162,7 +162,7 @@ class LogForgeService:
         # Close registry
         self.registry.close()
 
-        logger.info("LogForge service stopped")
+        logger.info("MELTr service stopped")
 
     def run(self) -> None:
         """Run service (blocking)."""
@@ -197,9 +197,9 @@ def main() -> None:
     """Main entry point for service."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="LogForge synthetic event log generator service")
+    parser = argparse.ArgumentParser(description="MELTr synthetic event log generator service")
     parser.add_argument(
-        "--config", type=Path, help="Path to config file (must be within LOGFORGE_HOME)"
+        "--config", type=Path, help="Path to config file (must be within MELTR_HOME)"
     )
     parser.add_argument("--host", type=str, help="API server host (overrides config)")
     parser.add_argument("--port", type=int, help="API server port (overrides config)")

@@ -1,1 +1,1 @@
-"""Test suite for LogForge."""
+"""Test suite for MELTr."""

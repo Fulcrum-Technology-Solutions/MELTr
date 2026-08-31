@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import sys
 import tarfile
 import tempfile
 from collections.abc import Callable
@@ -27,6 +28,30 @@ class PackageValidationError(PackageError):
     """Package validation failed."""
 
     pass
+
+
+def _safe_extractall(tar: tarfile.TarFile, dest: Path) -> None:
+    """Extract tar members only under ``dest`` (blocks path traversal).
+
+    Validates each member resolves inside ``dest``. On Python 3.12+ also
+    passes ``filter='data'`` to ``extractall``.
+    """
+    dest = dest.resolve()
+    for member in tar.getmembers():
+        # Reject absolute paths and parent-directory escapes before resolve()
+        name = member.name.replace("\\", "/")
+        if name.startswith("/") or name.startswith("../") or "/../" in f"/{name}/":
+            raise PackageError(f"Unsafe path in archive: {member.name!r}")
+        target = (dest / member.name).resolve()
+        try:
+            target.relative_to(dest)
+        except ValueError as e:
+            raise PackageError(f"Unsafe path in archive: {member.name!r}") from e
+
+    extract_kwargs: dict = {}
+    if sys.version_info >= (3, 12):
+        extract_kwargs["filter"] = "data"
+    tar.extractall(dest, **extract_kwargs)
 
 
 class PackageInstallError(PackageError):
@@ -62,9 +87,8 @@ def extract_forge_package(
     try:
         # Open tar.gz archive
         with tarfile.open(package_path, "r:gz") as tar:
-            # Extract all files
             extract_to.mkdir(parents=True, exist_ok=True)
-            tar.extractall(extract_to)
+            _safe_extractall(tar, extract_to)
 
         # Find vendor directory (should be first/only top-level directory)
         extracted_items = list(extract_to.iterdir())
@@ -319,7 +343,7 @@ def download_and_install_product(
     """
     # Create temporary directory for download if not provided
     if temp_dir is None:
-        temp_dir = Path(tempfile.mkdtemp(prefix="logforge-product-"))
+        temp_dir = Path(tempfile.mkdtemp(prefix="meltr-product-"))
         cleanup_temp = True
     else:
         temp_dir = Path(temp_dir)

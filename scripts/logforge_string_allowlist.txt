@@ -1,0 +1,90 @@
+# Intentional compat / transitional references — one rule per line.
+# Substring match on line content, or path:needle (path prefix), or path:line: (exact line).
+
+# LOGFORGE_* env aliases (read if MELTR_* unset)
+LOGFORGE_
+
+# Compat helper (alias of get_meltr_home)
+get_logforge_home
+
+# Historical / rebrand notes
+formerly LogForge
+Formerly LogForge
+
+# Transitional community registry
+logforge.io
+
+# Temporary CLI console-script alias
+logforge` CLI
+logforge` console
+logforge` name was taken
+`logforge` CLI
+for cmd in ("meltr", "logforge")
+for name in ("meltr", "logforge")
+("meltr", "logforge")
+in ("meltr", "logforge")
+name.lower() in ("meltr", "logforge")
+parent.name.lower() in ("meltr", "logforge")
+parent.parent.name.lower() in ("meltr", "logforge")
+/usr/local/bin/logforge
+/usr/bin/logforge
+cmdline_suggests_logforge
+_logforge_binary_candidates
+
+# Legacy install / data paths (compat discovery)
+.logforge
+/opt/logforge
+/var/lib/logforge
+./logforge
+parts[0] in ("meltr", "logforge")
+legacy ``…/opt/logforge``
+Read `LOGFORGE_HOME`
+
+# Ecosystem sibling repos (not renamed yet)
+LogForge-Templates
+LogForge-Templates-UI
+LogForge-Enterprise
+LogForge OSS repo
+LogForge Enterprise
+LogForge repo
+migrating from LogForge
+from LogForge layout
+Old (LogForge)
+transitional LogForge
+LogForge legacy
+## LogForge legacy
+
+# Linux bundle artifact naming (transitional tarball prefix)
+logforge-{version}-linux
+logforge-*.tar.gz
+logforge-*-linux-x86_64
+logforge-{version}-linux-x86_64.tar.gz
+top-level **`logforge/`**
+top-level directory **`logforge/`**
+python3.11 -m logforge
+dist/logforge-
+prefix="logforge-
+
+# Tests asserting pipelines feature was removed
+"pipelines" not in
+not expose a pipelines field
+test_resolve_api_key_logforge_env_fallback
+test_logforge_service
+test_cmdline_suggests_logforge
+
+# Internal service class name (compat; rename follow-up)
+LogForgeService
+
+meltr|logforge
+legacy logforge
+meltr/logforge
+"logforge" in cmd
+username in ("meltr", "logforge"
+# Example YAML ${LOGFORGE_HOME} substitution (documented compat alias)
+${LOGFORGE_HOME}
+
+# tests/test_paths.py — legacy path compat fixtures
+tests/test_paths.py:tmp_path / "opt" / "logforge"
+tests/test_paths.py:tmp_path / "logforge"
+tests/test_paths.py:logforge_dir
+tests/test_paths.py:bindir / "logforge"

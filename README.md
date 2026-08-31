@@ -1,6 +1,6 @@
 # MELTr
 
-MELTr is a synthetic event log generator for SOC, DFIR, and platform teams who need realistic data to test pipelines, detections, and integrations.
+MELTr is a synthetic event log generator for SOC, DFIR, and platform teams who need realistic data to test detections and integrations.
 
 > **Formerly LogForge OSS.** The engine lives here now. Community templates still sync from [logforge.io](https://logforge.io) during the transition; other LogForge repos will migrate later.
 
@@ -11,11 +11,33 @@ MELTr is a synthetic event log generator for SOC, DFIR, and platform teams who n
 - Community template install (`default/` / `custom/`)
 - Pluggable outputs: file, console, HTTP, TCP, syslog
 - Prometheus metrics and resilient output buffering
-- Multi-template pipelines with schedule gates (`continuous`, `window`, `burst`)
+- Multiple **generators** (one template → one or more outputs); optional schedule gates (`continuous`, `window`, `burst`)
 
-## Schedule
+## Generators
 
-Generators and pipelines can gate emission with a `schedule` block. Frequency/variation still controls rate; the schedule decides whether emission is allowed.
+Each **generator** renders one template and sends events to one or more **outputs**. Run multiple generators when you need multiple templates.
+
+```yaml
+generators:
+  - name: identity-lab
+    template: vendor/product/source/event
+    enabled: true
+    outputs: [file-out, http-cribl]
+    # schedule omitted → continuous (default)
+```
+
+```bash
+meltr generators list
+meltr generators start identity-lab
+meltr generators status identity-lab
+meltr generators stop identity-lab
+```
+
+Configure under `generators:` in `config.yaml`, or use `meltr config edit` for an interactive flow. A reserved **`internal-logs`** generator forwards application logs (not a Jinja template); it is always present and cannot be removed.
+
+## Schedule (optional)
+
+Generators run **continuously** by default. Add an optional `schedule` block to gate emission — frequency/variation still controls rate; the schedule decides whether emission is allowed.
 
 | Mode | Behavior |
 |------|----------|
@@ -23,23 +45,7 @@ Generators and pipelines can gate emission with a `schedule` block. Frequency/va
 | `window` | Emit only inside tz-aware `days` + `time`; stay running but emit zero outside the window |
 | `burst` | Emit until `count` events **or** `duration`, then auto-stop |
 
-Pipeline example:
-
-```yaml
-pipelines:
-  - name: lab-burst
-    enabled: true
-    outputs: [file-out]
-    schedule:
-      mode: burst
-      count: 1000
-      duration: 5m
-    streams:
-      - template: vendor/product/source/event
-        weight: 1.0
-```
-
-Optional on standalone generators:
+Example:
 
 ```yaml
 generators:
@@ -105,19 +111,6 @@ meltr templates check-updates
 ```
 
 Registry errors exit non-zero from the CLI and return 502 from the API — local installs are never modified.
-
-## Pipelines
-
-Multi-template **pipelines** share outputs and an optional schedule. Each stream maps to one template; the engine spawns child generators (`pipeline-name::0`, `pipeline-name::1`, …). The `streams[].weight` field is accepted in config but **not yet applied** — all streams run at equal rate until weighted selection lands in a future release.
-
-```bash
-meltr pipelines list
-meltr pipelines start identity-lab
-meltr pipelines status identity-lab
-meltr pipelines stop identity-lab
-```
-
-Configure under `pipelines:` in `config.yaml` (see [Schedule](#schedule) below). Standalone `generators:` remain supported for backward compatibility.
 
 ## What's not in OSS
 

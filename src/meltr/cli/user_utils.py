@@ -63,7 +63,7 @@ def ensure_service_user_and_group(
                             "-d",
                             str(home_path),
                             "-c",
-                            "LogForge Service",
+                            "MELTr Service",
                             service_user,
                         ],
                         check=True,
