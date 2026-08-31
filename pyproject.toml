@@ -54,7 +54,6 @@ dev = [
 
 [project.scripts]
 meltr = "meltr.cli.main:main"
-logforge = "meltr.cli.main:main"  # compat alias during LogForge → MELTr transition
 
 [project.urls]
 Homepage = "https://github.com/Fulcrum-Technology-Solutions/MELTr"

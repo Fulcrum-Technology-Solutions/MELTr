@@ -15,7 +15,7 @@ from meltr.cli.user_utils import (
     service_user_and_group_exist,
 )
 from meltr.core.config import Config, create_default_config
-from meltr.core.paths import get_logforge_home, get_templates_path
+from meltr.core.paths import get_meltr_home, get_templates_path
 
 if TYPE_CHECKING:
     pass
@@ -58,7 +58,7 @@ def init(
 
     Uses MELTR_HOME (default: ./.meltr or ./meltr when present, else
     ~/.meltr for interactive users or /opt/meltr for service accounts).
-    Compat: LOGFORGE_HOME / .logforge / ./logforge still discovered.
+    Resolves MELTR_HOME via get_meltr_home().
     With --create-user and root, creates the service user/group (default: meltr)
     and sets ownership. If neither --create-user nor --no-create-user is passed,
     defaults to creating a service user only when running as root.
@@ -68,7 +68,7 @@ def init(
     if directory and directory is not None:
         home = Path(directory).expanduser().resolve()
     else:
-        home = get_logforge_home()
+        home = get_meltr_home()
     config_path = home / "config.yaml"
     entities_path = home / "entities.yaml"
     templates_path = get_templates_path(home)
@@ -126,14 +126,14 @@ def init(
                 ]:
                     if d.exists():
                         os.chown(d, service_uid, service_gid)
-                # Chown install root when home is under /opt/.../data or .../meltr|logforge
+                # Chown install root when home is under /opt/.../data or .../meltr
                 parent = home.parent
                 if parent.exists():
-                    if parent.name.lower() in ("meltr", "logforge"):
+                    if parent.name.lower() in ("meltr",):
                         os.chown(parent, service_uid, service_gid)
                     elif (
                         parent.name == "data"
-                        and parent.parent.name.lower() in ("meltr", "logforge")
+                        and parent.parent.name.lower() in ("meltr",)
                         and parent.parent.exists()
                     ):
                         os.chown(parent.parent, service_uid, service_gid)
@@ -269,7 +269,7 @@ def _create_default_entities(home: Path, entities_path: Path) -> None:
     """Create default entities.yaml from bundled sample or minimal fallback.
 
     Args:
-        home: LOGFORGE_HOME path (used to resolve examples path when not in package).
+        home: MELTR_HOME path (used to resolve examples path when not in package).
         entities_path: Path to entities.yaml to write.
     """
     from meltr.entities.validator import validate_entities

@@ -1,6 +1,6 @@
 # Linux `.tar.gz` bundle (official release)
 
-The GitHub **Release** for each tag includes **`logforge-{version}-linux-x86_64.tar.gz`**: a self-contained tree with an embedded CPython build (from [python-build-standalone](https://github.com/astral-sh/python-build-standalone)), MELTr installed under `app/lib/python3.11/site-packages`, and a portable `app/bin/meltr` launcher. No `pip` or system Python is required on the target host. Extracting the archive creates a top-level **`logforge/`** directory (not a version-suffixed path).
+The GitHub **Release** for each tag includes **`meltr-{version}-linux-x86_64.tar.gz`**: a self-contained tree with an embedded CPython build (from [python-build-standalone](https://github.com/astral-sh/python-build-standalone)), MELTr installed under `app/lib/python3.11/site-packages`, and a portable `app/bin/meltr` launcher. No `pip` or system Python is required on the target host. Extracting the archive creates a top-level **`meltr/`** directory (not a version-suffixed path).
 
 For **pip/venv install** from PyPI or a wheel, see [linux-single-instance.md](linux-single-instance.md).
 
@@ -15,12 +15,12 @@ For **pip/venv install** from PyPI or a wheel, see [linux-single-instance.md](li
 
 ## Install
 
-1. Download **`logforge-{version}-linux-x86_64.tar.gz`** and verify the checksum from `checksums.txt` on the release.
+1. Download **`meltr-{version}-linux-x86_64.tar.gz`** and verify the checksum from `checksums.txt` on the release.
 
 2. Unpack under `/opt` (or another fixed path):
 
 ```bash
-sudo tar xzf logforge-{version}-linux-x86_64.tar.gz -C /opt
+sudo tar xzf meltr-{version}-linux-x86_64.tar.gz -C /opt
 ```
 
 3. Put the CLI on `PATH`:
@@ -38,7 +38,7 @@ meltr init --force
 meltr start
 ```
 
-`get_logforge_home()` treats binaries under `/opt/meltr` as an install layout and defaults `MELTR_HOME` to **`/opt/meltr`** when unset—see [`paths.py`](../../src/meltr/core/paths.py).
+`get_meltr_home()` treats binaries under `/opt/meltr` as an install layout and defaults `MELTR_HOME` to **`/opt/meltr`** when unset—see [`paths.py`](../../src/meltr/core/paths.py).
 
 ## Background operation (default)
 
@@ -58,7 +58,7 @@ sudo meltr service install \
   --binary /opt/meltr/app/bin/meltr
 ```
 
-Omit `--home` to use **`MELTR_HOME=/opt/meltr`**. Use `--home /var/lib/logforge` (or similar) only if policy requires state outside `/opt`.
+Omit `--home` to use **`MELTR_HOME=/opt/meltr`**. Use `--home /var/lib/meltr` (or similar) only if policy requires state outside `/opt`.
 
 ## Open source artifacts in the bundle
 

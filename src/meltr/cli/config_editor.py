@@ -22,7 +22,7 @@ from meltr.core.config import (
     save_config as save_config_file,
 )
 from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
-from meltr.core.paths import get_logforge_home
+from meltr.core.paths import get_meltr_home
 from meltr.templates.loader import TemplateLoader
 
 # Sentinel: user chose "back" in paginated list (not a template/vendor/product id)
@@ -71,14 +71,14 @@ def config_editor(
         else:
             from meltr.core.config import create_default_config
 
-            home = get_logforge_home()
+            home = get_meltr_home()
             config = create_default_config(home)
             console.print("[green]Starting with default configuration[/green]\n")
     except FileNotFoundError:
         console.print("[yellow]No existing config found. Starting fresh.[/yellow]\n")
         from meltr.core.config import create_default_config
 
-        home = get_logforge_home()
+        home = get_meltr_home()
         config = create_default_config(home)
 
     if section:

@@ -22,7 +22,7 @@ def preview_client(tmp_path, monkeypatch) -> TestClient:
     """APIServer TestClient with fixture template and entity registry."""
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
 
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=False, key=None)

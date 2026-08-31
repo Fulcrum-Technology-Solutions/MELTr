@@ -1,4 +1,4 @@
-# Building the Linux `logforge-*.tar.gz` bundle
+# Building the Linux `meltr-*.tar.gz` bundle
 
 Releases are built on **Linux x86_64** (e.g. GitHub Actions `ubuntu-latest`) by [`.github/workflows/release.yml`](../../.github/workflows/release.yml) after `python -m build`.
 
@@ -6,8 +6,8 @@ Contributors working from a clone should start with [setup.md](setup.md) (editab
 
 ## What you get
 
-- **Layout** — The `.tar.gz` has a single top-level directory **`logforge/`** (override at build time with env **`BUNDLE_DIR`**). The release **filename** stays versioned, e.g. `logforge-1.2.3-linux-x86_64.tar.gz`.
-- **`app/bin/meltr`** — Shell script (not an ELF). It sets `PYTHONPATH` to the bundled `app/lib/python3.11/site-packages` and runs `python/bin/python3.11 -m logforge`. The ELF is the **embedded CPython interpreter** under `python/bin/`.
+- **Layout** — The `.tar.gz` has a single top-level directory **`meltr/`** (override at build time with env **`BUNDLE_DIR`**). The release **filename** stays versioned, e.g. `meltr-1.2.3-linux-x86_64.tar.gz`.
+- **`app/bin/meltr`** — Shell script (not an ELF). It sets `PYTHONPATH` to the bundled `app/lib/python3.11/site-packages` and runs `python/bin/python3.11 -m meltr`. The ELF is the **embedded CPython interpreter** under `python/bin/`.
 - **`python/`** — Pinned [python-build-standalone](https://github.com/astral-sh/python-build-standalone) `install_only` tarball (see `PBS_*` variables in [`scripts/build_linux_tgz.sh`](../../scripts/build_linux_tgz.sh)).
 - **`app/lib/python3.11/site-packages/`** — From `pip install --prefix app` of the MELTr wheel and dependencies (no relocatable venv; avoids broken shebangs after moving the tree).
 - **`LICENSE`**, **`NOTICE`** (from the repo root when present), **`PYTHON_PSF_LICENSE.txt`**, **`THIRD_PARTY_NOTICES.txt`** — See [linux-tarball.md](../deployment/linux-tarball.md).
@@ -21,7 +21,7 @@ MELTr remains a normal **Python** application (FastAPI, Typer, etc.). The bundle
 ```bash
 python -m pip install build
 VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('src/meltr/__init__.py', encoding='utf-8').read()).group(1))")
-python -m build   # produces dist/logforge-${VERSION}-py3-none-any.whl
+python -m build   # produces dist/meltr-${VERSION}-py3-none-any.whl
 bash scripts/build_linux_tgz.sh "$VERSION"
 ```
 

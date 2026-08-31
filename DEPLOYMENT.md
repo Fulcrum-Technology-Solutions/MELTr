@@ -2,7 +2,7 @@
 
 **First-time Linux install (single instance, `/opt`, systemd):** See **[docs/deployment/linux-single-instance.md](docs/deployment/linux-single-instance.md)**. For the **`.tar.gz` bundle** (embedded Python, no `pip` on target), see **[docs/deployment/linux-tarball.md](docs/deployment/linux-tarball.md)**.
 
-**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** or **wheel** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/MELTr/releases) (see [linux-tarball.md](docs/deployment/linux-tarball.md)), or an **editable install** from source for development. Install wheels with `pip install ./meltr-*.whl` (PyPI package name is `meltr`). Config and data live under **MELTR_HOME**. For `meltr service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/meltr` → **`MELTR_HOME=/opt/meltr`**; otherwise same rules as `get_logforge_home()`). The service user is **meltr**. Uninstalling the systemd service (`meltr service uninstall`) removes only the unit file; it does not delete MELTR_HOME or application data.
+**Installation:** Choose the path that matches your environment—the **official Linux x86_64 `.tar.gz`** or **wheel** from [GitHub Releases](https://github.com/Fulcrum-Technology-Solutions/MELTr/releases) (see [linux-tarball.md](docs/deployment/linux-tarball.md)), or an **editable install** from source for development. Install wheels with `pip install ./meltr-*.whl` (PyPI package name is `meltr`). Config and data live under **MELTR_HOME**. For `meltr service install` without `--home`, the default is derived from the **resolved binary** (bundle under `/opt/meltr` → **`MELTR_HOME=/opt/meltr`**; otherwise same rules as `get_meltr_home()`). The service user is **meltr**. Uninstalling the systemd service (`meltr service uninstall`) removes only the unit file; it does not delete MELTR_HOME or application data.
 
 ## Updating the official Linux `.tar.gz` (GitHub Releases)
 
@@ -133,7 +133,7 @@ sudo systemctl enable meltr
 - ✅ `templates/custom/` - Your custom templates
 - ✅ `templates/default/` - Community templates (unless you reinstall them)
 - ✅ `outputs/` - Output files
-- ✅ `logs/meltr.log` - Application logs (bundle default: under `<install_root>/logs`, e.g. `/opt/meltr/logs/`; override with `LOGFORGE_LOG_FILE`)
+- ✅ `logs/meltr.log` - Application logs (bundle default: under `<install_root>/logs`, e.g. `/opt/meltr/logs/`; override with `MELTR_LOG_FILE`)
 
 **Replaced:**
 - 🔄 Python source code (`src/`)

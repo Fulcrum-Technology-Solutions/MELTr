@@ -158,7 +158,7 @@ def entities_validate(
         None,
         "--file",
         "-f",
-        help="Path to entities.yaml file (default: LOGFORGE_HOME/entities.yaml)",
+        help="Path to entities.yaml file (default: MELTR_HOME/entities.yaml)",
     ),
     schema_path: Path | None = typer.Option(
         None, "--schema", "-s", help="Path to entity.schema.json (default: auto-detect)"
@@ -198,17 +198,17 @@ def entities_import(
     api_key: str | None = typer.Option(None, "--api-key", envvar="MELTR_API_KEY"),
 ) -> None:
     """Import entities from YAML file."""
-    from meltr.core.paths import get_logforge_home
+    from meltr.core.paths import get_meltr_home
     from meltr.entities.storage import EntityStorage
 
-    get_logforge_home()
+    get_meltr_home()
 
     # Validate import file
     if not file_path.exists():
         console.print(f"[red]Error: File not found: {file_path}[/red]")
         raise typer.Exit(code=1)
 
-    # Load and validate import file (allow validation outside LOGFORGE_HOME)
+    # Load and validate import file (allow validation outside MELTR_HOME)
     try:
         with file_path.open("r", encoding="utf-8") as f:
             import_data = yaml.safe_load(f)

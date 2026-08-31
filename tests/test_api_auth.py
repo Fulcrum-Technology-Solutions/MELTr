@@ -18,7 +18,7 @@ def _meltr_home(tmp_path, monkeypatch):
 
 def test_auth_required_false_when_no_key(tmp_path, monkeypatch):
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=False, key=None)
     assert auth_required(cfg) is False
@@ -34,7 +34,7 @@ def test_auth_required_true_when_env_key(tmp_path, monkeypatch):
 
 def test_auth_required_true_when_enabled_flag(tmp_path, monkeypatch):
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=True, key=None)
     assert auth_required(cfg) is True
@@ -42,7 +42,7 @@ def test_auth_required_true_when_enabled_flag(tmp_path, monkeypatch):
 
 def test_resolve_api_key_from_config(tmp_path, monkeypatch):
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=False, key="config-key")
     assert resolve_api_key(cfg) == "config-key"
@@ -50,17 +50,9 @@ def test_resolve_api_key_from_config(tmp_path, monkeypatch):
 
 def test_resolve_api_key_meltr_env_precedence(tmp_path, monkeypatch):
     monkeypatch.setenv("MELTR_API_KEY", "meltr-key")
-    monkeypatch.setenv("LOGFORGE_API_KEY", "legacy-api-key")
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=False, key="config-key")
     assert resolve_api_key(cfg) == "meltr-key"
-
-
-def test_resolve_api_key_logforge_env_fallback(tmp_path, monkeypatch):
-    monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.setenv("LOGFORGE_API_KEY", "legacy-api-key")
-    cfg = create_default_config(tmp_path)
-    assert resolve_api_key(cfg) == "legacy-api-key"
 
 
 def test_resolve_api_key_strips_whitespace(tmp_path, monkeypatch):
@@ -87,7 +79,7 @@ def _make_request(config, headers=None):
 @pytest.mark.asyncio
 async def test_require_api_key_skips_when_auth_not_required(tmp_path, monkeypatch):
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     await require_api_key(_make_request(cfg))
 
@@ -121,7 +113,7 @@ async def test_require_api_key_accepts_valid_bearer(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_require_api_key_503_when_enabled_without_key(tmp_path, monkeypatch):
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=True, key=None)
     with pytest.raises(HTTPException) as exc_info:
@@ -164,7 +156,7 @@ def no_auth_api_client(tmp_path, monkeypatch):
     from meltr.api.server import APIServer
 
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=False, key=None)
     server = APIServer(cfg)
@@ -219,7 +211,7 @@ def test_api_start_refuses_when_enabled_without_key(tmp_path, monkeypatch):
     from meltr.api.server import APIServer
 
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=True, key=None)
     cfg.api.enabled = True

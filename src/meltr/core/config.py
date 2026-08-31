@@ -9,7 +9,7 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 from meltr.core.paths import (
-    get_logforge_home,
+    get_meltr_home,
     validate_path_within_home,
 )
 
@@ -47,7 +47,7 @@ class AuthConfig(BaseModel):
     """API authentication configuration.
 
     Key-implies-auth: authentication is active when ``enabled`` is true or when
-    a non-empty API key is resolved from ``MELTR_API_KEY``, ``LOGFORGE_API_KEY``,
+    a non-empty API key is resolved from ``MELTR_API_KEY``,
     or ``key`` in config (env vars take precedence over config).
     """
 
@@ -86,7 +86,7 @@ class TemplatesConfig(BaseModel):
     custom_path: str | None = Field(default=None, description="Custom templates path")
     precedence: str = Field(default="custom_first", description="Template precedence")
     community_api_url: str = Field(
-        default="https://logforge.io/api/v1", description="Community API URL"
+        default="https://meltr.ftsc.cloud/api/v1", description="Community API URL"
     )
     auto_update_check: bool = Field(default=True, description="Auto-check for updates")
     cache_ttl: int = Field(default=3600, description="Template cache TTL in seconds")
@@ -263,11 +263,11 @@ def ensure_internal_logs_generator(config: Config) -> Config:
 def substitute_env_vars(value: Any, home: Path) -> Any:
     """Recursively substitute environment variables in config values.
 
-    Supports ${VAR} and ${LOGFORGE_HOME} substitution.
+    Supports ${VAR} and ${MELTR_HOME} substitution.
 
     Args:
         value: Config value (may be dict, list, or string)
-        home: LOGFORGE_HOME path for ${LOGFORGE_HOME} substitution
+        home: MELTR_HOME path for ${MELTR_HOME} substitution
 
     Returns:
         Value with environment variables substituted
@@ -332,7 +332,7 @@ def load_config(config_path: Path | None = None, create_if_missing: bool = True)
     """Load configuration from YAML file.
 
     Args:
-        config_path: Path to config.yaml. If None, uses default from LOGFORGE_HOME.
+        config_path: Path to config.yaml. If None, uses default from MELTR_HOME.
         create_if_missing: If True, create default config file if it doesn't exist.
 
     Returns:
@@ -342,14 +342,14 @@ def load_config(config_path: Path | None = None, create_if_missing: bool = True)
         FileNotFoundError: If config file doesn't exist and create_if_missing is False
         ValueError: If config is invalid
     """
-    home = get_logforge_home()
+    home = get_meltr_home()
 
     if config_path is None:
         config_path = home / "config.yaml"
     else:
-        # Validate config path is within LOGFORGE_HOME
+        # Validate config path is within MELTR_HOME
         if not validate_path_within_home(config_path, home):
-            raise ValueError(f"Config path {config_path} must be within LOGFORGE_HOME {home}")
+            raise ValueError(f"Config path {config_path} must be within MELTR_HOME {home}")
 
     # Create default config if missing
     if not config_path.exists():
@@ -400,21 +400,21 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
 
     Args:
         config: Config object to save
-        config_path: Path to save config.yaml. If None, uses default from LOGFORGE_HOME.
+        config_path: Path to save config.yaml. If None, uses default from MELTR_HOME.
 
     Raises:
         ValueError: If config path is invalid
         RuntimeError: If save fails
     """
     config = ensure_internal_logs_generator(config)
-    home = get_logforge_home()
+    home = get_meltr_home()
 
     if config_path is None:
         config_path = home / "config.yaml"
     else:
-        # Validate config path is within LOGFORGE_HOME
+        # Validate config path is within MELTR_HOME
         if not validate_path_within_home(config_path, home):
-            raise ValueError(f"Config path {config_path} must be within LOGFORGE_HOME {home}")
+            raise ValueError(f"Config path {config_path} must be within MELTR_HOME {home}")
 
     # Ensure directory exists
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -443,13 +443,13 @@ def create_default_config(home: Path | None = None) -> Config:
     """Create default configuration with sensible defaults.
 
     Args:
-        home: LOGFORGE_HOME path. If None, resolves automatically.
+        home: MELTR_HOME path. If None, resolves automatically.
 
     Returns:
         Default Config object
     """
     if home is None:
-        home = get_logforge_home()
+        home = get_meltr_home()
 
     config = Config(
         version="1.0",

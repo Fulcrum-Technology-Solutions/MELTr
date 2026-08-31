@@ -71,7 +71,7 @@ Align with `[tool.ruff]`, `[tool.black]`, and `[tool.mypy]` in [`pyproject.toml`
 
 ## Building the Linux release bundle
 
-Maintainers building **`logforge-*-linux-x86_64.tar.gz`** should read [building-linux-tarball.md](building-linux-tarball.md) (Linux x86_64 host or CI).
+Maintainers building **`meltr-*-linux-x86_64.tar.gz`** should read [building-linux-tarball.md](building-linux-tarball.md) (Linux x86_64 host or CI).
 
 ## See also
 

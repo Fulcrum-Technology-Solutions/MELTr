@@ -1,11 +1,11 @@
 # MELTr 2.0.0 Release Notes
 
-First stable release of **MELTr** (formerly LogForge OSS). Install with `pip install meltr==2.0.0`.
+First stable release of **MELTr** (formerly MELTr OSS). Install with `pip install meltr==2.0.0`.
 
 ## Highlights
 
-- **Rebrand to MELTr** — PyPI package `meltr`, CLI `meltr`, config under `MELTR_HOME` (default `~/.meltr`). `LOGFORGE_*` env vars remain supported for compatibility.
-- **API key auth** — Key-implies-auth: set `MELTR_API_KEY` (or `LOGFORGE_API_KEY`) to protect the management API; health/metrics paths configurable.
+- **Rebrand to MELTr** — PyPI package `meltr`, CLI `meltr`, config under `MELTR_HOME` (default `~/.meltr`). Legacy MELTr env aliases and CLI entry points are removed.
+- **API key auth** — Key-implies-auth: set `MELTR_API_KEY` (or `MELTR_API_KEY`) to protect the management API; health/metrics paths configurable.
 - **Template preview** — `meltr templates preview <id>` renders sample events without starting a generator.
 - **Community update detection** — `meltr templates check-updates` compares installed community templates against the registry (detection only; no auto-upgrade).
 - **Generators-only model** — One template per generator, each pointing at one or more outputs; run multiple generators for multiple templates.
@@ -21,7 +21,7 @@ Fleet/worker distribution, LLM-assisted template authoring, and advanced scenari
 
 ```bash
 pip install -U meltr==2.0.0
-meltr init --force   # if migrating from LogForge layout
+meltr init --force   # if migrating from MELTr layout
 ```
 
-Community templates continue to sync from [logforge.io](https://logforge.io) during the transition.
+Community templates sync from [meltr.ftsc.cloud](https://meltr.ftsc.cloud) by default.
