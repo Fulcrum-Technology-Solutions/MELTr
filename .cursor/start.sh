@@ -18,9 +18,12 @@ if curl -sf "$health_url" >/dev/null 2>&1; then
   exit 0
 fi
 
-# 'meltr start' daemonizes on POSIX and returns immediately.
+# 'meltr start' daemonizes on POSIX and returns immediately. It clears a stale
+# pidfile (e.g. one baked into a snapshot) on its own.
 meltr start
 
+# Best-effort readiness wait. Never block agent boot on a convenience service:
+# the daemon launch already succeeded above, so a slow bind only warns.
 for _ in $(seq 1 30); do
   if curl -sf "$health_url" >/dev/null 2>&1; then
     echo "MELTr API healthy on 127.0.0.1:8080 (logs: $MELTR_HOME/logs/meltr.log)"
@@ -29,5 +32,5 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-echo "MELTr API did not become healthy within 30s" >&2
-exit 1
+echo "MELTr API not healthy after 30s; check $MELTR_HOME/logs/meltr.log or run 'meltr start'" >&2
+exit 0
