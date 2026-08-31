@@ -37,6 +37,34 @@ Under `.cursor/skills/` (use when relevant):
 python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
 ```
 
+Cloud Agent bootstrap (idempotent): `bash .cursor/install.sh` then `bash .cursor/start.sh` (API on `127.0.0.1:8080`). See `.cursor/environment.json`.
+
+## Local vs Cloud Agent vs CI
+
+| Layer | Use for | Not for |
+|-------|---------|---------|
+| **Local** (worktrees + IDE) | Fast iteration, multi-repo, interactive `meltr config edit`, debugging | Assuming a clean install layout |
+| **Cloud Agent** | Clean-room install/runtime smoke after packaging, paths, init, or pre-release | Replacing CI; every small push |
+| **CI** | Merge gate: lint, pytest, string gate, secrets | Deep manual flows / live registry |
+
+**Shared smoke (same commands everywhere):**
+
+```bash
+./scripts/smoke.sh
+```
+
+Uses a disposable `MELTR_HOME` under `/tmp` by default. Reuse a home with `MELTR_HOME=… ./scripts/smoke.sh`. Keep temp home + API with `SMOKE_KEEP=1`.
+
+| Change type | Local | Cloud Agent | CI |
+|-------------|-------|-------------|-----|
+| Small fix | focused pytest | skip | PR checks |
+| Config / CLI / engine | pytest + optional smoke | optional | PR checks |
+| Packaging / paths / init | optional smoke | **preferred** | PR checks |
+| Pre-tag release | smoke | **smoke on `main`** | green on `main` |
+| Community registry | override `MELTR_COMMUNITY_API_URL` if needed | only if host reachable | N/A |
+
+Do not invent different smoke steps per environment. Prefer this script.
+
 ## Key commands
 
 | Task | Command |
@@ -45,11 +73,14 @@ python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
 | Format check | `black --check .` |
 | Type check | `mypy src` |
 | Tests | `pytest` |
+| Runtime smoke | `./scripts/smoke.sh` |
 | Start service | `meltr start` |
+| Legacy string gate | `python scripts/check_logforge_strings.py` |
 
 ## Non-obvious caveats
 
 - `pytest` may exit non-zero due to `--cov-fail-under` until coverage climbs (see v2.0 plan).
-- Community registry default: `https://meltr.ftsc.cloud/api/v1`.
+- Community registry default: `https://meltr.ftsc.cloud/api/v1` (override with `MELTR_COMMUNITY_API_URL`).
 - LLM template authoring is **not** in this OSS product (Enterprise-only).
+- Cloud Agent `start.sh` is best-effort (exits 0 even if health is slow); `scripts/smoke.sh` **fails** if health never comes up.
 - Only create git commits when explicitly asked.

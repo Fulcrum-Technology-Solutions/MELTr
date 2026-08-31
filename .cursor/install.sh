@@ -29,3 +29,4 @@ if [ ! -f "$MELTR_HOME/config.yaml" ]; then
 fi
 
 echo "MELTr install complete: $(meltr --version)"
+echo "Runtime smoke (optional): ./scripts/smoke.sh"
