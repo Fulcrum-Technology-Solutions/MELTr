@@ -46,6 +46,7 @@ htmlcov/
 !.cursor/skills/**
 !.cursor/environment.json
 !.cursor/install.sh
+!.cursor/start.sh
 .vscode/
 .idea/
 *.swp
