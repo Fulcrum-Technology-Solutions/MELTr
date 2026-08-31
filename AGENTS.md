@@ -53,7 +53,7 @@ Cloud Agent bootstrap (idempotent): `bash .cursor/install.sh` then `bash .cursor
 ./scripts/smoke.sh
 ```
 
-Uses a disposable `MELTR_HOME` under `/tmp` by default. Reuse a home with `MELTR_HOME=… ./scripts/smoke.sh`. Keep temp home + API with `SMOKE_KEEP=1`.
+Uses a disposable `MELTR_HOME` under `/tmp` by default. Reuse a home with `MELTR_HOME=… ./scripts/smoke.sh`. Keep temp home + API with `SMOKE_KEEP=1`. Skip the live registry pull with `SMOKE_SKIP_COMMUNITY=1`. When `https://meltr.ftsc.cloud/api/v1/health` (or `MELTR_COMMUNITY_API_URL`) is reachable, smoke also browses, searches, installs `apache`, and compares against the catalog.
 
 | Change type | Local | Cloud Agent | CI |
 |-------------|-------|-------------|-----|
