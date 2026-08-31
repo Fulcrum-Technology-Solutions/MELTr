@@ -107,7 +107,8 @@ def test_config_load_merges_generators(tmp_path, monkeypatch):
 
     save_config(cfg, path)
     loaded = load_config(path, create_if_missing=False)
-    assert loaded.generators[0].name == "g1"
+    g1 = next(g for g in loaded.generators if g.name == "g1")
+    assert g1.name == "g1"
 
 
 def test_http_handler_auth_error_tracking(monkeypatch):
@@ -168,23 +169,4 @@ def test_cli_generators_list_error_path(tmp_path, monkeypatch):
 
     with patch("meltr.cli.generators.get_api_client", return_value=Client()):
         result = CliRunner().invoke(generators_app, ["list"])
-    assert result.exit_code == 1
-
-
-def test_cli_pipelines_list_error_path(tmp_path, monkeypatch):
-    from typer.testing import CliRunner
-
-    from meltr.cli.pipelines import app as pipelines_app
-
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-
-    class Client:
-        def require_service_running(self):
-            return None
-
-        def get(self, path):
-            raise RuntimeError("boom")
-
-    with patch("meltr.cli.pipelines.get_api_client", return_value=Client()):
-        result = CliRunner().invoke(pipelines_app, ["list"])
     assert result.exit_code == 1

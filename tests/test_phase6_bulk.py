@@ -1,4 +1,4 @@
-"""Bulk coverage tests: filters, file output, updates, pipeline, template validator."""
+"""Bulk coverage tests: filters, file output, updates, schedule, template validator."""
 
 from __future__ import annotations
 
@@ -13,9 +13,8 @@ from meltr.community.updates import (
     get_remote_collection_version,
     iter_installed_products,
 )
-from meltr.core.config import OutputDefinition, PipelineConfig, PipelineStreamConfig, ScheduleConfig
-from meltr.core.generator import GeneratorState
-from meltr.core.pipeline import Pipeline, ScheduleSharedState
+from meltr.core.config import OutputDefinition
+from meltr.core.schedule import ScheduleSharedState
 from meltr.outputs.file import FileOutputHandler
 from meltr.templates.filters import (
     DateTimeWrapper,
@@ -128,7 +127,7 @@ def test_get_remote_collection_version_uses_cache():
     client.get_product_detail.assert_called_once()
 
 
-# --- pipeline ---
+# --- schedule shared state ---
 
 
 def test_schedule_shared_state_thread_safe():
@@ -140,52 +139,6 @@ def test_schedule_shared_state_thread_safe():
     assert state.events_emitted == 2
     state.reset()
     assert state.events_emitted == 0
-
-
-def test_pipeline_state_aggregation():
-    config = PipelineConfig(
-        name="p",
-        enabled=True,
-        outputs=["out"],
-        schedule=ScheduleConfig(mode="continuous"),
-        streams=[PipelineStreamConfig(template="t", weight=1.0)],
-    )
-    gen_running = MagicMock()
-    gen_running.state = GeneratorState.RUNNING
-    gen_running.name = "p::0"
-    gen_running.config.template = "t"
-    gen_running.get_status.return_value = {
-        "state": GeneratorState.RUNNING.value,
-        "statistics": {"events_generated": 3, "errors": 0},
-    }
-    gen_stopped = MagicMock()
-    gen_stopped.state = GeneratorState.STOPPED
-    gen_stopped.name = "p::1"
-    gen_stopped.config.template = "t2"
-    gen_stopped.get_status.return_value = {
-        "state": GeneratorState.STOPPED.value,
-        "statistics": {"events_generated": 0, "errors": 0},
-    }
-    schedule_state = ScheduleSharedState(datetime.now(timezone.utc))
-    pipeline = Pipeline(config, [gen_running, gen_stopped], ["p::0", "p::1"], schedule_state)
-    assert pipeline.state == GeneratorState.RUNNING
-    status = pipeline.get_status()
-    assert status["statistics"]["events_generated"] == 3
-    assert len(status["streams"]) == 2
-    pipeline.reset_schedule()
-
-
-def test_pipeline_empty_generators_stopped():
-    config = PipelineConfig(
-        name="empty",
-        enabled=False,
-        outputs=[],
-        schedule=ScheduleConfig(mode="continuous"),
-        streams=[],
-    )
-    schedule_state = ScheduleSharedState(datetime.now(timezone.utc))
-    pipeline = Pipeline(config, [], [], schedule_state)
-    assert pipeline.state == GeneratorState.STOPPED
 
 
 # --- template validator ---

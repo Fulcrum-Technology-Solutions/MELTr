@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 import requests
-from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from meltr.community.client import (
@@ -26,7 +25,6 @@ from meltr.community.package import (
     validate_package_structure,
 )
 from meltr.core.config import (
-    AuthConfig,
     FrequencyConfig,
     FrequencyVariation,
     OutputDefinition,
@@ -237,6 +235,16 @@ def test_schedule_unknown_mode_defaults_emit():
 # --- HTTP metadata + headers ---
 
 
+def test_wrap_event_uses_meltr_metadata_key():
+    handler = HTTPOutputHandler(name="hec", url="https://example.invalid/hec")
+    handler.include_metadata = True
+    handler.generator_name = "lab::0"
+    handler.timezone = "UTC"
+    handler.template_metadata = {"template_id": "v/p/d/e"}
+    wrapped = handler._wrap_event_with_metadata({"msg": "hi"})
+    assert set(wrapped.keys()) == {"event", "meltr_metadata"}
+
+
 def test_http_wrap_event_with_metadata():
     handler = HTTPOutputHandler(name="hec", url="https://example.invalid/hec")
     handler.include_metadata = True
@@ -250,8 +258,8 @@ def test_http_wrap_event_with_metadata():
     }
     wrapped = handler._wrap_event_with_metadata({"msg": "hi"})
     assert wrapped["event"] == {"msg": "hi"}
-    assert wrapped["logforge_metadata"]["generator"] == "lab::0"
-    assert wrapped["logforge_metadata"]["template_id"] == "v/p/d/e"
+    assert wrapped["meltr_metadata"]["generator"] == "lab::0"
+    assert wrapped["meltr_metadata"]["template_id"] == "v/p/d/e"
 
 
 def test_http_sanitize_header_values():
@@ -291,7 +299,7 @@ def test_http_send_single_event_with_metadata(monkeypatch):
 
     monkeypatch.setattr("meltr.outputs.http.requests.request", fake_request)
     handler._send_single_event('{"event":"data"}')
-    assert "logforge_metadata" in captured["json"]
+    assert "meltr_metadata" in captured["json"]
     assert captured["json"]["event"]["event"] == "data"
 
 
@@ -490,6 +498,18 @@ def test_extract_forge_package_empty_archive(tmp_path):
         extract_forge_package(pkg, tmp_path / "out")
 
 
+def test_extract_forge_package_rejects_path_traversal(tmp_path):
+    pkg = tmp_path / "evil.forge"
+    with tarfile.open(pkg, "w:gz") as tar:
+        info = tarfile.TarInfo(name="../escape.txt")
+        data = b"pwned"
+        info.size = len(data)
+        tar.addfile(info, fileobj=__import__("io").BytesIO(data))
+    with pytest.raises(PackageError, match="Unsafe path"):
+        extract_forge_package(pkg, tmp_path / "out")
+    assert not (tmp_path / "escape.txt").exists()
+
+
 def test_validate_package_structure(tmp_path):
     vendor_dir = tmp_path / "vendor"
     vendor_dir.mkdir()
@@ -500,7 +520,7 @@ def test_validate_package_structure(tmp_path):
     assert validate_package_structure(vendor_dir) is True
 
 
-# --- CLI: pipelines, generators, config ---
+# --- CLI: generators, config ---
 
 
 def _mock_api_client(responses: dict):
@@ -527,62 +547,6 @@ def _mock_api_client(responses: dict):
             return Resp(**responses.get(("POST", path), {"payload": {}}))
 
     return Client()
-
-
-def test_cli_pipelines_list(tmp_path, monkeypatch):
-    from meltr.cli.pipelines import app as pipelines_app
-
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    payload = {
-        "pipelines": [
-            {
-                "name": "lab",
-                "state": "STOPPED",
-                "streams": [{"name": "lab::0"}],
-                "enabled": True,
-            }
-        ]
-    }
-    with patch(
-        "meltr.cli.pipelines.get_api_client",
-        return_value=_mock_api_client({("GET", "/api/pipelines"): {"payload": payload}}),
-    ):
-        result = CliRunner().invoke(pipelines_app, ["list"])
-    assert result.exit_code == 0
-    assert "lab" in result.output
-
-
-def test_cli_pipelines_start_stop_status(tmp_path, monkeypatch):
-    from meltr.cli.pipelines import app as pipelines_app
-
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    start_payload = {"message": "Pipeline started", "state": "RUNNING"}
-    stop_payload = {"message": "Pipeline stopped", "state": "STOPPED"}
-    detail_payload = {
-        "name": "lab",
-        "state": "RUNNING",
-        "enabled": True,
-        "outputs": ["file-out"],
-        "schedule": {"mode": "continuous"},
-        "statistics": {"events_generated": 10, "errors": 0},
-        "streams": [
-            {"name": "lab::0", "template": "v/p/d/e", "state": "RUNNING", "events_generated": 10},
-        ],
-    }
-    client = _mock_api_client(
-        {
-            ("POST", "/api/pipelines/lab/start"): {"payload": start_payload},
-            ("POST", "/api/pipelines/lab/stop"): {"payload": stop_payload},
-            ("GET", "/api/pipelines/lab"): {"payload": detail_payload},
-            ("GET", "/api/pipelines"): {"payload": {"pipelines": [detail_payload]}},
-        }
-    )
-    with patch("meltr.cli.pipelines.get_api_client", return_value=client):
-        runner = CliRunner()
-        assert runner.invoke(pipelines_app, ["start", "lab"]).exit_code == 0
-        assert runner.invoke(pipelines_app, ["stop", "lab"]).exit_code == 0
-        assert runner.invoke(pipelines_app, ["status", "lab"]).exit_code == 0
-        assert runner.invoke(pipelines_app, ["status"]).exit_code == 0
 
 
 def test_cli_generators_list_verbose(tmp_path, monkeypatch):
@@ -632,44 +596,6 @@ def test_cli_config_show_json(tmp_path, monkeypatch):
     result = CliRunner().invoke(config_app, ["show", "--format", "json", "--path", "api.port"])
     assert result.exit_code == 0
     assert "8080" in result.output
-
-
-# --- API pipelines auth ---
-
-
-def test_api_pipelines_require_auth(tmp_path, monkeypatch):
-    from meltr.api.server import APIServer
-
-    monkeypatch.setenv("MELTR_API_KEY", "pipe-secret")
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    cfg = create_default_config(tmp_path)
-    cfg.api.auth = AuthConfig(enabled=False, key=None)
-    server = APIServer(cfg)
-    client = TestClient(server.app)
-
-    assert client.get("/api/pipelines").status_code == 401
-    headers = {"Authorization": "Bearer pipe-secret"}
-    assert client.get("/api/pipelines", headers=headers).status_code == 503  # no engine
-
-
-def test_api_pipelines_not_found(tmp_path, monkeypatch):
-    from meltr.api.server import APIServer
-    from meltr.core.engine import Engine
-    from meltr.entities.registry import EntityRegistry
-
-    monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    cfg = create_default_config(tmp_path)
-    registry = EntityRegistry(cfg)
-    engine = Engine(cfg, registry)
-    server = APIServer(cfg)
-    server.app.state.engine = engine
-    client = TestClient(server.app)
-
-    try:
-        assert client.get("/api/pipelines/missing").status_code == 404
-    finally:
-        engine.shutdown()
 
 
 # --- template filters ---

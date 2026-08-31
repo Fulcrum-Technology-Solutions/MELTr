@@ -1,5 +1,5 @@
 # Sample Entity Registry for Synthetic Log Generator
-# Used by 'logforge init' when creating a new entities.yaml
+# Used by 'meltr init' when creating a new entities.yaml
 
 organization:
   name: "Acme Corporation"

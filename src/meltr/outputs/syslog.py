@@ -190,7 +190,7 @@ class SyslogOutputHandler(OutputHandler):
         timestamp = now_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         # RFC 5424 format: <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
-        return f"<{self.pri}>1 {timestamp} {self._hostname} logforge - - - {message}"
+        return f"<{self.pri}>1 {timestamp} {self._hostname} meltr - - - {message}"
 
     def _format_rfc3164(self, message: str) -> str:
         """Format message as RFC 3164.
@@ -210,7 +210,7 @@ class SyslogOutputHandler(OutputHandler):
         timestamp = now.strftime("%b %d %H:%M:%S")
 
         # RFC 3164 format: <PRI>TIMESTAMP HOSTNAME TAG: MSG
-        tag = "logforge"
+        tag = "meltr"
         return f"<{self.pri}>{timestamp} {self._hostname} {tag}: {message}"
 
     def _do_write(self, event: str) -> None:

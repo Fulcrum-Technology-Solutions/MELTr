@@ -114,7 +114,7 @@ def test_get_logforge_home_service_account_prefers_opt_install_root(tmp_path, mo
 
 
 def test_get_logforge_home_uses_argv0_when_which_missing(tmp_path, monkeypatch):
-    """Bundle home resolves from sys.argv[0] when logforge is not on PATH (e.g. sudo)."""
+    """Bundle home resolves from sys.argv[0] when meltr is not on PATH (e.g. sudo)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MELTR_HOME", raising=False)
     monkeypatch.delenv("LOGFORGE_HOME", raising=False)

@@ -50,7 +50,7 @@ def test_resolve_api_key_from_config(tmp_path, monkeypatch):
 
 def test_resolve_api_key_meltr_env_precedence(tmp_path, monkeypatch):
     monkeypatch.setenv("MELTR_API_KEY", "meltr-key")
-    monkeypatch.setenv("LOGFORGE_API_KEY", "logforge-key")
+    monkeypatch.setenv("LOGFORGE_API_KEY", "legacy-api-key")
     cfg = create_default_config(tmp_path)
     cfg.api.auth = AuthConfig(enabled=False, key="config-key")
     assert resolve_api_key(cfg) == "meltr-key"
@@ -58,9 +58,9 @@ def test_resolve_api_key_meltr_env_precedence(tmp_path, monkeypatch):
 
 def test_resolve_api_key_logforge_env_fallback(tmp_path, monkeypatch):
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.setenv("LOGFORGE_API_KEY", "logforge-key")
+    monkeypatch.setenv("LOGFORGE_API_KEY", "legacy-api-key")
     cfg = create_default_config(tmp_path)
-    assert resolve_api_key(cfg) == "logforge-key"
+    assert resolve_api_key(cfg) == "legacy-api-key"
 
 
 def test_resolve_api_key_strips_whitespace(tmp_path, monkeypatch):
@@ -212,7 +212,7 @@ def test_entities_200_when_auth_disabled(no_auth_api_client):
 def test_metrics_200_when_auth_disabled(no_auth_api_client):
     response = no_auth_api_client.get("/api/metrics")
     assert response.status_code == 200
-    assert "# LogForge output pipeline metrics" in response.text
+    assert "# MELTr output metrics" in response.text
 
 
 def test_api_start_refuses_when_enabled_without_key(tmp_path, monkeypatch):

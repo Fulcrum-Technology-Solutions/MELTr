@@ -1,4 +1,4 @@
-# LogForge Production Configuration
+# MELTr Production Configuration
 # This config outputs to STDOUT for easy testing and monitoring
 
 version: "1.0"

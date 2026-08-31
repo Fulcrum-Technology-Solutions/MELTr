@@ -9,10 +9,11 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 from meltr.core.paths import (
-    default_application_log_file,
     get_logforge_home,
     validate_path_within_home,
 )
+
+INTERNAL_LOGS_TEMPLATE_SENTINEL = "__internal__"
 
 
 class RotationConfig(BaseModel):
@@ -142,7 +143,7 @@ class OutputDefinition(BaseModel):
     rotation: OutputRotationConfig | None = Field(default=None, description="File rotation")
     timeout: int | None = Field(default=None, description="Timeout in seconds")
     include_metadata: bool = Field(
-        default=False, description="Include logforge_metadata wrapper for HTTP output"
+        default=False, description="Include meltr_metadata wrapper for HTTP output"
     )
     buffer_overflow_policy: str = Field(
         default="drop_newest",
@@ -208,24 +209,6 @@ class ScheduleConfig(BaseModel):
         return v
 
 
-class PipelineStreamConfig(BaseModel):
-    """Pipeline stream (template + weight)."""
-
-    template: str = Field(description="Template ID")
-    weight: float = Field(default=1.0, description="Stream weight for event distribution")
-
-
-class PipelineConfig(BaseModel):
-    """Multi-template pipeline definition."""
-
-    name: str = Field(description="Pipeline name")
-    enabled: bool = Field(default=True, description="Pipeline enabled")
-    timezone: str | None = Field(default=None, description="Timezone override")
-    outputs: list[str] = Field(description="Output destination names")
-    schedule: ScheduleConfig = Field(default_factory=ScheduleConfig, description="Schedule gate")
-    streams: list[PipelineStreamConfig] = Field(description="Template streams")
-
-
 class GeneratorConfig(BaseModel):
     """Generator definition.
 
@@ -244,15 +227,6 @@ class GeneratorConfig(BaseModel):
     schedule: ScheduleConfig | None = Field(default=None, description="Optional schedule gate")
 
 
-class InternalLogsConfig(BaseModel):
-    """Configuration for forwarding application logs to output destinations."""
-
-    enabled: bool = Field(default=False, description="Enable internal log forwarding")
-    outputs: list[str] = Field(
-        default_factory=list, description="Output definition names to forward logs to"
-    )
-
-
 class Config(BaseModel):
     """Main configuration model."""
 
@@ -266,13 +240,24 @@ class Config(BaseModel):
     generators: list[GeneratorConfig] = Field(
         default_factory=list, description="Generator definitions"
     )
-    pipelines: list[PipelineConfig] = Field(
-        default_factory=list, description="Pipeline definitions"
+
+
+def ensure_internal_logs_generator(config: Config) -> Config:
+    """Ensure the reserved internal-logs generator exists (disabled by default)."""
+    from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
+
+    if any(g.name == INTERNAL_LOGS_GENERATOR_NAME for g in config.generators):
+        return config
+    config.generators.insert(
+        0,
+        GeneratorConfig(
+            name=INTERNAL_LOGS_GENERATOR_NAME,
+            template=INTERNAL_LOGS_TEMPLATE_SENTINEL,
+            enabled=False,
+            outputs=[],
+        ),
     )
-    internal_logs: InternalLogsConfig = Field(
-        default_factory=lambda: InternalLogsConfig(enabled=False, outputs=[]),
-        description="Forward application logs to outputs (built-in generator)",
-    )
+    return config
 
 
 def substitute_env_vars(value: Any, home: Path) -> Any:
@@ -407,7 +392,7 @@ def load_config(config_path: Path | None = None, create_if_missing: bool = True)
     # Validate file output path templates
     _validate_output_path_templates(config)
 
-    return config
+    return ensure_internal_logs_generator(config)
 
 
 def save_config(config: Config, config_path: Path | None = None) -> None:
@@ -421,6 +406,7 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
         ValueError: If config path is invalid
         RuntimeError: If save fails
     """
+    config = ensure_internal_logs_generator(config)
     home = get_logforge_home()
 
     if config_path is None:
@@ -465,7 +451,7 @@ def create_default_config(home: Path | None = None) -> Config:
     if home is None:
         home = get_logforge_home()
 
-    return Config(
+    config = Config(
         version="1.0",
         engine=EngineConfig(),
         api=APIConfig(),
@@ -476,11 +462,10 @@ def create_default_config(home: Path | None = None) -> Config:
             custom_path=str(home / "templates" / "custom"),
         ),
         logging=LoggingConfig(
-            file=str(default_application_log_file()),
+            file=str(home / "logs" / "meltr.log"),
             rotation=RotationConfig(),
         ),
         outputs=OutputsConfig(),
         generators=[],
-        pipelines=[],
-        internal_logs=InternalLogsConfig(enabled=False, outputs=[]),
     )
+    return ensure_internal_logs_generator(config)

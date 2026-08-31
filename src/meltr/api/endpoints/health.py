@@ -9,6 +9,7 @@ from meltr.api.auth import require_api_key
 from meltr.api.errors import log_api_exception
 from meltr.api.server import APIServer
 from meltr.core.engine import Engine
+from meltr.core.internal_log_generator import InternalLogGenerator
 from meltr.utils.logging import get_logger
 
 router = APIRouter(prefix="/api", tags=["health"])
@@ -146,19 +147,36 @@ async def status(server: Annotated[APIServer, Depends(get_server)]) -> dict:
                         }
                     )
         except Exception:
-            # If status fails, return basic info without detailed stats
-            generators = engine.get_all_generators()
-            for gen in generators:
-                generators_list.append(
-                    {
-                        "name": gen.name,
-                        "state": gen.state.value,
-                        "template": gen.config.template,
-                        "events_generated": 0,
-                        "errors": 0,
-                        "uptime": 0,
-                    }
-                )
+            # If bulk status fails, fall back per-generator via get_status()
+            for gen in engine.get_all_generators():
+                try:
+                    gen_status = gen.get_status()
+                    generators_list.append(
+                        {
+                            "name": gen_status["name"],
+                            "state": gen_status["state"],
+                            "template": gen_status["template"],
+                            "events_generated": gen_status["statistics"]["events_generated"],
+                            "errors": gen_status["statistics"]["errors"],
+                            "uptime": gen_status["statistics"]["uptime"],
+                        }
+                    )
+                except Exception:
+                    template = (
+                        "_internal"
+                        if isinstance(gen, InternalLogGenerator)
+                        else getattr(getattr(gen, "config", None), "template", "unknown")
+                    )
+                    generators_list.append(
+                        {
+                            "name": gen.name,
+                            "state": gen.state.value,
+                            "template": template,
+                            "events_generated": 0,
+                            "errors": 0,
+                            "uptime": 0,
+                        }
+                    )
 
     # Get system metrics
     try:

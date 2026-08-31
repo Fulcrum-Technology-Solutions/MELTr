@@ -1,7 +1,8 @@
-"""Schedule gate for pipeline and generator emission control."""
+"""Schedule gate for generator emission control."""
 
+import threading
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from meltr.core.config import ScheduleConfig
@@ -48,6 +49,29 @@ class ScheduleDecision:
 
     emit: bool
     reason: str  # "ok" | "outside_window" | "burst_complete"
+
+
+class ScheduleSharedState:
+    """Thread-safe schedule counters shared across generators."""
+
+    def __init__(self, started_at: datetime) -> None:
+        self.started_at = started_at
+        self._events_emitted = 0
+        self._lock = threading.Lock()
+
+    @property
+    def events_emitted(self) -> int:
+        with self._lock:
+            return self._events_emitted
+
+    def increment(self) -> None:
+        with self._lock:
+            self._events_emitted += 1
+
+    def reset(self) -> None:
+        with self._lock:
+            self._events_emitted = 0
+            self.started_at = datetime.now(timezone.utc)
 
 
 def evaluate_schedule(

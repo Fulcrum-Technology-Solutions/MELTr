@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from meltr.api.auth import require_api_key
 from meltr.api.errors import log_api_exception
 from meltr.core.engine import Engine
+from meltr.core.internal_log_generator import InternalLogGenerator
 from meltr.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,21 +37,24 @@ async def list_generators(engine: Annotated[Engine, Depends(get_engine)]) -> dic
 
     generator_list = []
     for gen in generators:
+        status = gen.get_status()
         gen_data = {
-            "name": gen.name,
-            "enabled": gen.config.enabled,
-            "state": gen.state.value,
-            "template": gen.config.template,
+            "name": status["name"],
+            "enabled": status["enabled"],
+            "state": status["state"],
+            "template": status["template"],
         }
 
-        # Add template metadata if available
-        if gen._template_info:
+        if isinstance(gen, InternalLogGenerator):
+            gen_data["vendor"] = None
+            gen_data["product"] = None
+            gen_data["data_source"] = None
+        elif getattr(gen, "_template_info", None):
             gen_data["vendor"] = gen._template_info.vendor
             gen_data["product"] = gen._template_info.product
             gen_data["data_source"] = gen._template_info.data_source
         else:
-            # Fallback: try to parse from template ID
-            template_parts = gen.config.template.split("/")
+            template_parts = status["template"].split("/")
             if len(template_parts) >= 3:
                 gen_data["vendor"] = template_parts[0]
                 gen_data["product"] = template_parts[1]

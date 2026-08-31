@@ -9,6 +9,7 @@ from rich.syntax import Syntax
 
 from meltr.cli.config_editor import config_editor
 from meltr.core.config import load_config, save_config
+from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
 
 app = typer.Typer(name="config", help="Configuration management")
 console = Console()
@@ -219,6 +220,12 @@ def _quick_edit_generator(
 
     # Update timezone
     if timezone is not None:
+        if generator.name == INTERNAL_LOGS_GENERATOR_NAME:
+            console.print(
+                f"[red]Error: Cannot set timezone on reserved generator "
+                f"'{INTERNAL_LOGS_GENERATOR_NAME}'[/red]"
+            )
+            raise typer.Exit(code=1)
         generator.timezone = timezone.strip() if timezone.strip() else None
         changes.append(f"timezone={generator.timezone or '(none)'}")
 
