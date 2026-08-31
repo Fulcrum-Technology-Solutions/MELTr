@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 import requests
-from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from meltr.community.client import (
@@ -26,7 +25,6 @@ from meltr.community.package import (
     validate_package_structure,
 )
 from meltr.core.config import (
-    AuthConfig,
     FrequencyConfig,
     FrequencyVariation,
     OutputDefinition,

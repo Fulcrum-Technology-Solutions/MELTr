@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Fail CI if unexpected LogForge / pipeline product strings remain in scanned paths."""
+"""Fail CI if unexpected LogForge / pipeline product strings remain in scanned paths.
+
+Pure-Python scanner (no ripgrep dependency) for portable CI.
+"""
 
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOWLIST_PATH = Path(__file__).with_name("logforge_string_allowlist.txt")
 
-PATTERN = r"logforge|LogForge|LOGFORGE|logforge_metadata|\bpipelines\b|\bPipeline\b"
+PATTERN = re.compile(
+    r"logforge|LogForge|LOGFORGE|logforge_metadata|\bpipelines\b|\bPipeline\b"
+)
 
 SCAN_TARGETS = [
     "src",
@@ -23,11 +27,26 @@ SCAN_TARGETS = [
     "scripts",
 ]
 
-EXCLUDE_GLOBS = [
-    "docs/superpowers/**",
+# Relative path prefixes / exact files to skip
+EXCLUDE_PREFIXES = (
+    "docs/superpowers/",
+)
+EXCLUDE_FILES = {
     "scripts/check_logforge_strings.py",
     "scripts/logforge_string_allowlist.txt",
-]
+}
+
+TEXT_SUFFIXES = {
+    ".py",
+    ".md",
+    ".yml",
+    ".yaml",
+    ".toml",
+    ".txt",
+    ".sh",
+    ".j2",
+    ".json",
+}
 
 
 def load_allowlist(path: Path) -> list[str]:
@@ -64,22 +83,42 @@ def line_allowed(rel_path: str, line_no: int, line: str, rules: list[str]) -> bo
     return False
 
 
-def collect_hits() -> list[tuple[str, int, str]]:
-    cmd = ["rg", "-n", "--no-heading", PATTERN, *SCAN_TARGETS]
-    for glob in EXCLUDE_GLOBS:
-        cmd.extend(["--glob", f"!{glob}"])
-    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False)
-    if proc.returncode not in (0, 1):
-        print(proc.stderr or proc.stdout, file=sys.stderr)
-        raise SystemExit(f"rg failed with exit code {proc.returncode}")
-
-    hits: list[tuple[str, int, str]] = []
-    for raw in proc.stdout.splitlines():
-        if not raw.strip():
+def _iter_files() -> list[Path]:
+    files: list[Path] = []
+    for target in SCAN_TARGETS:
+        path = ROOT / target
+        if not path.exists():
             continue
-        path_part, _, rest = raw.partition(":")
-        line_no_str, _, content = rest.partition(":")
-        hits.append((path_part, int(line_no_str), content))
+        if path.is_file():
+            files.append(path)
+            continue
+        for child in path.rglob("*"):
+            if not child.is_file():
+                continue
+            if child.suffix.lower() not in TEXT_SUFFIXES and child.name not in {
+                "Dockerfile",
+                "Makefile",
+            }:
+                continue
+            files.append(child)
+    return files
+
+
+def collect_hits() -> list[tuple[str, int, str]]:
+    hits: list[tuple[str, int, str]] = []
+    for path in _iter_files():
+        rel = path.relative_to(ROOT).as_posix()
+        if rel in EXCLUDE_FILES:
+            continue
+        if any(rel.startswith(prefix) for prefix in EXCLUDE_PREFIXES):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if PATTERN.search(line):
+                hits.append((rel, line_no, line))
     return hits
 
 

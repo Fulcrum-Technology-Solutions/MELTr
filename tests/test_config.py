@@ -20,7 +20,7 @@ from meltr.core.config import (
 def test_default_config_has_no_pipelines_field(tmp_path, monkeypatch):
     """Default config should not expose a pipelines field."""
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
-    config = create_default_config(tmp_path)
+    create_default_config(tmp_path)
     assert "pipelines" not in Config.model_fields
 
 

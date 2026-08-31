@@ -2,7 +2,6 @@
 
 from meltr.core.config import (
     INTERNAL_LOGS_TEMPLATE_SENTINEL,
-    GeneratorConfig,
     OutputDefinition,
     create_default_config,
 )

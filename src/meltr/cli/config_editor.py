@@ -10,18 +10,18 @@ from rich.table import Table
 
 from meltr.cli.menu import paginate_choose
 from meltr.core.config import (
+    INTERNAL_LOGS_TEMPLATE_SENTINEL,
     Config,
     GeneratorConfig,
-    INTERNAL_LOGS_TEMPLATE_SENTINEL,
     OutputDefinition,
     OutputRotationConfig,
     ScheduleConfig,
     load_config,
 )
-from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
 from meltr.core.config import (
     save_config as save_config_file,
 )
+from meltr.core.internal_log_generator import INTERNAL_LOGS_GENERATOR_NAME
 from meltr.core.paths import get_logforge_home
 from meltr.templates.loader import TemplateLoader
 
