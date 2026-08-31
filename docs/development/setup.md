@@ -57,7 +57,10 @@ This performs an **editable install** of MELTr and installs runtime + dev depend
 ```bash
 pytest              # full suite
 pytest -k tcp       # focused subset
+./scripts/smoke.sh  # runtime smoke (init + config validate + API health)
 ```
+
+`scripts/smoke.sh` is the shared local / Cloud Agent smoke. Prefer it over ad-hoc start/curl steps so results compare. See [AGENTS.md](../../AGENTS.md) for when to run local vs Cloud Agent vs CI.
 
 ## Formatting and linting
 
