@@ -60,15 +60,15 @@ class PackageInstallError(PackageError):
     pass
 
 
-def extract_forge_package(
+def extract_mtb_package(
     package_path: Path,
     extract_to: Path,
     validate: bool = True,
 ) -> Path:
-    """Extract .forge package (tar.gz) to target directory.
+    """Extract .mtb package (tar.gz) to target directory.
 
     Args:
-        package_path: Path to .forge package file
+        package_path: Path to .mtb package file
         extract_to: Directory to extract to
         validate: Whether to validate package structure
 
@@ -350,7 +350,7 @@ def download_and_install_product(
         temp_dir.mkdir(parents=True, exist_ok=True)
         cleanup_temp = False
 
-    package_path = temp_dir / f"{vendor_id}.forge"
+    package_path = temp_dir / f"{vendor_id}.mtb"
 
     try:
         # Download vendor package (we need it to extract the product)
@@ -359,7 +359,7 @@ def download_and_install_product(
 
         # Extract package
         extract_to = temp_dir / "extracted"
-        vendor_dir = extract_forge_package(package_path, extract_to, validate=False)
+        vendor_dir = extract_mtb_package(package_path, extract_to, validate=False)
 
         # Find product in extracted vendor directory
         product_source = vendor_dir / product_id
@@ -463,7 +463,7 @@ def download_and_install_vendor(
         temp_dir.mkdir(parents=True, exist_ok=True)
         cleanup_temp = False
 
-    package_path = temp_dir / f"{vendor_id}.forge"
+    package_path = temp_dir / f"{vendor_id}.mtb"
 
     try:
         # Download package
@@ -471,7 +471,7 @@ def download_and_install_vendor(
 
         # Extract package
         extract_to = temp_dir / "extracted"
-        vendor_dir = extract_forge_package(package_path, extract_to, validate=True)
+        vendor_dir = extract_mtb_package(package_path, extract_to, validate=True)
 
         # Validate package structure
         validate_package_structure(vendor_dir)
