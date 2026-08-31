@@ -40,10 +40,12 @@ htmlcov/
 .tox/
 .hypothesis/
 
-# IDEs — keep shared skills; ignore local Cursor state
+# IDEs — keep shared skills + Cloud Agent env config; ignore local Cursor state
 .cursor/*
 !.cursor/skills/
 !.cursor/skills/**
+!.cursor/environment.json
+!.cursor/install.sh
 .vscode/
 .idea/
 *.swp
