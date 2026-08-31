@@ -26,7 +26,7 @@ def test_telemetry_client_posts_events(monkeypatch):
     monkeypatch.setattr("requests.post", fake_post)
     monkeypatch.setenv("MELTR_TELEMETRY", "1")
 
-    client = TelemetryClient(base_api_url="https://logforge.io/api/v1")
+    client = TelemetryClient(base_api_url="https://meltr.ftsc.cloud/api/v1")
     actor_id = "actor-xyz"
     client.post_events(
         actor_id=actor_id,
@@ -65,7 +65,7 @@ def test_telemetry_client_respects_opt_out(monkeypatch):
     monkeypatch.setattr("requests.post", fake_post)
     monkeypatch.setenv("MELTR_TELEMETRY", "0")
 
-    client = TelemetryClient(base_api_url="https://logforge.io/api/v1")
+    client = TelemetryClient(base_api_url="https://meltr.ftsc.cloud/api/v1")
     client.post_events(actor_id="actor", events=[TelemetryEvent(event_type="template_installed")])
 
     assert calls == []

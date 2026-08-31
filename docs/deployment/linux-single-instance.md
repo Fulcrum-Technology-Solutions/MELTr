@@ -68,7 +68,7 @@ meltr init --force
 ```
 
 - As a **normal user** (non-root), `init` defaults to **not** creating the `meltr` system user; you do not need `--no-create-user` unless you explicitly passed `--create-user` earlier.
-- To prepare **`/var/lib/logforge`** for **systemd** (owned by `meltr`), create the directory and run init as root **or** as a user that can write there; see **Run as a systemd service** below.
+- To prepare **`/var/lib/meltr`** for **systemd** (owned by `meltr`), create the directory and run init as root **or** as a user that can write there; see **Run as a systemd service** below.
 
 ## Run
 
@@ -95,11 +95,11 @@ sudo mkdir -p /opt/meltr
 sudo meltr init --directory /opt/meltr --user meltr --group meltr --force
 ```
 
-**B — State under `/var/lib`:** pass `--home /var/lib/logforge` on install.
+**B — State under `/var/lib`:** pass `--home /var/lib/meltr` on install.
 
 ```bash
-sudo mkdir -p /var/lib/logforge
-sudo meltr init --directory /var/lib/logforge --user meltr --group meltr --force
+sudo mkdir -p /var/lib/meltr
+sudo meltr init --directory /var/lib/meltr --user meltr --group meltr --force
 ```
 
 2. Install the unit (uses `WorkingDirectory`, `MELTR_HOME`, `ExecStart=<meltr> api start`, journal logging, `LimitNOFILE=65536`). `service install` reloads systemd.
@@ -109,7 +109,7 @@ sudo meltr init --directory /var/lib/logforge --user meltr --group meltr --force
 sudo /opt/meltr/app/bin/meltr service install --user meltr --group meltr --binary /opt/meltr/app/bin/meltr
 
 # B: explicit state directory
-# sudo meltr service install --user meltr --group meltr --home /var/lib/logforge --binary /opt/meltr/app/bin/meltr
+# sudo meltr service install --user meltr --group meltr --home /var/lib/meltr --binary /opt/meltr/app/bin/meltr
 
 sudo systemctl enable --now meltr
 ```

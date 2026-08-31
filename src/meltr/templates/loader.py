@@ -80,7 +80,7 @@ class TemplateLoader:
                 continue
 
             # Skip hidden directories and legacy backup directories
-            # (New backups are stored in $LOGFORGE_HOME/backups/templates/)
+            # (New backups are stored in $MELTR_HOME/backups/templates/)
             vendor_name = vendor_dir.name
             if vendor_name.startswith(".") or ".backup." in vendor_name:
                 continue

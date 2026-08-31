@@ -13,7 +13,7 @@ from meltr.utils.logging import get_logger, setup_logging
 logger = get_logger(__name__)
 
 
-class LogForgeService:
+class MeltrService:
     """Main MELTr service that manages engine and API server."""
 
     def __init__(self, config_path: Path | None = None) -> None:
@@ -25,13 +25,13 @@ class LogForgeService:
         Raises:
             Exception: If initialization fails
         """
-        # Ensure LOGFORGE_HOME is set (self-discovery if not set)
+        # Ensure MELTR_HOME is set (self-discovery if not set)
         import os
 
-        if not os.getenv("MELTR_HOME") or os.getenv("MELTR_HOME"):
-            from meltr.core.paths import get_logforge_home
+        if not os.getenv("MELTR_HOME"):
+            from meltr.core.paths import get_meltr_home
 
-            discovered_home = get_logforge_home()
+            discovered_home = get_meltr_home()
             os.environ["MELTR_HOME"] = str(discovered_home)
             logger.info(f"Set MELTR_HOME={discovered_home} (self-discovered)")
 
@@ -207,7 +207,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Create and run service
-    service = LogForgeService(config_path=args.config)
+    service = MeltrService(config_path=args.config)
 
     # Override config if provided
     if args.host:

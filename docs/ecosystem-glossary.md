@@ -1,6 +1,6 @@
 # MELTr Ecosystem Glossary
 
-Canonical terminology for the MELTr stack and transitional LogForge names. Link this doc from sibling repos (Templates, Templates-UI, Enterprise) during the rebrand.
+Canonical terminology for the MELTr stack.
 
 ## Core concepts
 
@@ -12,28 +12,19 @@ Canonical terminology for the MELTr stack and transitional LogForge names. Link 
 | **Output** | Named sink (file, console, HTTP, TCP, syslog) referenced by generators |
 | **internal-logs** | Reserved generator for application log forwarding (not a Jinja template); always present after load, cannot be removed; enable + outputs only |
 | **meltr_metadata** | HTTP wrapper field (when `include_metadata: true`) carrying generator/template routing context alongside the rendered `event` |
-| **Community template** | Registry content installed under `templates/default/` from [logforge.io](https://logforge.io) |
+| **Community template** | Registry content installed under `templates/default/` from [meltr.ftsc.cloud](https://meltr.ftsc.cloud) |
 | **Local override** | User-edited template under `templates/custom/` (takes precedence when configured) |
 | **Vendor package** | `.forge` tarball installed per vendor via `meltr templates install` |
 | **Entity registry** | YAML file (`entities.yaml`) with organization, users, devices, and services used at render time |
 | **MELTR_HOME** | Config and data root (default `~/.meltr`). Holds `config.yaml`, entities, templates, logs, PID file |
 
-## LogForge legacy (compat)
-
-| Old (LogForge) | New (MELTr) | Notes |
-|----------------|-------------|-------|
-| `LOGFORGE_HOME` / `~/.logforge` | `MELTR_HOME` / `~/.meltr` | Read `LOGFORGE_HOME` if `MELTR_HOME` unset |
-| `LOGFORGE_API_KEY` | `MELTR_API_KEY` | Key-implies-auth for management API |
-| `logforge` CLI | `meltr` | `logforge` console script is a temporary alias |
-| LogForge OSS repo | **MELTr** | Former single-node engine home |
-
 ## API surfaces
 
 | Service | Base URL | Versioning |
 |---------|----------|------------|
-| Templates registry (transitional) | `https://logforge.io/api/v1` | `/api/v1` |
+| Community templates registry | `https://meltr.ftsc.cloud/api/v1` | `/api/v1` |
 | MELTr management (single-node) | `http://127.0.0.1:8080/api` | `/api` (no v1) |
-| LogForge Enterprise manager | `http://localhost/api` (via Traefik) | `/api` (no v1) |
+| Enterprise manager | `http://localhost/api` (via Traefik) | `/api` (no v1) |
 
 ## Enterprise-only (not in MELTr OSS)
 
@@ -51,6 +42,6 @@ MELTr OSS is the **single-node** product: FastAPI + Typer, YAML under `MELTR_HOM
 | Repo | Role |
 |------|------|
 | [MELTr](https://github.com/Fulcrum-Technology-Solutions/MELTr) | OSS engine (this repo) |
-| [LogForge-Templates](https://github.com/Fulcrum-Technology-Solutions/LogForge-Templates) | Community template source (synced to registry) |
-| [LogForge-Templates-UI](https://github.com/Fulcrum-Technology-Solutions/LogForge-Templates-UI) | Public registry at logforge.io |
-| [LogForge-Enterprise](https://github.com/Fulcrum-Technology-Solutions/LogForge-Enterprise) | Distributed edition (Manager + workers) |
+| Community templates source | Synced into the registry (sibling GitHub repo; name TBD during ecosystem migrate) |
+| Community registry UI | Serves `meltr.ftsc.cloud` (sibling GitHub repo; name TBD during ecosystem migrate) |
+| Enterprise edition | Distributed Manager + workers (sibling GitHub repo; name TBD during ecosystem migrate) |

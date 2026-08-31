@@ -1,10 +1,10 @@
-LogForge
+MELTr
 
 Copyright 2024-2026 Fulcrum Technology Solutions and contributors.
 
-This product includes software developed for the LogForge project.
+This product includes software developed for the MELTr project.
 
 See LICENSE for the Apache License, Version 2.0.
 
-Official Linux release bundles (logforge-*-linux-x86_64.tar.gz) ship THIRD_PARTY_NOTICES.txt
+Official Linux release bundles (meltr-*-linux-x86_64.tar.gz) ship THIRD_PARTY_NOTICES.txt
 and PYTHON_PSF_LICENSE.txt for third-party Python packages and the embedded CPython runtime.

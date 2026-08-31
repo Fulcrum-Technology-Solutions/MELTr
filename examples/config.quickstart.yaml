@@ -12,17 +12,17 @@ api:
   port: 8080
 
 entity_registry:
-  path: ${LOGFORGE_HOME}/entities.yaml
+  path: ${MELTR_HOME}/entities.yaml
   auto_save: true
 
 templates:
-  local_path: ${LOGFORGE_HOME}/templates
-  default_path: ${LOGFORGE_HOME}/templates/default
-  custom_path: ${LOGFORGE_HOME}/templates/custom
+  local_path: ${MELTR_HOME}/templates
+  default_path: ${MELTR_HOME}/templates/default
+  custom_path: ${MELTR_HOME}/templates/custom
 
 logging:
   level: INFO
-  file: ${LOGFORGE_HOME}/meltr.log
+  file: ${MELTR_HOME}/meltr.log
 
 outputs:
   definitions:
@@ -38,7 +38,7 @@ outputs:
     # Example: Organized by vendor/product
     # - name: file-output
     #   type: file
-    #   path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
+    #   path: ${MELTR_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
     #   rotation:
     #     type: size
     #     max_size: 104857600  # 100MB
@@ -48,7 +48,7 @@ outputs:
     # Example: Simple single file (backward compatible)
     # - name: file-output-simple
     #   type: file
-    #   path: ${LOGFORGE_HOME}/outputs/events.log
+    #   path: ${MELTR_HOME}/outputs/events.log
     #   rotation:
     #     type: size
     #     max_size: 104857600

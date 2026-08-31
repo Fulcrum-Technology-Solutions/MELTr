@@ -12,5 +12,5 @@ def test_sanitize_stored_error_none() -> None:
 
 
 def test_sanitize_stored_error_redacts_internal_text() -> None:
-    internal = "FileNotFoundError: /home/user/.logforge/templates/secret.j2"
+    internal = "FileNotFoundError: /home/user/.meltr/templates/secret.j2"
     assert sanitize_stored_error(internal) == "An error occurred"

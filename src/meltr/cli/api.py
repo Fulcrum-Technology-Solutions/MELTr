@@ -7,7 +7,7 @@ import click.exceptions
 import typer
 from rich.console import Console
 
-from meltr.service import LogForgeService
+from meltr.service import MeltrService
 
 app = typer.Typer(name="api", help="API server management")
 console = Console()
@@ -16,7 +16,7 @@ console = Console()
 def _must_stay_foreground() -> bool:
     """True when a supervisor (systemd, notify) expects the main process to stay attached."""
     env = os.environ.get
-    if env("LOGFORGE_FOREGROUND", "").lower() in ("1", "true", "yes"):
+    if env("MELTR_FOREGROUND", "").lower() in ("1", "true", "yes"):
         return True
     # systemd service manager sets INVOCATION_ID on units
     if env("INVOCATION_ID"):
@@ -29,7 +29,7 @@ def _must_stay_foreground() -> bool:
 def _detach_from_terminal() -> None:
     """Background this process: new session, no controlling tty (POSIX).
 
-    Must be called before LogForgeService is constructed so we never fork after threads start.
+    Must be called before MeltrService is constructed so we never fork after threads start.
     """
     pid = os.fork()
     if pid > 0:
@@ -75,7 +75,7 @@ def api_start(
                     "[yellow]Fork not available; running in foreground "
                     "(use your service manager to run MELTr in the background).[/yellow]"
                 )
-        service = LogForgeService(config_path=config_path)
+        service = MeltrService(config_path=config_path)
 
         if host:
             service.config.api.host = host
@@ -112,9 +112,9 @@ def api_stop(
     import signal
     import time
 
-    from meltr.core.paths import get_logforge_home
+    from meltr.core.paths import get_meltr_home
     from meltr.core.pidfile import (
-        cmdline_suggests_logforge,
+        cmdline_suggests_meltr,
         read_service_pid,
         remove_service_pidfile,
     )
@@ -123,7 +123,7 @@ def api_stop(
         console.print("[red]meltr stop requires a POSIX system with os.kill[/red]")
         raise typer.Exit(code=1)
 
-    home = get_logforge_home()
+    home = get_meltr_home()
     pid = read_service_pid(home)
     if pid is None:
         console.print(
@@ -148,7 +148,7 @@ def api_stop(
         )
         raise typer.Exit(code=1) from None
 
-    if not cmdline_suggests_logforge(pid):
+    if not cmdline_suggests_meltr(pid):
         console.print(f"[red]PID {pid} does not appear to be MELTr; refusing to kill.[/red]")
         raise typer.Exit(code=1)
 

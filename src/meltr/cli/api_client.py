@@ -17,7 +17,7 @@ def _get_default_api_url() -> str:
         API URL string (e.g., 'http://127.0.0.1:8080')
     """
     # Check environment variable first
-    env_url = os.getenv("MELTR_API_URL") or os.getenv("LOGFORGE_API_URL")
+    env_url = os.getenv("MELTR_API_URL")
     if env_url:
         return env_url
 
@@ -48,7 +48,7 @@ class APIClient:
             timeout: Request timeout in seconds
         """
         self.api_url = api_url or _get_default_api_url()
-        self.api_key = api_key or os.getenv("MELTR_API_KEY") or os.getenv("LOGFORGE_API_KEY")
+        self.api_key = api_key or os.getenv("MELTR_API_KEY")
         self.timeout = timeout
         self.session = requests.Session()
 

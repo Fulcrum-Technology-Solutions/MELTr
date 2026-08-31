@@ -32,7 +32,7 @@ from meltr.community.package import (
 from meltr.community.updates import find_stale_updates
 from meltr.community.version import compare_versions, format_version_status
 from meltr.core.config import load_config
-from meltr.core.paths import get_logforge_home
+from meltr.core.paths import get_meltr_home
 from meltr.templates.loader import TemplateLoader
 from meltr.templates.metadata import TemplateMetadata
 from meltr.templates.validator import validate_template
@@ -956,7 +956,7 @@ def templates_validate(
     ),
 ) -> None:
     """Validate a template."""
-    from meltr.core.paths import get_logforge_home
+    from meltr.core.paths import get_meltr_home
 
     if template_path is None:
         console.print("[red]Error: --path or --file required[/red]")
@@ -970,7 +970,7 @@ def templates_validate(
     if isinstance(template_path, str):
         template_path = Path(template_path)
 
-    # Resolve path - try as-is first, then relative to current directory, then relative to LOGFORGE_HOME
+    # Resolve path - try as-is first, then relative to current directory, then relative to MELTR_HOME
     resolved_path = None
     if template_path.is_absolute() and template_path.exists():
         resolved_path = template_path
@@ -982,8 +982,8 @@ def templates_validate(
         if current_dir_path.exists():
             resolved_path = current_dir_path.resolve()
         else:
-            # Try relative to LOGFORGE_HOME
-            home = get_logforge_home()
+            # Try relative to MELTR_HOME
+            home = get_meltr_home()
             home_path = home / template_path
             if home_path.exists():
                 resolved_path = home_path.resolve()
@@ -2206,7 +2206,7 @@ def templates_merge(
                 console.print("[yellow]Cancelled[/yellow]")
                 raise typer.Exit(code=0)
 
-        home = get_logforge_home()
+        home = get_meltr_home()
         if had_custom:
             bdir = _backup_custom_template_files(home, template_id, c_j2, c_meta)
             console.print(f"[dim]Backed up prior custom files to {bdir}[/dim]")

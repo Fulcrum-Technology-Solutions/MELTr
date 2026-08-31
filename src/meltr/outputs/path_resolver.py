@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from meltr.core.paths import get_logforge_home
+from meltr.core.paths import get_meltr_home
 from meltr.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -67,8 +67,7 @@ class PathTemplateContext:
             "minute": self._now.strftime("%M"),
             "timestamp": str(int(self._now.timestamp())),
             # Environment
-            "MELTR_HOME": str(get_logforge_home()),
-            "LOGFORGE_HOME": str(get_logforge_home()),  # compat alias in path templates
+            "MELTR_HOME": str(get_meltr_home()),
         }
 
         # Template metadata variables
@@ -141,11 +140,9 @@ def resolve_path_template(
     # Step 1: Substitute ${VAR} patterns (environment variables)
     def replace_env_var(match: re.Match) -> str:
         var_name = match.group(1)
-        if var_name in ("MELTR_HOME", "LOGFORGE_HOME"):
-            return str(get_logforge_home())
+        if var_name == "MELTR_HOME":
+            return str(get_meltr_home())
         env_value = os.getenv(var_name, match.group(0))
-        if env_value == match.group(0) and var_name == "MELTR_HOME":
-            env_value = os.getenv("LOGFORGE_HOME", match.group(0))
         if env_value == match.group(0):
             logger.warning(f"Environment variable ${var_name} not found, using literal")
         return env_value
@@ -160,8 +157,8 @@ def resolve_path_template(
             value = str(variables[var_name])
             if sanitize:
                 # Only sanitize if this looks like a filename component
-                # Don't sanitize full paths or LOGFORGE_HOME
-                if var_name not in ("MELTR_HOME", "LOGFORGE_HOME", "path"):
+                # Don't sanitize full paths or MELTR_HOME
+                if var_name not in ("MELTR_HOME", "path"):
                     value = sanitize_filename_component(value)
             return value
         else:
@@ -187,9 +184,9 @@ def resolve_path_template(
 
     # Step 7: Validate and resolve to absolute path
     if not path_obj.is_absolute():
-        # If path starts with 'logforge/', resolve relative to LOGFORGE_HOME
-        if path_obj.parts and path_obj.parts[0] in ("meltr", "logforge"):
-            path_obj = get_logforge_home() / Path(*path_obj.parts[1:])
+        # If path starts with 'meltr/', resolve relative to MELTR_HOME
+        if path_obj.parts and path_obj.parts[0] == "meltr":
+            path_obj = get_meltr_home() / Path(*path_obj.parts[1:])
         else:
             # Resolve relative to current working directory
             path_obj = Path.cwd() / path_obj

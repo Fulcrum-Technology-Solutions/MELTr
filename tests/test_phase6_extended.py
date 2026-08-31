@@ -224,7 +224,7 @@ def test_get_default_api_url_from_env(monkeypatch):
 
 def test_get_default_api_url_from_config(tmp_path, monkeypatch):
     monkeypatch.delenv("MELTR_API_URL", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_URL", raising=False)
+    monkeypatch.delenv("MELTR_API_URL", raising=False)
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     cfg = create_default_config(tmp_path)
     cfg.api.port = 9090
@@ -254,30 +254,30 @@ def test_backup_vendor_directory(tmp_path, monkeypatch):
 # --- service ---
 
 
-def test_logforge_service_init(tmp_path, monkeypatch):
+def test_meltr_service_init(tmp_path, monkeypatch):
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     shutil.copy(SAMPLE_ENTITIES, tmp_path / "entities.yaml")
     cfg = create_default_config(tmp_path)
     save_config(cfg, tmp_path / "config.yaml")
 
-    from meltr.service import LogForgeService
+    from meltr.service import MeltrService
 
-    service = LogForgeService(config_path=tmp_path / "config.yaml")
+    service = MeltrService(config_path=tmp_path / "config.yaml")
     assert service.engine is not None
     assert service.registry is not None
     service.engine.shutdown()
     service.registry.close()
 
 
-def test_logforge_service_start_stop_mocked(tmp_path, monkeypatch):
+def test_meltr_service_start_stop_mocked(tmp_path, monkeypatch):
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     shutil.copy(SAMPLE_ENTITIES, tmp_path / "entities.yaml")
     cfg = create_default_config(tmp_path)
     save_config(cfg, tmp_path / "config.yaml")
 
-    from meltr.service import LogForgeService
+    from meltr.service import MeltrService
 
-    service = LogForgeService(config_path=tmp_path / "config.yaml")
+    service = MeltrService(config_path=tmp_path / "config.yaml")
     service.api_server.start = MagicMock()
     service.api_server.is_running = MagicMock(return_value=True)
     service.api_server.stop = MagicMock()

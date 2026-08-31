@@ -2,8 +2,6 @@
 
 MELTr is a synthetic event log generator for SOC, DFIR, and platform teams who need realistic data to test detections and integrations.
 
-> **Formerly LogForge OSS.** The engine lives here now. Community templates still sync from [logforge.io](https://logforge.io) during the transition; other LogForge repos will migrate later.
-
 ## Features
 
 - FastAPI management plane + Typer CLI (`meltr`)
@@ -79,7 +77,7 @@ meltr init --force
 meltr start --foreground
 ```
 
-Requires **Python ≥3.10**. The `logforge` name was taken on PyPI; **`meltr` is the published package name**. Pre-release builds may be tagged `v2.0.0a*` before the stable v2.0.0 release.
+Requires **Python ≥3.10**. Pre-release builds may be tagged `v2.0.0a*` before the stable v2.0.0 release.
 
 ## Quick start
 
@@ -91,7 +89,6 @@ meltr generators list
 meltr start                  # daemon on POSIX; use --foreground / -f to stay attached
 ```
 
-Compat: `LOGFORGE_HOME` and `LOGFORGE_API_KEY` still work if `MELTR_*` is unset. The `logforge` CLI entry point is a temporary alias for `meltr`.
 
 ## Templates: preview and updates
 
@@ -103,7 +100,7 @@ meltr templates preview testvendor/testproduct/events/preview --count 3
 # API: POST /api/templates/{id}/preview  {"count": 3}
 ```
 
-Check installed community packages against the registry ([logforge.io](https://logforge.io) by default):
+Check installed community packages against the registry ([meltr.ftsc.cloud](https://meltr.ftsc.cloud) by default):
 
 ```bash
 meltr templates check-updates
@@ -114,7 +111,7 @@ Registry errors exit non-zero from the CLI and return 502 from the API — local
 
 ## What's not in OSS
 
-MELTr is the **single-node** open-source product. These capabilities live in **LogForge Enterprise** (or a future MELTr Enterprise) only:
+MELTr is the **single-node** open-source product. These capabilities live in **Enterprise edition** (or a future Enterprise edition) only:
 
 - Distributed **worker fleet** and leader–worker job dispatch
 - **LLM-assisted** template authoring in the web UI
@@ -124,7 +121,7 @@ See [ecosystem glossary](docs/ecosystem-glossary.md) for shared terminology.
 
 ## API authentication
 
-Management routes require a Bearer token when authentication is active. **Key-implies-auth:** setting `MELTR_API_KEY` (or `LOGFORGE_API_KEY`) enables auth even if `api.auth.enabled` is false in config.
+Management routes require a Bearer token when authentication is active. **Key-implies-auth:** setting `MELTR_API_KEY` (or `MELTR_API_KEY`) enables auth even if `api.auth.enabled` is false in config.
 
 | Route | Auth required |
 |-------|---------------|

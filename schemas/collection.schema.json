@@ -25,7 +25,7 @@
         "description": "Brief description of the template collection",
         "minLength": 10,
         "maxLength": 500,
-        "examples": ["LogForge templates for Palo Alto WildFire threat detection logs"]
+        "examples": ["MELTr templates for Palo Alto WildFire threat detection logs"]
       },
       "maintainers": {
         "type": "array",

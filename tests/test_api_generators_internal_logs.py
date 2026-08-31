@@ -25,7 +25,7 @@ def test_list_generators_with_internal_logs_enabled(tmp_path, monkeypatch) -> No
     """GET /api/generators succeeds when internal-logs generator is loaded."""
     monkeypatch.setenv("MELTR_HOME", str(tmp_path))
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
-    monkeypatch.delenv("LOGFORGE_API_KEY", raising=False)
+    monkeypatch.delenv("MELTR_API_KEY", raising=False)
 
     config = create_default_config(tmp_path)
     config.api.auth = AuthConfig(enabled=False, key=None)
