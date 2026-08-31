@@ -562,5 +562,5 @@ python -c "import yaml, json, jsonschema; data = yaml.safe_load(open('entities.y
 
 **Using MELTr CLI**:
 ```bash
-logforge entities validate
+meltr entities validate
 ```

@@ -38,7 +38,7 @@ def remove_service_pidfile(home: Path | None = None) -> None:
         pass
 
 
-def cmdline_suggests_logforge(pid: int) -> bool:
+def cmdline_suggests_meltr(pid: int) -> bool:
     """Best-effort check that pid is a MELTr service (Linux /proc)."""
     if sys.platform != "linux":
         return True
@@ -48,4 +48,4 @@ def cmdline_suggests_logforge(pid: int) -> bool:
     except (OSError, FileNotFoundError):
         return False
     cmd = raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").lower()
-    return "meltr" in cmd or "logforge" in cmd
+    return "meltr" in cmd

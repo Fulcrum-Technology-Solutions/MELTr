@@ -4,10 +4,10 @@
 
 ## Installation paths
 
-- **Wheel install:** The `logforge` binary is typically in the active virtualenv’s `bin/` or in `/usr/local/bin` / `/usr/bin`. Config and data live under **MELTR_HOME** (default: `~/.meltr` for interactive users without a bundle layout).
-- **Official `/opt/meltr` bundle:** Default **`MELTR_HOME` is `/opt/meltr`**; `service install` without `--home` sets that in the unit. **`/var/lib/logforge`** is only used when you pass **`--home /var/lib/logforge`** (or when no bundle layout applies and the process falls back as root).
-- **Service user:** The default service user is **meltr** (not `logforge`). The unit sets `User=meltr`, `Group=meltr`, and `Environment="MELTR_HOME=…"` to match **`--home`** or the bundle default.
-- **Log files:** For the bundled layout under `/opt/meltr`, application logs default to **`/opt/meltr/logs/meltr.log`** (with rotation), independent of `MELTR_HOME`. Other installs fall back to `MELTR_HOME/logs/meltr.log`. Operators can set **`LOGFORGE_LOG_FILE`** in the environment (e.g. systemd unit or `systemctl edit`) to override. The systemd unit also sends stdout/stderr to the journal.
+- **Wheel install:** The `meltr` binary is typically in the active virtualenv’s `bin/` or in `/usr/local/bin` / `/usr/bin`. Config and data live under **MELTR_HOME** (default: `~/.meltr` for interactive users without a bundle layout).
+- **Official `/opt/meltr` bundle:** Default **`MELTR_HOME` is `/opt/meltr`**; `service install` without `--home` sets that in the unit. **`/var/lib/meltr`** is only used when you pass **`--home /var/lib/meltr`** (or when no bundle layout applies and the process falls back as root).
+- **Service user:** The default service user is **meltr**. The unit sets `User=meltr`, `Group=meltr`, and `Environment="MELTR_HOME=…"` to match **`--home`** or the bundle default.
+- **Log files:** For the bundled layout under `/opt/meltr`, application logs default to **`/opt/meltr/logs/meltr.log`** (with rotation), independent of `MELTR_HOME`. Other installs fall back to `MELTR_HOME/logs/meltr.log`. Operators can set **`MELTR_LOG_FILE`** in the environment (e.g. systemd unit or `systemctl edit`) to override. The systemd unit also sends stdout/stderr to the journal.
 
 ### Wrong mount or split filesystem
 
@@ -18,16 +18,16 @@ If **`MELTR_HOME`** or **`/opt/meltr`** spans multiple mounts (e.g. bind mounts 
 ### 1. Check Systemd Journal Logs (Most Important)
 ```bash
 # View recent logs
-sudo journalctl -u logforge -n 50 --no-pager
+sudo journalctl -u meltr -n 50 --no-pager
 
 # Follow logs in real-time
-sudo journalctl -u logforge -f
+sudo journalctl -u meltr -f
 
 # View logs with timestamps
-sudo journalctl -u logforge --since "5 minutes ago" --no-pager
+sudo journalctl -u meltr --since "5 minutes ago" --no-pager
 
 # View full error details
-sudo journalctl -u logforge -n 100 --no-pager | grep -i error
+sudo journalctl -u meltr -n 100 --no-pager | grep -i error
 ```
 
 ### 2. Check Service Status
@@ -44,8 +44,8 @@ cat /etc/systemd/system/meltr.service
 ### 3. Verify Installation
 ```bash
 # Binary location (venv or /usr/local/bin when installed from wheel)
-which logforge
-logforge --version
+which meltr
+meltr --version
 meltr service status
 ```
 
@@ -54,7 +54,7 @@ meltr service status
 echo $MELTR_HOME
 
 # Common locations
-ls -la /var/lib/meltr/ 2>/dev/null || ls -la ~/.meltr/ 2>/dev/null || ls -la ./.logforge/ 2>/dev/null
+ls -la /var/lib/meltr/ 2>/dev/null || ls -la ~/.meltr/ 2>/dev/null || ls -la ./.meltr/ 2>/dev/null
 
 # Config and log file
 ls -la /var/lib/meltr/config.yaml 2>/dev/null
@@ -64,10 +64,10 @@ ls -la /var/lib/meltr/logs/meltr.log 2>/dev/null
 ### 5. Test Manual Execution
 ```bash
 # As service user (meltr)
-sudo -u meltr logforge api start
+sudo -u meltr meltr api start
 
 # Or run directly to see errors
-logforge api start
+meltr api start
 ```
 
 ### 6. Check User and Permissions
@@ -79,8 +79,8 @@ ls -la /var/lib/meltr/
 
 ### 7. Validate Configuration
 ```bash
-logforge config validate
-logforge config show
+meltr config validate
+meltr config show
 ```
 
 ### 8. Check Dependencies
@@ -94,13 +94,13 @@ python3 -c "import meltr; print('OK')"
 ```bash
 grep WorkingDirectory /etc/systemd/system/meltr.service
 grep -E "ExecStart|WorkingDirectory|Environment" /etc/systemd/system/meltr.service
-df -h /var/lib/logforge
+df -h /var/lib/meltr
 ```
 
 ### 10. Test with Debug Output
 ```bash
-sudo -u meltr PYTHONUNBUFFERED=1 logforge api start
-python3 -v -m logforge api start 2>&1 | head -50
+sudo -u meltr PYTHONUNBUFFERED=1 meltr api start
+python3 -v -m meltr api start 2>&1 | head -50
 ```
 
 ## Common Issues and Solutions
@@ -111,27 +111,27 @@ python3 -v -m logforge api start 2>&1 | head -50
 
 ### Issue: "Permission denied" errors
 **Solution:**
-- Ensure MELTR_HOME (e.g. `/var/lib/logforge`) is owned by the service user:
+- Ensure MELTR_HOME (e.g. `/var/lib/meltr`) is owned by the service user:
   ```bash
-  sudo chown -R meltr:meltr /var/lib/logforge
+  sudo chown -R meltr:meltr /var/lib/meltr
   ```
 
 ### Issue: "Config file not found"
 **Solution:**
-- Run init. As a normal user: `meltr init --directory /var/lib/logforge --force` only works if you can write that path; otherwise use `sudo` or init as `meltr` after `chown`.
+- Run init. As a normal user: `meltr init --directory /var/lib/meltr --force` only works if you can write that path; otherwise use `sudo` or init as `meltr` after `chown`.
   ```bash
-  sudo logforge init --directory /var/lib/logforge --user meltr --group meltr --force
+  sudo meltr init --directory /var/lib/meltr --user meltr --group meltr --force
   # If meltr exists and the tree is writable as meltr:
-  sudo -u meltr env MELTR_HOME=/var/lib/logforge logforge init --directory /var/lib/logforge --force
+  sudo -u meltr env MELTR_HOME=/var/lib/meltr meltr init --directory /var/lib/meltr --force
   ```
 
 ### Issue: "MELTR_HOME not set correctly"
 **Solution:**
 - Ensure the systemd unit sets MELTR_HOME. Reinstall the service with explicit home:
   ```bash
-  sudo meltr service install --home /var/lib/logforge --user meltr
+  sudo meltr service install --home /var/lib/meltr --user meltr
   ```
-  Or edit the unit and add `Environment="MELTR_HOME=/var/lib/logforge"`, then `sudo systemctl daemon-reload`.
+  Or edit the unit and add `Environment="MELTR_HOME=/var/lib/meltr"`, then `sudo systemctl daemon-reload`.
 
 ## Viewing HTTP Output Errors
 
@@ -174,26 +174,26 @@ tail -n 50 ${MELTR_HOME}/meltr.log | grep -i "http output"
 
 ```bash
 # View HTTP output errors in journal
-sudo journalctl -u logforge | grep -i "http output"
+sudo journalctl -u meltr | grep -i "http output"
 
 # Follow HTTP errors in real-time
-sudo journalctl -u logforge -f | grep -i "http output"
+sudo journalctl -u meltr -f | grep -i "http output"
 
 # View only HTTP errors and warnings
-sudo journalctl -u logforge -n 100 --no-pager | grep -E "ERROR|WARNING.*http output"
+sudo journalctl -u meltr -n 100 --no-pager | grep -E "ERROR|WARNING.*http output"
 
 # View connection failures
-sudo journalctl -u logforge | grep -iE "connection failed|connection error|timeout"
+sudo journalctl -u meltr | grep -iE "connection failed|connection error|timeout"
 
 # View HTTP initialization messages
-sudo journalctl -u logforge | grep -i "http output.*initialized"
+sudo journalctl -u meltr | grep -i "http output.*initialized"
 ```
 
 ### 3. Generator Status Command (Quick Overview)
 
 ```bash
 # View generator status with output handler details
-logforge generators status <generator-name>
+meltr generators status <generator-name>
 
 # Example output shows:
 # - Output handler health status (healthy/degraded/failed)
@@ -227,10 +227,10 @@ Generator: paloalto-wildfire-threats
 If you run MELTr directly (not as a service):
 ```bash
 # Run in foreground to see all logs
-logforge api start
+meltr api start
 
 # Or with environment variable to see HTTP debug info
-LOGFORGE_LOG_LEVEL=DEBUG logforge api start
+MELTR_LOG_LEVEL=DEBUG meltr api start
 ```
 
 ### 5. Log Levels for HTTP Debugging
@@ -260,8 +260,8 @@ logging:
 
 Or set environment variable:
 ```bash
-export LOGFORGE_LOG_LEVEL=DEBUG
-logforge api start
+export MELTR_LOG_LEVEL=DEBUG
+meltr api start
 ```
 
 ### 6. Real-Time Monitoring
@@ -274,7 +274,7 @@ tail -f ${MELTR_HOME}/meltr.log | grep --line-buffered -i "http output"
 tail -f ${MELTR_HOME}/meltr.log | grep --line-buffered -i "http output" | ccze -A
 
 # Monitor via journalctl
-sudo journalctl -u logforge -f | grep --line-buffered -i "http output"
+sudo journalctl -u meltr -f | grep --line-buffered -i "http output"
 ```
 
 ### 7. Common HTTP Error Messages
@@ -319,7 +319,7 @@ WARNING - HTTP output 'http-api-bearer': Buffer is 8500/10000 (85.0% full)
 
 ```bash
 # Check if HTTP handler is working
-logforge generators status <generator-name> | grep -A 10 "Output Status"
+meltr generators status <generator-name> | grep -A 10 "Output Status"
 
 # Check for recent HTTP errors
 tail -n 100 ${MELTR_HOME}/meltr.log | grep -E "ERROR.*http output|WARNING.*http output"
@@ -328,7 +328,7 @@ tail -n 100 ${MELTR_HOME}/meltr.log | grep -E "ERROR.*http output|WARNING.*http 
 grep "$(date -d '1 hour ago' +%Y-%m-%d)" ${MELTR_HOME}/meltr.log | grep -c "ERROR.*http output"
 
 # View HTTP statistics summary
-logforge generators status <generator-name> | grep -A 15 "Output Status"
+meltr generators status <generator-name> | grep -A 15 "Output Status"
 ```
 
 ## Quick Fix Script
@@ -342,15 +342,15 @@ echo "1. Service Status:"
 sudo systemctl status meltr --no-pager -l | head -20
 echo ""
 echo "2. Recent Logs:"
-sudo journalctl -u logforge -n 20 --no-pager
+sudo journalctl -u meltr -n 20 --no-pager
 echo ""
 echo "3. Binary Check:"
-which logforge && logforge --version || echo "Binary not found"
+which meltr && meltr --version || echo "Binary not found"
 echo ""
 echo "4. Config Check:"
-logforge config validate 2>&1 || echo "Config validation failed"
+meltr config validate 2>&1 || echo "Config validation failed"
 echo ""
 echo "5. Manual Test:"
-timeout 5 logforge api start 2>&1 || echo "Manual start failed"
+timeout 5 meltr api start 2>&1 || echo "Manual start failed"
 ```
 

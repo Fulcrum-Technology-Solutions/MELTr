@@ -37,7 +37,7 @@ from meltr.core.frequency import (
     calculate_rate_from_template_metadata,
 )
 from meltr.core.pidfile import (
-    cmdline_suggests_logforge,
+    cmdline_suggests_meltr,
     read_service_pid,
     remove_service_pidfile,
     write_service_pidfile,
@@ -189,16 +189,16 @@ def test_read_service_pid_invalid_content(tmp_path, monkeypatch):
     assert read_service_pid(home=tmp_path) is None
 
 
-def test_cmdline_suggests_logforge_non_linux():
+def test_cmdline_suggests_meltr_non_linux():
     with patch("meltr.core.pidfile.sys.platform", "darwin"):
-        assert cmdline_suggests_logforge(1) is True
+        assert cmdline_suggests_meltr(1) is True
 
 
-def test_cmdline_suggests_logforge_linux_missing_proc():
+def test_cmdline_suggests_meltr_linux_missing_proc():
     with patch("meltr.core.pidfile.sys.platform", "linux"):
         with patch("meltr.core.pidfile.Path") as path_cls:
             path_cls.return_value.read_bytes.side_effect = FileNotFoundError()
-            assert cmdline_suggests_logforge(99) is False
+            assert cmdline_suggests_meltr(99) is False
 
 
 # --- schedule edge cases ---

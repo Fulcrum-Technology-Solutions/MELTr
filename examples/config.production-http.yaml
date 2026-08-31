@@ -25,7 +25,7 @@ api:
 
 # Entity registry settings
 entity_registry:
-  path: ${LOGFORGE_HOME}/entities.yaml
+  path: ${MELTR_HOME}/entities.yaml
   auto_save: true
   save_interval: 60
   backup_enabled: true
@@ -33,11 +33,11 @@ entity_registry:
 
 # Template settings
 templates:
-  local_path: ${LOGFORGE_HOME}/templates
-  default_path: ${LOGFORGE_HOME}/templates/default
-  custom_path: ${LOGFORGE_HOME}/templates/custom
+  local_path: ${MELTR_HOME}/templates
+  default_path: ${MELTR_HOME}/templates/default
+  custom_path: ${MELTR_HOME}/templates/custom
   precedence: custom_first
-  community_api_url: https://logforge.io/api/v1
+  community_api_url: https://meltr.ftsc.cloud/api/v1
   auto_update_check: true
   cache_ttl: 3600
   auto_backup_on_customize: true
@@ -46,7 +46,7 @@ templates:
 # Logging settings
 logging:
   level: INFO
-  file: ${LOGFORGE_HOME}/meltr.log
+  file: ${MELTR_HOME}/meltr.log
   rotation:
     max_size: 52428800  # 50MB
     backup_count: 5
@@ -139,7 +139,7 @@ outputs:
     # Optional: Also output to file for local backup/monitoring
     # - name: file-backup
     #   type: file
-    #   path: ${LOGFORGE_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
+    #   path: ${MELTR_HOME}/outputs/{vendor}/{product}/{generator}-{date}.log
     #   rotation:
     #     type: size
     #     max_size: 104857600  # 100MB

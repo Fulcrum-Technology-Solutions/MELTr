@@ -8,7 +8,7 @@ from typing import Any
 import requests
 
 from meltr import __version__
-from meltr.core.paths import get_logforge_home
+from meltr.core.paths import get_meltr_home
 from meltr.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,9 +18,9 @@ def telemetry_enabled() -> bool:
     """
     Opt-out switch for CLI telemetry.
 
-    - MELTR_TELEMETRY=0 / false disables (LOGFORGE_TELEMETRY still accepted)
+    - MELTR_TELEMETRY=0 / false disables
     """
-    v = (os.getenv("MELTR_TELEMETRY") or os.getenv("LOGFORGE_TELEMETRY") or "").strip().lower()
+    v = (os.getenv("MELTR_TELEMETRY") or "").strip().lower()
     if v in {"0", "false", "no", "off"}:
         return False
     return True
@@ -28,7 +28,7 @@ def telemetry_enabled() -> bool:
 
 def _telemetry_state_path(home: Path | None = None) -> Path:
     if home is None:
-        home = get_logforge_home()
+        home = get_meltr_home()
     return home / "telemetry.json"
 
 

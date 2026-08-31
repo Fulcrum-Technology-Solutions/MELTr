@@ -45,7 +45,7 @@ class CommunityAPIClient:
 
     def __init__(
         self,
-        base_url: str = "https://logforge.io/api/v1",  # Default matches Templates-UI deployment
+        base_url: str = "https://meltr.ftsc.cloud/api/v1",  # Default community registry
         timeout: int = 30,
         max_retries: int = 3,
     ) -> None:

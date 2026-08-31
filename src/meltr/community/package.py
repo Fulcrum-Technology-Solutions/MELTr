@@ -456,7 +456,7 @@ def download_and_install_vendor(
     """
     # Create temporary directory for download if not provided
     if temp_dir is None:
-        temp_dir = Path(tempfile.mkdtemp(prefix="logforge-package-"))
+        temp_dir = Path(tempfile.mkdtemp(prefix="meltr-package-"))
         cleanup_temp = True
     else:
         temp_dir = Path(temp_dir)

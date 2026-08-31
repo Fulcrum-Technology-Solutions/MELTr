@@ -81,7 +81,7 @@ def setup_logging(config: Config | None = None, log_level: str | None = None) ->
             config.logging, "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
     else:
-        level = log_level or os.getenv("LOGFORGE_LOG_LEVEL", "INFO")
+        level = log_level or os.getenv("MELTR_LOG_LEVEL", "INFO")
         rotation_config = None
         format_str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         log_file = env_log_file

@@ -11,7 +11,7 @@ from meltr.core.config import Config
 
 
 def resolve_api_key(config: Config) -> str | None:
-    env = (os.getenv("MELTR_API_KEY") or os.getenv("LOGFORGE_API_KEY") or "").strip()
+    env = (os.getenv("MELTR_API_KEY") or "").strip()
     if env:
         return env
     key = (config.api.auth.key or "").strip() if config.api.auth.key else ""

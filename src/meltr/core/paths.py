@@ -13,8 +13,8 @@ def get_data_home_from_install_binary(bin_path: Path) -> Path | None:
     """Return ``<install>/data`` when *bin_path* is under a known install layout.
 
     Resolution:
-    - Tarball / vendor: ``…/opt/meltr`` or legacy ``…/opt/logforge`` → ``…/data``
-    - Repo-style: ``…/<project>/bin/meltr`` where project is meltr/logforge → ``<project>/data``
+    - Tarball / vendor: ``…/opt/meltr`` → ``…/data``
+    - Repo-style: ``…/<project>/bin/meltr`` where project is ``meltr`` → ``<project>/data``
     """
     try:
         resolved = bin_path.resolve()
@@ -23,7 +23,7 @@ def get_data_home_from_install_binary(bin_path: Path) -> Path | None:
 
     parts = resolved.parts
     for i, name in enumerate(parts):
-        if name.lower() not in ("meltr", "logforge"):
+        if name.lower() != "meltr":
             continue
         if i > 0 and parts[i - 1].lower() == "opt":
             install_dir = Path(*parts[: i + 1])
@@ -31,7 +31,7 @@ def get_data_home_from_install_binary(bin_path: Path) -> Path | None:
                 return (install_dir / "data").resolve()
 
     parent_project = resolved.parent.parent.name.lower()
-    if parent_project in ("meltr", "logforge"):
+    if parent_project == "meltr":
         install_dir = resolved.parent.parent
         if install_dir.exists():
             return (install_dir / "data").resolve()
@@ -52,9 +52,9 @@ def _meltr_binary_candidates() -> list[Path]:
     raw: list[Path] = []
     if sys.argv and sys.argv[0]:
         a0 = Path(sys.argv[0])
-        if a0.name.lower() in ("meltr", "logforge"):
+        if a0.name.lower() == "meltr":
             raw.append(a0)
-    for cmd in ("meltr", "logforge"):
+    for cmd in ("meltr",):
         w = shutil.which(cmd)
         if w:
             raw.append(Path(w))
@@ -71,8 +71,6 @@ def _meltr_binary_candidates() -> list[Path]:
     return out
 
 
-# Compat alias
-_logforge_binary_candidates = _meltr_binary_candidates
 
 
 def get_bundle_home_from_install_binary(bin_path: Path) -> Path | None:
@@ -105,25 +103,23 @@ def get_meltr_home() -> Path:
 
     Resolution order:
     1. MELTR_HOME environment variable
-    2. LOGFORGE_HOME environment variable (compat)
-    3. ./.meltr, ./.logforge, ./meltr, ./logforge in cwd (and parent)
-    4. Official bundle product root from running binary
-    5. ~/.meltr for interactive users (or ~/.logforge if it exists and ~/.meltr does not)
-    6. /opt/meltr for service accounts
+    2. ./.meltr or ./meltr in cwd (and parent)
+    3. Official bundle product root from running binary
+    4. ~/.meltr for interactive users
+    5. /opt/meltr for service accounts
     """
-    for env_name in ("MELTR_HOME", "LOGFORGE_HOME"):
-        env_home = os.getenv(env_name)
-        if env_home:
-            home_path = Path(env_home).expanduser().resolve()
-            _ensure_directory(home_path)
-            return home_path
+    env_home = os.getenv("MELTR_HOME")
+    if env_home:
+        home_path = Path(env_home).expanduser().resolve()
+        _ensure_directory(home_path)
+        return home_path
 
     cwd = Path.cwd()
-    for name in (".meltr", ".logforge", "meltr", "logforge"):
+    for name in (".meltr", "meltr"):
         local_home = cwd / name
         if local_home.exists() and local_home.is_dir():
             return local_home.resolve()
-    for name in (".meltr", ".logforge", "meltr", "logforge"):
+    for name in (".meltr", "meltr"):
         parent_home = cwd.parent / name
         if parent_home.exists() and parent_home.is_dir():
             return parent_home.resolve()
@@ -146,26 +142,21 @@ def get_meltr_home() -> Path:
     except (AttributeError, OSError):
         try:
             username = pwd.getpwuid(os.getuid()).pw_name
-            is_service_account = username in ("meltr", "logforge", "logmgr", "daemon", "nobody")
+            is_service_account = username in ("meltr", "logmgr", "daemon", "nobody")
         except (KeyError, AttributeError):
             is_service_account = False
 
     if is_service_account:
         home_path = Path("/opt/meltr")
     else:
-        meltr_home = Path.home() / ".meltr"
-        legacy = Path.home() / ".logforge"
-        if not meltr_home.exists() and legacy.exists() and legacy.is_dir():
-            home_path = legacy
-        else:
-            home_path = meltr_home
+        home_path = Path.home() / ".meltr"
 
     _ensure_directory(home_path)
     return home_path
 
 
 # Compat alias used by transitional code / Enterprise
-get_logforge_home = get_meltr_home
+get_meltr_home = get_meltr_home
 
 
 def get_pidfile_path(home: Path | None = None) -> Path:

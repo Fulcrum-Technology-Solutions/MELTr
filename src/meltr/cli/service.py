@@ -19,7 +19,7 @@ from meltr.cli.user_utils import ensure_service_user_and_group
 from meltr.core.paths import (
     get_bundle_home_from_install_binary,
     get_install_root_from_binary,
-    get_logforge_home,
+    get_meltr_home,
 )
 
 app = typer.Typer(name="service", help="Systemd service management")
@@ -57,41 +57,36 @@ WantedBy=multi-user.target
 
 
 def _get_meltr_binary_path() -> Path:
-    """Resolve path to the meltr (or legacy logforge) binary."""
-    for cmd in ("meltr", "logforge"):
-        found = shutil.which(cmd)
-        if found:
-            return Path(found).resolve()
+    """Resolve path to the meltr binary."""
+    found = shutil.which("meltr")
+    if found:
+        return Path(found).resolve()
 
     opt = Path("/opt")
     if opt.exists():
         for p in opt.iterdir():
-            if not (p.is_dir() and p.name.lower() in ("meltr", "logforge")):
+            if not (p.is_dir() and p.name.lower() == "meltr"):
                 continue
-            for name in ("meltr", "logforge"):
-                bundle_bin = p / "app" / "bin" / name
-                if bundle_bin.is_file():
-                    return bundle_bin.resolve()
-                venv_bin = p / ".venv" / "bin" / name
-                if venv_bin.exists():
-                    return venv_bin.resolve()
+            bundle_bin = p / "app" / "bin" / "meltr"
+            if bundle_bin.is_file():
+                return bundle_bin.resolve()
+            venv_bin = p / ".venv" / "bin" / "meltr"
+            if venv_bin.exists():
+                return venv_bin.resolve()
             break
 
     for path in (
         "/usr/local/bin/meltr",
         "/usr/bin/meltr",
-        "/usr/local/bin/logforge",
-        "/usr/bin/logforge",
     ):
         if Path(path).exists():
             return Path(path).resolve()
 
     venv = os.environ.get("VIRTUAL_ENV", "")
     if venv:
-        for name in ("meltr", "logforge"):
-            venv_bin = Path(venv) / "bin" / name
-            if venv_bin.exists():
-                return venv_bin.resolve()
+        venv_bin = Path(venv) / "bin" / "meltr"
+        if venv_bin.exists():
+            return venv_bin.resolve()
 
     raise RuntimeError(
         "Could not find meltr binary. Install it system-wide or activate a virtual environment."
@@ -148,7 +143,7 @@ def service_install(
             home_path = Path(meltr_home).expanduser().resolve()
         else:
             bundle_home = get_bundle_home_from_install_binary(bin_path)
-            home_path = bundle_home if bundle_home is not None else get_logforge_home()
+            home_path = bundle_home if bundle_home is not None else get_meltr_home()
 
         if not bin_path.exists():
             console.print(f"[red]Error: MELTr binary not found at {bin_path}[/red]")
@@ -191,11 +186,11 @@ def service_install(
             os.chown(home_path, service_uid, service_gid)
             parent = home_path.parent
             if parent.exists():
-                if parent.name.lower() in ("meltr", "logforge"):
+                if parent.name.lower() in ("meltr",):
                     os.chown(parent, service_uid, service_gid)
                 elif (
                     parent.name == "data"
-                    and parent.parent.name.lower() in ("meltr", "logforge")
+                    and parent.parent.name.lower() in ("meltr",)
                     and parent.parent.exists()
                 ):
                     os.chown(parent.parent, service_uid, service_gid)

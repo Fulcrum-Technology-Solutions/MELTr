@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LogForge template repository validator.
+meltr template repository validator.
 
 Validates a vendor template repository hierarchy against the JSON schemas in
 `schemas/` and reports PASS/WARN/FAIL statuses for each relevant file.
@@ -319,7 +319,7 @@ class TemplateRepositoryValidator:
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate a LogForge vendor template repository structure."
+        description="Validate a meltr vendor template repository structure."
     )
     parser.add_argument(
         "templates_root",
