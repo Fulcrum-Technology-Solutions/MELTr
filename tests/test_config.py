@@ -492,9 +492,7 @@ def test_save_config_reload_http_500_clarifies_disk_save(monkeypatch, tmp_path):
             return {"detail": "Reload config failed"}
 
         def raise_for_status(self):
-            raise requests.exceptions.HTTPError(
-                "500 Server Error", response=self
-            )
+            raise requests.exceptions.HTTPError("500 Server Error", response=self)
 
     class _Client:
         api_url = "http://127.0.0.1:8080"

@@ -1720,17 +1720,13 @@ def _save_config(config: Config) -> bool:
                 )
             except Exception as e:
                 reload_failed = True
-                console.print(
-                    f"[yellow]⚠ Live reload failed: {_format_apply_error(e)}[/yellow]"
-                )
+                console.print(f"[yellow]⚠ Live reload failed: {_format_apply_error(e)}[/yellow]")
                 console.print(
                     "[dim]  Saved config is on disk. Run 'meltr config reload' to apply manually.[/dim]"
                 )
         except Exception as e:
             reload_failed = True
-            console.print(
-                f"[yellow]⚠ Live reload failed: {_format_apply_error(e)}[/yellow]"
-            )
+            console.print(f"[yellow]⚠ Live reload failed: {_format_apply_error(e)}[/yellow]")
             console.print(
                 "[dim]  Saved config is on disk. Run 'meltr config reload' to apply manually.[/dim]"
             )
