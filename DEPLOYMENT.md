@@ -13,13 +13,17 @@ Use this when MELTr was installed from **`meltr-{version}-linux-x86_64.tar.gz`**
    `sudo tar czf ~/meltr-home-backup.tgz -C /opt meltr`  
    (adjust `-C` and paths to match your layout; preserve `config.yaml`, `entities.yaml`, `templates/`, etc.).
 3. **Download** the new `meltr-{version}-linux-x86_64.tar.gz` and verify checksums from [Releases](https://github.com/Fulcrum-Technology-Solutions/MELTr/releases).
-4. **Replace the install tree** (`python/`, `app/`) without deleting your data directory:
-   - If **`MELTR_HOME`** is **outside** the unpacked bundle, remove the old `python` and `app` directories (or the whole previous bundle folder) and unpack the new tarball into the same install root.
+4. **Replace the install tree** (`python/`, `app/`, `bin/`, `install.sh`) without deleting your data directory:
+   - If **`MELTR_HOME`** is **outside** the unpacked bundle, remove the old install dirs (or the whole previous bundle folder) and unpack the new tarball into the same install root.
    - If **`MELTR_HOME`** is **`/opt/meltr`** (state alongside `app/` and `python/`), move state aside before replacing the install tree, for example:  
      `sudo mv /opt/meltr/config.yaml /tmp/ && sudo mv /opt/meltr/entities.yaml /tmp/ && …`  
      or archive the whole directory except the install subdirs you replace; then restore after unpacking.
-5. Ensure **`PATH`** includes `/opt/meltr/app/bin` and that **systemd** still uses the bundled binary if you installed with  
-   `meltr service install --binary /opt/meltr/app/bin/meltr ...`.
+5. Refresh operator PATH helpers and confirm systemd uses the façade binary:
+   ```bash
+   sudo /opt/meltr/install.sh
+   # or: sudo meltr service install --user meltr --group meltr
+   # ExecStart should be /opt/meltr/bin/meltr (absolute); not bare `meltr`
+   ```
 6. **Start** the service: `sudo systemctl start meltr`
 
 ## Update Process for Test Machines
