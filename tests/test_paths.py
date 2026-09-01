@@ -15,6 +15,7 @@ from meltr.core.paths import (
     get_install_root_from_binary,
     get_meltr_home,
     get_templates_path,
+    prefer_operator_binary,
     validate_path_within_home,
 )
 
@@ -82,6 +83,53 @@ def test_get_install_root_from_binary_opt_layout(tmp_path):
     (tmp_path / "opt" / "meltr" / "data").mkdir(parents=True, exist_ok=True)
     expect_root = (tmp_path / "opt" / "meltr").resolve()
     assert get_install_root_from_binary(binfile) == expect_root
+
+
+def test_get_install_root_from_facade_bin(tmp_path):
+    """Operator façade …/meltr/bin/meltr → product root."""
+    bindir = tmp_path / "opt" / "meltr" / "bin"
+    bindir.mkdir(parents=True)
+    facade = bindir / "meltr"
+    facade.write_bytes(b"")
+    (tmp_path / "opt" / "meltr" / "data").mkdir(parents=True, exist_ok=True)
+    expect_root = (tmp_path / "opt" / "meltr").resolve()
+    assert get_install_root_from_binary(facade) == expect_root
+    assert get_data_home_from_install_binary(facade) == (expect_root / "data").resolve()
+
+
+def test_get_install_root_from_app_bin_non_opt(tmp_path):
+    """Implementation launcher under non-/opt product tree."""
+    bindir = tmp_path / "meltr" / "app" / "bin"
+    bindir.mkdir(parents=True)
+    binfile = bindir / "meltr"
+    binfile.write_bytes(b"")
+    (tmp_path / "meltr" / "data").mkdir(parents=True, exist_ok=True)
+    expect_root = (tmp_path / "meltr").resolve()
+    assert get_install_root_from_binary(binfile) == expect_root
+
+
+def test_prefer_operator_binary_uses_facade(tmp_path):
+    root = tmp_path / "opt" / "meltr"
+    app_bin = root / "app" / "bin"
+    app_bin.mkdir(parents=True)
+    impl = app_bin / "meltr"
+    impl.write_bytes(b"")
+    facade_dir = root / "bin"
+    facade_dir.mkdir(parents=True)
+    facade = facade_dir / "meltr"
+    facade.write_text("#!/bin/sh\n")
+    (root / "data").mkdir(parents=True, exist_ok=True)
+    assert prefer_operator_binary(impl) == facade.resolve()
+
+
+def test_prefer_operator_binary_falls_back_to_impl(tmp_path):
+    root = tmp_path / "opt" / "meltr"
+    app_bin = root / "app" / "bin"
+    app_bin.mkdir(parents=True)
+    impl = app_bin / "meltr"
+    impl.write_bytes(b"")
+    (root / "data").mkdir(parents=True, exist_ok=True)
+    assert prefer_operator_binary(impl) == impl.resolve()
 
 
 def test_default_application_log_file_uses_install_logs(tmp_path):

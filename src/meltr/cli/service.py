@@ -15,11 +15,13 @@ except ImportError:
 import typer
 from rich.console import Console
 
+from meltr.cli.path_helpers import write_operator_path_helpers
 from meltr.cli.user_utils import ensure_service_user_and_group
 from meltr.core.paths import (
     get_bundle_home_from_install_binary,
     get_install_root_from_binary,
     get_meltr_home,
+    prefer_operator_binary,
 )
 
 app = typer.Typer(name="service", help="Systemd service management")
@@ -57,19 +59,26 @@ WantedBy=multi-user.target
 
 
 def _get_meltr_binary_path() -> Path:
-    """Resolve path to the meltr binary."""
+    """Resolve path to the meltr binary (prefer product façade)."""
+    opt_facade = Path("/opt/meltr/bin/meltr")
+    if opt_facade.is_file():
+        return opt_facade.resolve()
+
     found = shutil.which("meltr")
     if found:
-        return Path(found).resolve()
+        return prefer_operator_binary(Path(found))
 
     opt = Path("/opt")
     if opt.exists():
         for p in opt.iterdir():
             if not (p.is_dir() and p.name.lower() == "meltr"):
                 continue
+            facade = p / "bin" / "meltr"
+            if facade.is_file():
+                return facade.resolve()
             bundle_bin = p / "app" / "bin" / "meltr"
             if bundle_bin.is_file():
-                return bundle_bin.resolve()
+                return prefer_operator_binary(bundle_bin)
             venv_bin = p / ".venv" / "bin" / "meltr"
             if venv_bin.exists():
                 return venv_bin.resolve()
@@ -80,7 +89,7 @@ def _get_meltr_binary_path() -> Path:
         "/usr/bin/meltr",
     ):
         if Path(path).exists():
-            return Path(path).resolve()
+            return prefer_operator_binary(Path(path))
 
     venv = os.environ.get("VIRTUAL_ENV", "")
     if venv:
@@ -125,7 +134,7 @@ def service_install(
     binary lives under that tree). Override with ``--home`` for another state directory.
     Use --user meltr --no-create-user when the user already exists.
     Example:
-        sudo meltr service install --user meltr --group meltr --binary /opt/meltr/app/bin/meltr
+        sudo meltr service install --user meltr --group meltr --binary /opt/meltr/bin/meltr
         sudo meltr service install --user meltr --group meltr --home /var/lib/meltr
     """
     _check_root()
@@ -135,7 +144,7 @@ def service_install(
         service_group = group or service_user
 
         if meltr_bin:
-            bin_path = Path(meltr_bin).expanduser().resolve()
+            bin_path = prefer_operator_binary(Path(meltr_bin).expanduser())
         else:
             bin_path = _get_meltr_binary_path()
 
@@ -153,6 +162,7 @@ def service_install(
         console.print(f"  Service user: {service_user}")
         console.print(f"  Service group: {service_group}")
         console.print(f"  MELTR_HOME: {home_path}")
+        console.print(f"  ExecStart binary: {bin_path}")
 
         home_path.mkdir(parents=True, exist_ok=True)
 
@@ -201,13 +211,21 @@ def service_install(
             app_log_dir.mkdir(parents=True, exist_ok=True)
             if service_uid is not None and (service_uid, service_gid) != (0, 0):
                 os.chown(app_log_dir, service_uid, service_gid)
+            try:
+                profile_path, wrapper_path = write_operator_path_helpers(install_root)
+                console.print(f"[green]✓ Wrote {profile_path}[/green]")
+                console.print(f"[green]✓ Wrote {wrapper_path}[/green]")
+            except FileNotFoundError as e:
+                console.print(f"[yellow]⚠ Skipping PATH helpers: {e}[/yellow]")
+            except OSError as e:
+                console.print(f"[yellow]⚠ Could not write PATH helpers: {e}[/yellow]")
         else:
             log_dir = Path("/var/log/meltr")
             log_dir.mkdir(parents=True, exist_ok=True)
             if service_uid is not None and (service_uid, service_gid) != (0, 0):
                 os.chown(log_dir, service_uid, service_gid)
 
-        # Create service file
+        # Create service file (absolute ExecStart — never bare `meltr`)
         service_content = SERVICE_FILE.format(
             meltr_home=str(home_path),
             meltr_bin=str(bin_path),

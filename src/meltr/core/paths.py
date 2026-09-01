@@ -14,7 +14,8 @@ def get_data_home_from_install_binary(bin_path: Path) -> Path | None:
 
     Resolution:
     - Tarball / vendor: ``…/opt/meltr`` → ``…/data``
-    - Repo-style: ``…/<project>/bin/meltr`` where project is ``meltr`` → ``<project>/data``
+    - Operator façade: ``…/<product>/bin/meltr`` → ``…/<product>/data``
+    - Implementation launcher: ``…/<product>/app/bin/meltr`` → ``…/<product>/data``
     """
     try:
         resolved = bin_path.resolve()
@@ -30,13 +31,38 @@ def get_data_home_from_install_binary(bin_path: Path) -> Path | None:
             if install_dir.exists():
                 return (install_dir / "data").resolve()
 
-    parent_project = resolved.parent.parent.name.lower()
-    if parent_project == "meltr":
+    # …/meltr/bin/meltr (Cribl/UF-style façade)
+    if resolved.parent.name == "bin" and resolved.parent.parent.name.lower() == "meltr":
         install_dir = resolved.parent.parent
         if install_dir.exists():
             return (install_dir / "data").resolve()
 
+    # …/meltr/app/bin/meltr (implementation launcher)
+    if (
+        resolved.parent.name == "bin"
+        and resolved.parent.parent.name == "app"
+        and resolved.parent.parent.parent.name.lower() == "meltr"
+    ):
+        install_dir = resolved.parent.parent.parent
+        if install_dir.exists():
+            return (install_dir / "data").resolve()
+
     return None
+
+
+def prefer_operator_binary(bin_path: Path) -> Path:
+    """Prefer ``<install>/bin/meltr`` façade when present next to a bundle binary."""
+    try:
+        resolved = bin_path.resolve()
+    except OSError:
+        return bin_path
+    root = get_install_root_from_binary(resolved)
+    if root is None:
+        return resolved
+    facade = root / "bin" / "meltr"
+    if facade.is_file():
+        return facade.resolve()
+    return resolved
 
 
 def get_install_root_from_binary(bin_path: Path) -> Path | None:

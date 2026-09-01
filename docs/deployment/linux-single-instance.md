@@ -36,13 +36,15 @@ pip install meltr
 
 Or install from a wheel: `pip install /path/to/meltr-*.whl`.
 
-2. Put `meltr` on your PATH for interactive use (optional but convenient):
+2. Put `meltr` on your PATH for interactive use (optional but convenient). For the **official tarball**, prefer `sudo /opt/meltr/install.sh` (façade at `/opt/meltr/bin/meltr` + profile.d + thin `/usr/local/bin` wrapper). For this **venv** layout:
 
 ```bash
 sudo ln -sf /opt/meltr/.venv/bin/meltr /usr/local/bin/meltr
 ```
 
-The [systemd install](../../src/meltr/cli/service.py) logic also discovers `/opt/meltr/.venv/bin/meltr` when installing the unit.
+(pip entry points use an absolute shebang, so that symlink is safe. Do **not** raw-symlink the tarball’s `app/bin/meltr` — use `install.sh`.)
+
+The [systemd install](../../src/meltr/cli/service.py) logic discovers `/opt/meltr/bin/meltr` (tarball façade), then `app/bin`, then `.venv/bin`.
 
 **Artifact note (pip path):** This section uses a **wheel** installed into a venv under `/opt/meltr`. For the **official `.tar.gz`** (embedded Python, no `pip` on the host), use [linux-tarball.md](linux-tarball.md). In both cases the mental model is “software tree under `/opt` + `MELTR_HOME` state directory.”
 
@@ -105,11 +107,11 @@ sudo meltr init --directory /var/lib/meltr --user meltr --group meltr --force
 2. Install the unit (uses `WorkingDirectory`, `MELTR_HOME`, `ExecStart=<meltr> api start`, journal logging, `LimitNOFILE=65536`). `service install` reloads systemd.
 
 ```bash
-# A: omit --home → unit sets MELTR_HOME=/opt/meltr
-sudo /opt/meltr/app/bin/meltr service install --user meltr --group meltr --binary /opt/meltr/app/bin/meltr
+# A: omit --home → unit sets MELTR_HOME=/opt/meltr; prefers /opt/meltr/bin/meltr
+sudo /opt/meltr/bin/meltr service install --user meltr --group meltr
 
 # B: explicit state directory
-# sudo meltr service install --user meltr --group meltr --home /var/lib/meltr --binary /opt/meltr/app/bin/meltr
+# sudo meltr service install --user meltr --group meltr --home /var/lib/meltr --binary /opt/meltr/bin/meltr
 
 sudo systemctl enable --now meltr
 ```

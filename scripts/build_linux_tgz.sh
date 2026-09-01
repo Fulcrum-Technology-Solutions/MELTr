@@ -96,16 +96,62 @@ mkdir -p "$APP_PREFIX/bin"
 SITE_PACKAGES="$(find "$APP_PREFIX/lib" -maxdepth 2 -type d -name site-packages 2>/dev/null | head -1)"
 [[ -n "$SITE_PACKAGES" && -d "$SITE_PACKAGES" ]] || die "site-packages not found under $APP_PREFIX/lib"
 
+# Symlink-safe implementation launcher (Linux tarball; readlink -f).
 cat > "$APP_PREFIX/bin/meltr" << 'WRAPPER'
 #!/usr/bin/env sh
 # Portable launcher: tarball may be installed under any path (e.g. /opt/meltr).
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# Resolve $0 through symlinks so /usr/local/bin links and PATH copies work.
+SCRIPT="$(readlink -f "$0")"
+ROOT="$(cd "$(dirname "$SCRIPT")/../.." && pwd)"
 PY="$ROOT/python/bin/python3.11"
 SITE="$ROOT/app/lib/python3.11/site-packages"
 export PYTHONPATH="$SITE${PYTHONPATH:+:$PYTHONPATH}"
 exec "$PY" -m meltr "$@"
 WRAPPER
 chmod 755 "$APP_PREFIX/bin/meltr"
+
+# Operator façade: $MELTR_HOME/bin/meltr (Cribl / Splunk UF-style).
+mkdir -p "$OUT_ROOT/bin"
+cat > "$OUT_ROOT/bin/meltr" << 'FACADE'
+#!/usr/bin/env sh
+SCRIPT="$(readlink -f "$0")"
+ROOT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
+exec "$ROOT/app/bin/meltr" "$@"
+FACADE
+chmod 755 "$OUT_ROOT/bin/meltr"
+
+# Post-extract helper: profile.d + thin /usr/local/bin wrapper (idempotent).
+cat > "$OUT_ROOT/install.sh" << 'INSTALL'
+#!/usr/bin/env sh
+# Install operator PATH helpers for this MELTr tree (requires root).
+set -eu
+SCRIPT="$(readlink -f "$0")"
+ROOT="$(cd "$(dirname "$SCRIPT")" && pwd)"
+FACADE="$ROOT/bin/meltr"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "ERROR: run as root (e.g. sudo $ROOT/install.sh)" >&2
+  exit 1
+fi
+if [ ! -x "$FACADE" ]; then
+  echo "ERROR: missing façade at $FACADE" >&2
+  exit 1
+fi
+
+mkdir -p /etc/profile.d
+printf 'export PATH="%s/bin:${PATH}"\n' "$ROOT" > /etc/profile.d/meltr.sh
+
+mkdir -p /usr/local/bin
+printf '#!/bin/sh\nexec "%s/bin/meltr" "$@"\n' "$ROOT" > /usr/local/bin/meltr
+chmod 755 /usr/local/bin/meltr
+
+echo "Wrote /etc/profile.d/meltr.sh and /usr/local/bin/meltr"
+echo "Next:"
+echo "  source /etc/profile.d/meltr.sh   # or open a new login shell"
+echo "  meltr init --force"
+echo "  sudo meltr service install --user meltr --group meltr"
+INSTALL
+chmod 755 "$OUT_ROOT/install.sh"
 
 # License files
 if [[ -f "$ROOT/LICENSE" ]]; then
@@ -150,7 +196,8 @@ cat > "$OUT_ROOT/README-TARBALL.md" << EOF
 # MELTr ${VERSION} (Linux x86_64 bundle)
 
 This archive contains an embedded CPython build (see PYTHON_PSF_LICENSE.txt), MELTr application
-code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/meltr\` launcher.
+code under \`app/lib/python3.11/site-packages\`, a portable \`app/bin/meltr\` launcher, and an
+operator façade at \`bin/meltr\` (Cribl / Splunk UF-style).
 
 **Source:** https://github.com/Fulcrum-Technology-Solutions/MELTr — build from tag \`v${VERSION}\`.
 
@@ -158,10 +205,13 @@ code under \`app/lib/python3.11/site-packages\`, and a portable \`app/bin/meltr\
 
 \`\`\`bash
 sudo tar xzf ${ARCHIVE_BASENAME}.tar.gz -C /opt   # creates /opt/meltr
-export PATH=/opt/meltr/app/bin:\$PATH
+sudo /opt/meltr/install.sh                          # profile.d + /usr/local/bin/meltr
 meltr init --force
 meltr start   # backgrounds on Linux; use --foreground to attach; or \`service install\` + systemctl
 \`\`\`
+
+CLI path: \`/opt/meltr/bin/meltr\` (also on PATH after \`install.sh\`). Do **not** raw-symlink
+\`app/bin/meltr\` into \`/usr/local/bin\` — use \`install.sh\` or the thin wrapper it installs.
 
 See \`docs/deployment/linux-tarball.md\` in the source tree for full operator documentation.
 

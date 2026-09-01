@@ -5,9 +5,28 @@
 ## Installation paths
 
 - **Wheel install:** The `meltr` binary is typically in the active virtualenv’s `bin/` or in `/usr/local/bin` / `/usr/bin`. Config and data live under **MELTR_HOME** (default: `~/.meltr` for interactive users without a bundle layout).
-- **Official `/opt/meltr` bundle:** Default **`MELTR_HOME` is `/opt/meltr`**; `service install` without `--home` sets that in the unit. **`/var/lib/meltr`** is only used when you pass **`--home /var/lib/meltr`** (or when no bundle layout applies and the process falls back as root).
-- **Service user:** The default service user is **meltr**. The unit sets `User=meltr`, `Group=meltr`, and `Environment="MELTR_HOME=…"` to match **`--home`** or the bundle default.
+- **Official `/opt/meltr` bundle:** Operator CLI is **`/opt/meltr/bin/meltr`**. Run `sudo /opt/meltr/install.sh` (or `meltr service install`) for `/etc/profile.d/meltr.sh` and a thin `/usr/local/bin/meltr` wrapper. Default **`MELTR_HOME` is `/opt/meltr`**; `service install` without `--home` sets that in the unit. **`/var/lib/meltr`** is only used when you pass **`--home /var/lib/meltr`** (or when no bundle layout applies and the process falls back as root).
+- **Service user:** The default service user is **meltr**. The unit sets `User=meltr`, `Group=meltr`, and `Environment="MELTR_HOME=…"` to match **`--home`** or the bundle default. `ExecStart` is always an absolute path (never bare `meltr`).
 - **Log files:** For the bundled layout under `/opt/meltr`, application logs default to **`/opt/meltr/logs/meltr.log`** (with rotation), independent of `MELTR_HOME`. Other installs fall back to `MELTR_HOME/logs/meltr.log`. Operators can set **`MELTR_LOG_FILE`** in the environment (e.g. systemd unit or `systemctl edit`) to override. The systemd unit also sends stdout/stderr to the journal.
+
+### `meltr: command not found` after tarball unpack
+
+```bash
+sudo /opt/meltr/install.sh
+source /etc/profile.d/meltr.sh
+# or: /usr/local/bin/meltr --version
+# or: /opt/meltr/bin/meltr --version
+```
+
+If `sudo meltr` fails but `/usr/local/bin/meltr` works, sudo’s `secure_path` may omit `/usr/local/bin` — call the absolute wrapper or adjust sudoers.
+
+### Cleaning PATH helpers after uninstall
+
+`meltr service uninstall` removes only the unit. To remove helpers:
+
+```bash
+sudo rm -f /etc/profile.d/meltr.sh /usr/local/bin/meltr
+```
 
 ### Wrong mount or split filesystem
 
