@@ -493,6 +493,20 @@ def test_community_client_search_all_templates_paginates():
     assert client.search_templates.call_count == 2
 
 
+def test_community_client_search_all_templates_respects_max_pages():
+    client = CommunityAPIClient(base_url="https://registry.test/api/v1")
+    # Misbehaving API: total stays high and every page returns a vendor.
+    client.search_templates = MagicMock(
+        side_effect=lambda **kwargs: {
+            "total": 1000,
+            "vendors": [{"id": f"v{kwargs['page']}", "products": []}],
+        }
+    )
+    with pytest.raises(CommunityAPIError, match="max_pages=3"):
+        client.search_all_templates(page_size=1, max_pages=3)
+    assert client.search_templates.call_count == 3
+
+
 def test_community_client_download_vendor_package(tmp_path):
     client = CommunityAPIClient(base_url="https://registry.test/api/v1")
 

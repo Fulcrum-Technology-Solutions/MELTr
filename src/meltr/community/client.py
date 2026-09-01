@@ -301,17 +301,22 @@ class CommunityAPIClient:
         data_source_id: str | None = None,
         template_id: str | None = None,
         page_size: int = 100,
+        max_pages: int = 50,
     ) -> dict[str, Any]:
         """Fetch every page of ``/community-templates``.
 
         The vendors list endpoint is a summary (no products). Compare, remote
         list, and install --list-vendors need the hierarchical search catalog.
+
+        Stops when a page is empty, when collected vendors reach ``total``, or
+        when ``max_pages`` is hit (guards against a bad/misbehaving ``total``).
         """
         page_size = min(max(page_size, 1), 100)
+        max_pages = max(max_pages, 1)
         page = 1
         vendors: list[dict[str, Any]] = []
         total = 0
-        while True:
+        while page <= max_pages:
             result = self.search_templates(
                 query=query,
                 vendor_id=vendor_id,
@@ -327,6 +332,11 @@ class CommunityAPIClient:
             if not batch or len(vendors) >= total:
                 break
             page += 1
+        else:
+            raise CommunityAPIError(
+                f"Community catalog pagination exceeded max_pages={max_pages} "
+                f"(collected={len(vendors)}, reported_total={total})"
+            )
         return {
             "total": total or len(vendors),
             "page": 1,
