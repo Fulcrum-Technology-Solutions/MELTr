@@ -6,6 +6,7 @@
 #   ./scripts/smoke.sh              # disposable MELTR_HOME under /tmp
 #   MELTR_HOME=~/.meltr ./scripts/smoke.sh   # reuse an existing home
 #   SMOKE_KEEP=1 ./scripts/smoke.sh # keep the temp home and leave API up
+#   SMOKE_SKIP_COMMUNITY=1 ./scripts/smoke.sh  # skip live registry pull
 #
 # Expects: editable install available (`meltr` on PATH or .venv activated).
 set -euo pipefail
@@ -82,6 +83,39 @@ fi
 echo "==> GET $health_url"
 curl -sf "$health_url"
 echo
+
+community_url="${MELTR_COMMUNITY_API_URL:-https://meltr.ftsc.cloud/api/v1}"
+community_url="${community_url%/}"
+if [ "${SMOKE_SKIP_COMMUNITY:-0}" = "1" ]; then
+  echo "==> skipping community registry (SMOKE_SKIP_COMMUNITY=1)"
+elif curl -sf --max-time 15 "$community_url/health" >/dev/null 2>&1; then
+  echo "==> community registry $community_url"
+  echo "==> meltr templates browse"
+  meltr templates browse
+  echo "==> meltr templates search apache"
+  meltr templates search apache
+  echo "==> meltr templates list --remote"
+  meltr templates list --remote --page-size 5
+  echo "==> meltr templates install apache --vendor"
+  meltr templates install apache --vendor --overwrite
+  apache_collection="$MELTR_HOME/templates/default/apache/httpd/collection.json"
+  if [ ! -f "$apache_collection" ]; then
+    echo "Community install did not write $apache_collection" >&2
+    exit 1
+  fi
+  echo "==> meltr templates check-updates"
+  meltr templates check-updates
+  echo "==> meltr templates compare"
+  compare_out="$(meltr templates compare --page-size 5)"
+  printf '%s\n' "$compare_out"
+  if printf '%s\n' "$compare_out" | grep -q "Available remotely: 0"; then
+    echo "templates compare reported 0 remote templates (registry catalog parse failed)" >&2
+    exit 1
+  fi
+  echo "Community pull OK"
+else
+  echo "==> community registry unreachable; skipping pull smoke ($community_url)"
+fi
 
 echo "Smoke OK"
 if [ "${SMOKE_KEEP:-0}" = "1" ]; then
