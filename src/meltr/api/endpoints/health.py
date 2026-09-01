@@ -244,6 +244,9 @@ async def reload_config(
 
         # Reload and apply changes
         results = engine.reload_config(new_config)
+        # Keep API auth/settings in sync (engine.config alone is not enough —
+        # require_api_key reads server.config).
+        server.config = new_config
 
         return {
             "status": "success",

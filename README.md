@@ -121,23 +121,31 @@ See [ecosystem glossary](docs/ecosystem-glossary.md) for shared terminology.
 
 ## API authentication
 
-Management routes require a Bearer token when authentication is active. **Key-implies-auth:** setting `MELTR_API_KEY` (or `MELTR_API_KEY`) enables auth even if `api.auth.enabled` is false in config.
+**Trust model:** loopback clients are trusted for local CLI management; remote
+clients need a Bearer token when auth is active. Full detail: [SECURITY.md](SECURITY.md).
+
+**Key-implies-auth:** setting `MELTR_API_KEY` (or `api.auth.key`) enables auth
+even if `api.auth.enabled` is false.
 
 | Route | Auth required |
 |-------|---------------|
 | `GET /api/health` | No (public liveness) |
-| All other `/api/*` routes | Yes, when auth is active |
+| Other `/api/*` from `127.0.0.1` / `::1` | No by default (`api.auth.exempt_loopback: true`) |
+| Other `/api/*` from remote clients | Yes, when auth is active |
 
 Configure in `config.yaml`:
 
 ```yaml
 api:
+  host: 127.0.0.1   # default; prefer loopback
   auth:
     enabled: true   # requires a key at startup
     key: "your-secret"  # optional if MELTR_API_KEY is set
+    exempt_loopback: true  # set false to require a key even for local CLI
 ```
 
-If `api.auth.enabled: true` and no key is configured (env or config), the API refuses to start. Send requests with `Authorization: Bearer <key>`.
+If `api.auth.enabled: true` and no key is configured (env or config), the API
+refuses to start. Remote clients send `Authorization: Bearer <key>`.
 
 ## Environment
 

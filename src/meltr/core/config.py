@@ -49,10 +49,20 @@ class AuthConfig(BaseModel):
     Key-implies-auth: authentication is active when ``enabled`` is true or when
     a non-empty API key is resolved from ``MELTR_API_KEY``,
     or ``key`` in config (env vars take precedence over config).
+
+    When ``exempt_loopback`` is true (default), clients connecting from
+    127.0.0.1 / ::1 skip the Bearer check so local CLI management works
+    without a token. Remote clients still require one. Set
+    ``exempt_loopback: false`` on shared hosts if every local process
+    must present a key.
     """
 
     enabled: bool = Field(default=False, description="Enable API key authentication")
     key: str | None = Field(default=None, description="API key (auto-generated if enabled)")
+    exempt_loopback: bool = Field(
+        default=True,
+        description="Skip API key check for loopback clients (local CLI)",
+    )
 
 
 class APIConfig(BaseModel):

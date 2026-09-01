@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from meltr.api.auth import auth_required, require_api_key, resolve_api_key
+from meltr.api.auth import auth_required, is_local_request, require_api_key, resolve_api_key
 from meltr.core.config import AuthConfig, create_default_config
 
 
@@ -61,7 +61,7 @@ def test_resolve_api_key_strips_whitespace(tmp_path, monkeypatch):
     assert resolve_api_key(cfg) == "secret"
 
 
-def _make_request(config, headers=None):
+def _make_request(config, headers=None, client_host="testclient"):
     app = MagicMock()
     server = MagicMock()
     server.config = config
@@ -72,6 +72,8 @@ def _make_request(config, headers=None):
         "path": "/",
         "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()],
         "app": app,
+        "client": (client_host, 12345),
+        "server": ("127.0.0.1", 8080),
     }
     return Request(scope)
 
@@ -82,6 +84,59 @@ async def test_require_api_key_skips_when_auth_not_required(tmp_path, monkeypatc
     monkeypatch.delenv("MELTR_API_KEY", raising=False)
     cfg = create_default_config(tmp_path)
     await require_api_key(_make_request(cfg))
+
+
+@pytest.mark.asyncio
+async def test_require_api_key_skips_for_loopback_without_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("MELTR_API_KEY", "secret")
+    cfg = create_default_config(tmp_path)
+    await require_api_key(_make_request(cfg, client_host="127.0.0.1"))
+    await require_api_key(_make_request(cfg, client_host="::1"))
+
+
+@pytest.mark.asyncio
+async def test_require_api_key_loopback_still_requires_token_when_exempt_disabled(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("MELTR_API_KEY", "secret")
+    cfg = create_default_config(tmp_path)
+    cfg.api.auth.exempt_loopback = False
+    with pytest.raises(HTTPException) as exc_info:
+        await require_api_key(_make_request(cfg, client_host="127.0.0.1"))
+    assert exc_info.value.status_code == 401
+    await require_api_key(
+        _make_request(cfg, {"Authorization": "Bearer secret"}, client_host="127.0.0.1")
+    )
+
+
+@pytest.mark.parametrize(
+    "client_host",
+    ["127.0.0.1", "::1", "localhost", "::ffff:127.0.0.1"],
+)
+def test_is_local_request_loopback_hosts(client_host):
+    cfg = MagicMock()
+    assert is_local_request(_make_request(cfg, client_host=client_host)) is True
+
+
+@pytest.mark.parametrize(
+    ("host", "expected"),
+    [
+        ("127.0.0.1", True),
+        ("::1", True),
+        ("localhost", True),
+        ("0.0.0.0", False),
+        ("192.168.1.10", False),
+    ],
+)
+def test_is_loopback_bind(host, expected):
+    from meltr.api.auth import is_loopback_bind
+
+    assert is_loopback_bind(host) is expected
+
+
+def test_is_local_request_rejects_remote_host():
+    cfg = MagicMock()
+    assert is_local_request(_make_request(cfg, client_host="203.0.113.10")) is False
 
 
 @pytest.mark.asyncio
@@ -218,3 +273,116 @@ def test_api_start_refuses_when_enabled_without_key(tmp_path, monkeypatch):
     server = APIServer(cfg)
     with pytest.raises(RuntimeError, match="API auth enabled but no API key"):
         server.start()
+
+
+def test_api_start_warns_when_non_loopback_with_exempt(tmp_path, monkeypatch, caplog):
+    import logging
+    import threading
+
+    from meltr.api.server import APIServer
+
+    monkeypatch.setenv("MELTR_API_KEY", "secret")
+    cfg = create_default_config(tmp_path)
+    cfg.api.enabled = True
+    cfg.api.host = "0.0.0.0"
+    cfg.api.auth = AuthConfig(enabled=False, key=None, exempt_loopback=True)
+    server = APIServer(cfg)
+
+    monkeypatch.setattr("meltr.api.server.time.sleep", lambda *_a, **_k: None)
+
+    class _NoopThread(threading.Thread):
+        def start(self):
+            return None
+
+        def is_alive(self):
+            return False
+
+    monkeypatch.setattr("meltr.api.server.threading.Thread", _NoopThread)
+
+    with caplog.at_level(logging.WARNING):
+        server.start()
+
+    messages = "\n".join(r.getMessage() for r in caplog.records)
+    assert "not loopback" in messages
+    assert "exempt_loopback" in messages
+
+
+def test_api_start_warns_when_loopback_with_exempt(tmp_path, monkeypatch, caplog):
+    import logging
+    import threading
+
+    from meltr.api.server import APIServer
+
+    monkeypatch.setenv("MELTR_API_KEY", "secret")
+    cfg = create_default_config(tmp_path)
+    cfg.api.enabled = True
+    cfg.api.host = "127.0.0.1"
+    cfg.api.auth = AuthConfig(enabled=False, key=None, exempt_loopback=True)
+    server = APIServer(cfg)
+
+    monkeypatch.setattr("meltr.api.server.time.sleep", lambda *_a, **_k: None)
+
+    class _NoopThread(threading.Thread):
+        def start(self):
+            return None
+
+        def is_alive(self):
+            return False
+
+    monkeypatch.setattr("meltr.api.server.threading.Thread", _NoopThread)
+
+    with caplog.at_level(logging.WARNING):
+        server.start()
+
+    messages = "\n".join(r.getMessage() for r in caplog.records)
+    assert "exempt_loopback=true" in messages
+    assert "reverse proxy" in messages.lower()
+
+
+def test_config_reload_updates_server_auth_settings(tmp_path, monkeypatch):
+    """Reload must refresh server.config so exempt_loopback takes effect."""
+    from fastapi.testclient import TestClient
+
+    from meltr.api.server import APIServer
+    from meltr.core.config import save_config
+    from meltr.core.engine import Engine
+    from meltr.entities.registry import EntityRegistry
+
+    monkeypatch.setenv("MELTR_API_KEY", "secret")
+    cfg = create_default_config(tmp_path)
+    cfg.api.auth = AuthConfig(enabled=False, key=None, exempt_loopback=True)
+    save_config(cfg)
+
+    server = APIServer(cfg)
+    registry = EntityRegistry(cfg)
+    engine = Engine(cfg, registry)
+    server.app.state.engine = engine
+    server.app.state.registry = registry
+    client = TestClient(server.app)
+
+    assert server.config.api.auth.exempt_loopback is True
+
+    cfg.api.auth.exempt_loopback = False
+    save_config(cfg)
+
+    reload_resp = client.post(
+        "/api/config/reload",
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert reload_resp.status_code == 200
+    assert server.config.api.auth.exempt_loopback is False
+    assert engine.config.api.auth.exempt_loopback is False
+
+
+@pytest.mark.asyncio
+async def test_exempt_loopback_false_honors_server_config_after_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("MELTR_API_KEY", "secret")
+    cfg = create_default_config(tmp_path)
+    cfg.api.auth.exempt_loopback = False
+    # Simulate require_api_key reading the post-reload server.config
+    await require_api_key(
+        _make_request(cfg, {"Authorization": "Bearer secret"}, client_host="127.0.0.1")
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        await require_api_key(_make_request(cfg, client_host="127.0.0.1"))
+    assert exc_info.value.status_code == 401

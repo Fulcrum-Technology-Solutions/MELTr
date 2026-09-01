@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
-from meltr.api.auth import resolve_api_key
+from meltr.api.auth import auth_required, is_loopback_bind, resolve_api_key
 from meltr.core.config import Config
 from meltr.utils.logging import get_logger
 
@@ -123,6 +123,29 @@ class APIServer:
 
         if self.config.api.auth.enabled and resolve_api_key(self.config) is None:
             raise RuntimeError("API auth enabled but no API key configured")
+
+        if auth_required(self.config) and self.config.api.auth.exempt_loopback:
+            if is_loopback_bind(api_config.host):
+                logger.warning(
+                    "api.auth.exempt_loopback=true: loopback clients skip the "
+                    "API key. Do not put a public reverse proxy in front of "
+                    "%s:%s without terminating auth at the proxy — proxied "
+                    "traffic would look local. Browser pages on this host can "
+                    "also reach the API without a Bearer token. Set "
+                    "exempt_loopback: false to require a key for all clients. "
+                    "See SECURITY.md.",
+                    api_config.host,
+                    api_config.port,
+                )
+            else:
+                logger.warning(
+                    "Management API is bound to %s (not loopback) with "
+                    "api.auth.exempt_loopback=true. Loopback clients skip the "
+                    "API key; remote clients still require one. Do not put a "
+                    "public reverse proxy in front of a loopback upstream "
+                    "without terminating auth at the proxy. See SECURITY.md.",
+                    api_config.host,
+                )
 
         self._thread_error = None
 

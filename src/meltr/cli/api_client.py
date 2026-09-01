@@ -10,6 +10,18 @@ from rich.markup import escape
 console = Console()
 
 
+def _resolve_default_api_key() -> str | None:
+    """Resolve API key from environment or on-disk config."""
+    try:
+        from meltr.api.auth import resolve_api_key
+        from meltr.core.config import load_config
+
+        return resolve_api_key(load_config(create_if_missing=False))
+    except Exception:
+        env = (os.getenv("MELTR_API_KEY") or "").strip()
+        return env or None
+
+
 def _get_default_api_url() -> str:
     """Get default API URL from config file or environment.
 
@@ -48,7 +60,7 @@ class APIClient:
             timeout: Request timeout in seconds
         """
         self.api_url = api_url or _get_default_api_url()
-        self.api_key = api_key or os.getenv("MELTR_API_KEY")
+        self.api_key = api_key or _resolve_default_api_key()
         self.timeout = timeout
         self.session = requests.Session()
 
