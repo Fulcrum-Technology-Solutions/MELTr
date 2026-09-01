@@ -331,7 +331,7 @@ def test_save_config_service_down_local_connection_refused_is_info(monkeypatch, 
         def post(self, *_a, **_k):
             raise AssertionError("reload should not be attempted when service is down")
 
-    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    fake_api_module = SimpleNamespace(get_api_client=lambda *a, **k: _Client())
     monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
@@ -376,7 +376,7 @@ def test_save_config_service_up_calls_reload(monkeypatch, tmp_path):
                 data={"results": {"added": [], "removed": [], "updated": [], "errors": []}},
             )
 
-    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    fake_api_module = SimpleNamespace(get_api_client=lambda *a, **k: _Client())
     monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
@@ -403,13 +403,13 @@ def test_save_config_timeout_keeps_warning_guidance(monkeypatch, tmp_path):
         def get(self, *_a, **_k):
             raise requests.exceptions.Timeout("timed out")
 
-    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    fake_api_module = SimpleNamespace(get_api_client=lambda *a, **k: _Client())
     monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
-    assert "timed out" in out.lower()
-    assert "Use 'meltr config reload'" in out
+    assert "live reload failed" in out.lower()
+    assert "meltr config reload" in out
 
 
 def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path):
@@ -432,13 +432,14 @@ def test_save_config_unexpected_apply_error_keeps_warning(monkeypatch, tmp_path)
         def get(self, *_a, **_k):
             raise RuntimeError("boom")
 
-    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    fake_api_module = SimpleNamespace(get_api_client=lambda *a, **k: _Client())
     monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
-    assert "Could not apply changes automatically" in out
-    assert "Use 'meltr config reload'" in out
+    assert "Live reload failed" in out
+    assert "Saved config is on disk" in out
+    assert "meltr config reload" in out
 
 
 def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_path):
@@ -461,9 +462,53 @@ def test_save_config_non_local_connection_error_stays_warning(monkeypatch, tmp_p
         def get(self, *_a, **_k):
             raise requests.exceptions.ConnectionError("temporary DNS failure")
 
-    fake_api_module = SimpleNamespace(get_api_client=lambda: _Client())
+    fake_api_module = SimpleNamespace(get_api_client=lambda *a, **k: _Client())
     monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
 
     assert config_editor._save_config(cfg) is True
     out = "\n".join(rendered)
-    assert "Could not connect to service at https://api.example.com" in out
+    assert "Live reload failed: could not connect to https://api.example.com" in out
+
+
+def test_save_config_reload_http_500_clarifies_disk_save(monkeypatch, tmp_path):
+    """HTTP 500 on reload should not imply save failed."""
+    from meltr.cli import config_editor
+
+    cfg = create_default_config(tmp_path)
+    rendered = []
+
+    monkeypatch.setattr(config_editor, "_preview_config", lambda *_a, **_k: None)
+    monkeypatch.setattr(config_editor.Confirm, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(config_editor, "save_config_file", lambda _cfg: None)
+    monkeypatch.setattr(
+        config_editor.console, "print", lambda msg="", *a, **k: rendered.append(str(msg))
+    )
+
+    class _Response:
+        status_code = 500
+        reason = "Internal Server Error"
+
+        def json(self):
+            return {"detail": "Reload config failed"}
+
+        def raise_for_status(self):
+            raise requests.exceptions.HTTPError("500 Server Error", response=self)
+
+    class _Client:
+        api_url = "http://127.0.0.1:8080"
+
+        def get(self, *_a, **_k):
+            return SimpleNamespace(status_code=200)
+
+        def post(self, *_a, **_k):
+            return _Response()
+
+    fake_api_module = SimpleNamespace(get_api_client=lambda *a, **k: _Client())
+    monkeypatch.setitem(__import__("sys").modules, "meltr.cli.api_client", fake_api_module)
+
+    assert config_editor._save_config(cfg) is True
+    out = "\n".join(rendered)
+    assert "Configuration saved to disk" in out
+    assert "Live reload failed: HTTP 500: Reload config failed" in out
+    assert "running service was not updated" in out
+    assert "Configuration saved successfully" not in out

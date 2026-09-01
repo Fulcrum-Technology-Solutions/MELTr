@@ -54,6 +54,29 @@ def _is_expected_local_service_down(api_url: str, error: Exception) -> bool:
     return any(marker in error_text for marker in refused_markers)
 
 
+def _format_apply_error(error: Exception) -> str:
+    """Format reload/apply failures for operator-facing CLI output."""
+    import requests
+
+    if isinstance(error, requests.exceptions.HTTPError) and error.response is not None:
+        response = error.response
+        detail: str | None = None
+        try:
+            body = response.json()
+            if isinstance(body, dict):
+                raw_detail = body.get("detail")
+                if isinstance(raw_detail, str):
+                    detail = raw_detail
+                elif raw_detail is not None:
+                    detail = str(raw_detail)
+        except Exception:
+            pass
+        if detail:
+            return f"HTTP {response.status_code}: {detail}"
+        return f"HTTP {response.status_code} {response.reason}"
+    return f"{type(error).__name__}: {error}"
+
+
 def config_editor(
     section: str | None = None,
     edit_existing: bool = True,
@@ -122,7 +145,6 @@ def config_editor(
                 _preview_config(config)
             elif choice == "7":
                 if _save_config(config):
-                    console.print("\n[green]✓ Configuration saved successfully![/green]")
                     break
             elif choice == "8":
                 if Confirm.ask("\n[yellow]Discard changes and exit?", default=False):
@@ -1602,60 +1624,76 @@ def _save_config(config: Config) -> bool:
 
         # Save to file
         save_config_file(config)
-        console.print("[green]✓ Configuration saved[/green]")
+        console.print("[green]✓ Configuration saved to disk[/green]")
 
         # Try to apply changes automatically (if service is running)
+        reload_failed = False
         try:
             import requests
 
+            from meltr.api.auth import resolve_api_key
             from meltr.cli.api_client import get_api_client
 
-            client = get_api_client()
+            client = get_api_client(api_key=resolve_api_key(config))
 
             # Check if service is running
             try:
                 health_response = client.get("/api/health", timeout=5.0)
                 if health_response.status_code == 200:
                     # Service is running, apply changes
-                    console.print("[cyan]Applying configuration changes...[/cyan]")
-                    reload_response = client.post("/api/config/reload", timeout=30.0)
-                    reload_response.raise_for_status()
-                    reload_data = reload_response.json()
+                    console.print("[cyan]Applying changes to running service...[/cyan]")
+                    try:
+                        reload_response = client.post("/api/config/reload", timeout=30.0)
+                        reload_response.raise_for_status()
+                        reload_data = reload_response.json()
 
-                    results = reload_data.get("results", {})
-                    added = results.get("added", [])
-                    removed = results.get("removed", [])
-                    updated = results.get("updated", [])
-                    errors = results.get("errors", [])
+                        results = reload_data.get("results", {})
+                        added = results.get("added", [])
+                        removed = results.get("removed", [])
+                        updated = results.get("updated", [])
+                        errors = results.get("errors", [])
 
-                    if added:
-                        console.print(
-                            f"[green]✓ Started {len(added)} new generator(s): {', '.join(added)}[/green]"
-                        )
-                    if removed:
-                        console.print(
-                            f"[yellow]✓ Stopped {len(removed)} removed generator(s): {', '.join(removed)}[/yellow]"
-                        )
-                    if updated:
-                        console.print(
-                            f"[cyan]✓ Updated {len(updated)} generator(s): {', '.join(updated)}[/cyan]"
-                        )
-                    if errors:
-                        console.print("[red]⚠ Errors during reload:[/red]")
-                        for error in errors:
-                            console.print(f"  [red]- {error}[/red]")
+                        if added:
+                            console.print(
+                                f"[green]✓ Started {len(added)} new generator(s): {', '.join(added)}[/green]"
+                            )
+                        if removed:
+                            console.print(
+                                f"[yellow]✓ Stopped {len(removed)} removed generator(s): {', '.join(removed)}[/yellow]"
+                            )
+                        if updated:
+                            console.print(
+                                f"[cyan]✓ Updated {len(updated)} generator(s): {', '.join(updated)}[/cyan]"
+                            )
+                        if errors:
+                            console.print("[red]⚠ Errors during reload:[/red]")
+                            for error in errors:
+                                console.print(f"  [red]- {error}[/red]")
 
-                    if not (added or removed or updated or errors):
+                        if not (added or removed or updated or errors):
+                            console.print(
+                                "[green]✓ Running service updated (no generator changes)[/green]"
+                            )
+                        else:
+                            console.print("[green]✓ Running service updated[/green]")
+                    except requests.exceptions.HTTPError as e:
+                        reload_failed = True
                         console.print(
-                            "[green]✓ Configuration applied (no generator changes)[/green]"
+                            f"[yellow]⚠ Live reload failed: {_format_apply_error(e)}[/yellow]"
                         )
-                    else:
                         console.print(
-                            "[green]✓ Configuration changes applied successfully![/green]"
+                            "[dim]  Saved config is on disk; the running service still has the previous config.[/dim]"
+                        )
+                        console.print(
+                            "[dim]  Run 'meltr config reload' or restart the service to apply.[/dim]"
                         )
                 else:
+                    reload_failed = True
                     console.print(
-                        f"[yellow]⚠ Service returned status {health_response.status_code}. Restart service to apply changes.[/yellow]"
+                        f"[yellow]⚠ Live reload skipped: service returned HTTP {health_response.status_code}[/yellow]"
+                    )
+                    console.print(
+                        "[dim]  Saved config is on disk. Restart the service or run 'meltr config reload'.[/dim]"
                     )
             except requests.exceptions.ConnectionError as e:
                 if _is_expected_local_service_down(client.api_url, e):
@@ -1664,34 +1702,39 @@ def _save_config(config: Config) -> bool:
                         "[dim]  Saved config will be loaded automatically on next start.[/dim]"
                     )
                 else:
+                    reload_failed = True
                     console.print(
-                        f"[yellow]⚠ Could not connect to service at {client.api_url}[/yellow]"
+                        f"[yellow]⚠ Live reload failed: could not connect to {client.api_url}[/yellow]"
                     )
-                    console.print(f"[yellow]  Error: {str(e)}[/yellow]")
+                    console.print(f"[dim]  {str(e)}[/dim]")
                     console.print(
-                        "[yellow]  Use 'meltr config reload' after starting the service.[/yellow]"
+                        "[dim]  Run 'meltr config reload' after starting the service.[/dim]"
                     )
             except requests.exceptions.Timeout:
+                reload_failed = True
                 console.print(
-                    "[yellow]⚠ Service health check timed out (service may be slow or unresponsive)[/yellow]"
+                    "[yellow]⚠ Live reload failed: service health check timed out[/yellow]"
                 )
                 console.print(
-                    "[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]"
+                    "[dim]  Saved config is on disk. Run 'meltr config reload' when the service is responsive.[/dim]"
                 )
             except Exception as e:
-                # Show actual error for debugging
+                reload_failed = True
+                console.print(f"[yellow]⚠ Live reload failed: {_format_apply_error(e)}[/yellow]")
                 console.print(
-                    f"[yellow]⚠ Could not apply changes automatically: {type(e).__name__}: {str(e)}[/yellow]"
-                )
-                console.print(
-                    "[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]"
+                    "[dim]  Saved config is on disk. Run 'meltr config reload' to apply manually.[/dim]"
                 )
         except Exception as e:
-            # API client not available or service not running
+            reload_failed = True
+            console.print(f"[yellow]⚠ Live reload failed: {_format_apply_error(e)}[/yellow]")
             console.print(
-                f"[yellow]⚠ Could not apply changes automatically: {type(e).__name__}: {str(e)}[/yellow]"
+                "[dim]  Saved config is on disk. Run 'meltr config reload' to apply manually.[/dim]"
             )
-            console.print("[yellow]  Use 'meltr config reload' to apply changes manually.[/yellow]")
+
+        if reload_failed:
+            console.print(
+                "\n[yellow]Configuration saved to disk, but the running service was not updated.[/yellow]"
+            )
 
         return True
     except Exception as e:
